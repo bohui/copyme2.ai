@@ -4,14 +4,45 @@ import {createPlaceWorkspace} from '../../../apps/web/client/memoir/place-worksp
 import {createFamilyWorkspace} from '../../../apps/web/client/memoir/family-workspace.mjs';
 import {buildMapMemoryJourney,cityEventCards} from '../../../apps/web/client/memoir/map-memory-journey.mjs';
 import {createMapMemoryEvents} from '../../../apps/web/client/memoir/map-memory-events.mjs';
-import {groupPlaces,mergePlaces} from '../../../apps/web/client/memoir/places.mjs';
+import {groupMapFrame,groupPlaces,mergePlaces} from '../../../apps/web/client/memoir/places.mjs';
+import {harness as mapImageryHarness} from './place-map-imagery.mjs';
 
 const {events,locations,places,grouping,snapshot,relative_current_home,estimated_current_home} = JSON.parse(readFileSync(0,'utf8'));
 const enriched = events.map(event => ({...event,canonical:true,map_places:locations[event.id].items.map(link => {
   const record=grouping[link.place.place].places[0];
   return {...link,place:{...link.place,map_city:record.city,map_city_key:record.city_key,map_pin:record.pin}};
 })}));
-const journey = buildMapMemoryJourney(enriched,groupPlaces(mergePlaces([...places,...enriched.flatMap(event=>event.map_places.map(link=>link.place))])));
+const groups=groupPlaces(mergePlaces([...places,...enriched.flatMap(event=>event.map_places.map(link=>link.place))]));
+const journey = buildMapMemoryJourney(enriched,groups);
+for (const provider of ['google','geoapify']) for (const group of groups) {
+  const frame=groupMapFrame(group,group.city);
+  assert.ok(Number.isFinite(frame.latitude) && Number.isFinite(frame.longitude));
+  const slow=await mapImageryHarness(provider,{journey:frame,projectId:snapshot.project_id,
+    placeKey:group.key,reducedMotion:false});
+  const pending=slow.imagery.requestImage(0,0,0);
+  slow.expireTileWait();
+  assert.equal(slow.unavailable.size,0,'Slow imagery must keep an API-backed city recoverable');
+  assert.equal(slow.viewer.view.destination.latitude,frame.latitude);
+  assert.equal(slow.viewer.view.destination.longitude,frame.longitude);
+  assert.equal(slow.viewer.view.destination.height,frame.height);
+  slow.resolveImage({width:256,height:256});await pending;slow.loadedTiles();
+  assert.equal(slow.classes.has('is-cesium-map'),true,'Late tiles must restore the canonical API city without reload');
+  assert.equal(slow.loads(),1);
+  assert.equal(slow.flights.length,0);
+  assert.equal(slow.viewer.scene.screenSpaceCameraController.enableInputs,true);
+
+  const ready=await mapImageryHarness(provider,{journey:frame,projectId:snapshot.project_id,
+    placeKey:group.key,reducedMotion:false});
+  const image=ready.imagery.requestImage(0,0,0);
+  ready.resolveImage({width:256,height:256});await image;ready.loadedTiles();
+  assert.equal(ready.flights.length,0,'An API-backed opening globe is not a preloaded city');
+  for (let i=0;!ready.flights.length && i<32;i++) ready.loadedTiles();
+  assert.equal(ready.flights.length,1);
+  assert.equal(ready.flights[0].options.destination.height,frame.height);
+  ready.viewer.completeFlight();ready.loadedTiles();
+  assert.equal(ready.classes.has('is-cesium-map'),true);
+  assert.equal(ready.flights.length,1,'The prepared API city must arrive without another zoom');
+}
 assert.equal(journey.nodes.length,2,'Both canonical API events need separate map cards');
 if (relative_current_home) {
   const groups=groupPlaces(enriched.flatMap(event=>event.map_places.map(link=>link.place)));

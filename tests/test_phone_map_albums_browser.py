@@ -106,7 +106,7 @@ def album_page(request):
     with sync_playwright() as pw:
         browser = pw.chromium.launch(headless=True)
         context = browser.new_context(viewport={'width':390,'height':844},
-            reduced_motion='no-preference' if mode in ('slow-flight','conversation-focus') else 'reduce', is_mobile=True, has_touch=True)
+            reduced_motion='no-preference' if mode in ('slow-flight','preload-flight','conversation-focus') else 'reduce', is_mobile=True, has_touch=True)
         context.add_cookies([{'name':'copyme2_ui_locale','value':'zh-CN','url':base}, {'name':'copyme2_ui_locale_source','value':'fixed','url':base}])
         def boundary(route):
             if route.request.url.startswith(base) or any(host in route.request.url for host in ('cesium.com/', 'fonts.googleapis.com/', 'fonts.gstatic.com/')):
@@ -126,11 +126,13 @@ def album_page(request):
             if mode == 'tile-error':
                 imagery += '''Cesium.Google2DImageryProvider.fromUrl=async()=>{const provider=new Cesium.GridImageryProvider();
                   provider.requestImage=()=>Promise.reject(new Error('Synthetic tile rejection'));return provider;};'''
-            if mode == 'slow-flight':
-                imagery += '''window.holdMapTiles=true;window.pendingMapTiles=[];window.mapFlights=[];window.finishedMapFlights=0;
+            if mode in ('slow-flight','preload-flight'):
+                imagery += '''window.holdMapTiles=true;window.pendingMapTiles=[];window.mapFlights=[];window.finishedMapFlights=0;window.flightTileRequests=[];
                   window.releaseMapTiles=()=>{window.holdMapTiles=false;pendingMapTiles.splice(0).forEach(resolve=>resolve());};
                   Cesium.Google2DImageryProvider.fromUrl=async()=>{const provider=new Cesium.GridImageryProvider(),request=provider.requestImage.bind(provider);
-                    provider.requestImage=(...args)=>{const image=request(...args);return window.holdMapTiles
+                    provider.requestImage=(...args)=>{if(window.mapFlights.length)flightTileRequests.push(args.slice(0,3));
+                      const result=request(...args),image=window.preloadBitmaps
+                        ? Promise.resolve(result).then(value=>createImageBitmap(value)) : result;return window.holdMapTiles
                       ? new Promise(resolve=>pendingMapTiles.push(()=>resolve(image))) : image;};return provider;};
                   const ViewerWithFlightTrace=Cesium.Viewer;
                   window.Cesium={...Cesium,Viewer:new Proxy(ViewerWithFlightTrace,{construct(target,args){
@@ -140,6 +142,13 @@ def album_page(request):
                       loaded:viewer.scene.globe.tilesLoaded,layers:viewer.imageryLayers.length});
                       window.holdMapTiles=true;return fly({...options,complete:()=>{window.finishedMapFlights++;options.complete?.();}});};
                     return viewer;}})};'''
+            if mode == 'preload-flight':
+                imagery += '''window.preloadBitmaps=true;window.preparedMapViews=[];const PreloadViewer=Cesium.Viewer;
+                  window.Cesium={...Cesium,Viewer:new Proxy(PreloadViewer,{construct(target,args){
+                    const viewer=Reflect.construct(target,args),setView=viewer.camera.setView.bind(viewer.camera);
+                    viewer.camera.setView=options=>{window.holdMapTiles=true;
+                      if(!window.mapFlights.length)preparedMapViews.push(viewer.scene.mode);
+                      return setView(options);};return viewer;}})};'''
             if mode == 'conversation-focus':
                 imagery += '''window.mapFlights??=[];window.mapViewerCount??=0;
                   const TracedViewer=Cesium.Viewer;
@@ -225,7 +234,7 @@ def album_page(request):
             assert page.evaluate('mapFlights.length') == 0
         elif mode in ('script-error', 'tile-error', 'missing-key'):
             expect(page.locator('[data-map-retry]')).to_be_visible(timeout=30000)
-        elif mode == 'slow-flight':
+        elif mode in ('slow-flight','preload-flight'):
             page.wait_for_function('window.pendingMapTiles?.length>0',timeout=30000)
         else:
             expect(page.locator('.place-journey-scene.is-cesium-map')).to_be_visible(timeout=30000)
@@ -235,26 +244,59 @@ def album_page(request):
 
 
 @pytest.mark.parametrize('album_page', ['slow-flight'], indirect=True)
-@pytest.mark.parametrize('width', [390, 1440])
-def test_opening_flight_waits_for_imagery_at_each_zoom_without_an_extra_arrival_zoom(album_page, width):
+def test_slow_map_tiles_recover_after_the_opening_deadline_without_reload(album_page):
     page, _, _ = album_page
-    page.set_viewport_size({'width':width,'height':960})
+    page.evaluate('window.slowMapViewer=window.__mapViewer')
+    page.wait_for_function('''() => !window.__mapViewer.isDestroyed()
+        && window.__mapViewer.scene.screenSpaceCameraController.enableInputs''', timeout=25000)
+    expect(page.locator('[data-map-retry]')).to_have_count(0)
+    assert page.evaluate('__mapViewer===slowMapViewer && __mapViewer.imageryLayers.length===1')
+    assert page.evaluate('__mapViewer.scene.mode===Cesium.SceneMode.SCENE2D')
+    assert page.evaluate('pendingMapTiles.length>0')
     assert page.evaluate('mapFlights.length') == 0
-    assert not page.evaluate('__mapViewer.scene.screenSpaceCameraController.enableInputs')
-    for stage in range(1, 4):
-        page.evaluate('releaseMapTiles()')
-        page.wait_for_function('(stage)=>mapFlights.length===stage',arg=stage,timeout=20000)
-        page.wait_for_function('(stage)=>finishedMapFlights===stage',arg=stage,timeout=15000)
-        assert page.evaluate('mapFlights.length') == stage
-        assert not page.locator('.place-journey-scene').evaluate("element=>element.classList.contains('is-cesium-map')")
-        page.wait_for_function('pendingMapTiles.length>0',timeout=5000)
     page.evaluate('releaseMapTiles()')
     expect(page.locator('.place-journey-scene.is-cesium-map')).to_be_visible(timeout=15000)
-    page.wait_for_timeout(1300)
+    assert page.evaluate('__mapViewer===slowMapViewer && __mapViewer.scene.globe.tilesLoaded')
+    assert page.evaluate('performance.getEntriesByType("navigation").length') == 1
+    assert page.evaluate('mapFlights.length') == 0
+    expect(page.locator('#chat-input')).to_be_enabled()
+    OUTPUT.mkdir(parents=True, exist_ok=True)
+    page.screenshot(path=str(OUTPUT/'slow-map-recovered.png'), full_page=True)
+
+
+@pytest.mark.parametrize('album_page', ['preload-flight'], indirect=True)
+@pytest.mark.parametrize('width', [390, 1440])
+def test_opening_flight_preloads_its_views_and_plays_without_tile_waits(album_page, width):
+    page, _, _ = album_page
+    page.set_viewport_size({'width':width,'height':960})
+    def wait_for_tiles_or_flight():
+        try:
+            page.wait_for_function('pendingMapTiles.length>0 || mapFlights.length>0', timeout=15000)
+        except Exception:
+            print(page.evaluate('''() => ({pending:pendingMapTiles.length,flights:mapFlights,
+              views:preparedMapViews,loaded:__mapViewer.scene.globe.tilesLoaded,
+              inputs:__mapViewer.scene.screenSpaceCameraController.enableInputs,
+              mode:__mapViewer.scene.mode,classes:document.querySelector('.place-journey-scene')?.className,
+              retry:!!document.querySelector('[data-map-retry]')})'''))
+            raise
+    assert page.evaluate('mapFlights.length') == 0
+    assert not page.evaluate('__mapViewer.scene.screenSpaceCameraController.enableInputs')
+    prepared = 0
+    while page.evaluate('mapFlights.length') == 0 and prepared < 40:
+        wait_for_tiles_or_flight()
+        if page.evaluate('mapFlights.length'):
+            break
+        page.evaluate('releaseMapTiles()')
+        wait_for_tiles_or_flight()
+        prepared += 1
+    assert 3 < prepared < 40
+    page.wait_for_function('finishedMapFlights===1', timeout=15000)
+    expect(page.locator('.place-journey-scene.is-cesium-map')).to_be_visible(timeout=15000)
     flights = page.evaluate('mapFlights')
-    assert len(flights) == 3, 'The event overlay must not start a second arrival zoom'
+    assert len(flights) == 1
     assert all(flight['loaded'] and flight['layers'] == 1 and flight['duration'] >= 2.8 for flight in flights)
-    assert flights[0]['height'] > flights[1]['height'] > flights[2]['height']
+    assert page.evaluate('flightTileRequests') == [], 'Flight imagery must already be cached'
+    assert page.evaluate('pendingMapTiles.length') == 0
     assert page.evaluate('__mapViewer.scene.globe.tilesLoaded')
     assert page.evaluate('__mapViewer.scene.screenSpaceCameraController.enableInputs')
     OUTPUT.mkdir(parents=True, exist_ok=True)

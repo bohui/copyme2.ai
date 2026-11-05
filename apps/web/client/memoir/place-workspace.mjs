@@ -564,6 +564,8 @@ export function createPlaceWorkspace({
       let viewer = null;
       let mapLayerReady = false;
       let mapLayerFailed = false;
+      let preparingFlight = false;
+      const flightImages = new Map();
       let stopOpening;
       try {
         viewer = new cesium.Viewer(container, {
@@ -633,8 +635,10 @@ export function createPlaceWorkspace({
         const halfFov = Math.min(frustum.fovy / 2, Math.atan(Math.tan(frustum.fovy / 2) * frustum.aspectRatio));
         const radius = viewer.scene.globe.ellipsoid.maximumRadius;
         const startHeight = radius * (1.15 / Math.sin(halfFov) - 1);
+        const startLongitude = container.dataset.cesiumPending ? 0 : longitude;
+        const startLatitude = container.dataset.cesiumPending ? 18 : latitude;
         viewer.camera.setView({
-          destination: cesium.Cartesian3.fromDegrees(0, 18, startHeight),
+          destination: cesium.Cartesian3.fromDegrees(startLongitude, startLatitude, startHeight),
           orientation: { heading: 0, pitch: -Math.PI / 2, roll: 0 },
         });
         container.closest(".place-journey-scene")?.classList.add("is-cesium-live");
@@ -663,6 +667,7 @@ export function createPlaceWorkspace({
         };
         let nextStage, renderedFrames = 0, stallTimer, openingStopped = false;
         const controller = viewer.scene.screenSpaceCameraController;
+        const preloadSiblings = viewer.scene.globe.preloadSiblings;
         controller.enableInputs = false;
         const currentMap = () => container.isConnected && !viewer.isDestroyed()
           && state.project?.id === projectId && cesiumPlaceJourneyViewer === viewer;
@@ -677,6 +682,9 @@ export function createPlaceWorkspace({
         });
         stopOpening = () => {
           openingStopped = true;
+          preparingFlight = false;
+          flightImages.clear();
+          if (!viewer.isDestroyed()) viewer.scene.globe.preloadSiblings = preloadSiblings;
           nextStage = null;
           clearTimeout(stallTimer);
           removeTileCheck();
@@ -689,29 +697,60 @@ export function createPlaceWorkspace({
           nextStage = next;
           renderedFrames = 0;
           clearTimeout(stallTimer);
-          stallTimer = setTimeout(showImageryFallback, 20000);
+          stallTimer = setTimeout(() => {
+            if (openingStopped || !currentMap()) { stopOpening(); return; }
+            // A slow response can still arrive; release controls and keep its layer alive.
+            preparingFlight = false;
+            flightImages.clear();
+            viewer.scene.globe.preloadSiblings = preloadSiblings;
+            controller.enableInputs = true;
+            if (!container.dataset.cesiumPending) {
+              viewer.scene.morphTo2D(0);
+              viewer.camera.setView({destination:cesium.Cartesian3.fromDegrees(longitude, latitude, finalMapHeight), orientation});
+              nextStage = finishOpening;
+              renderedFrames = 0;
+            }
+            container.closest(".place-journey-scene")?.classList.add("is-cesium-live");
+            container.parentElement.querySelector(".place-journey-fallback")?.setAttribute("aria-hidden", "true");
+            viewer.scene.requestRender();
+          }, 20000);
           viewer.scene.requestRender();
         };
         const finishOpening = () => {
           mapMemoryEvents.rememberFlight(container.dataset.placeKey);
+          container.closest(".place-journey-scene")?.classList.add("is-cesium-live");
           container.closest(".place-journey-scene")?.classList.add("is-cesium-map");
           stopOpening();
           viewer.scene.requestRender();
         };
         const orientation = { heading: 0, pitch: -Math.PI / 2, roll: 0 };
-        const descend = height => {
-          const nextHeight = Math.max(finalMapHeight, height / 4);
-          viewer.camera.flyTo({
-            destination: cesium.Cartesian3.fromDegrees(longitude, latitude, nextHeight),
-            orientation, duration: 2.8, easingFunction: cesium.EasingFunction.QUADRATIC_IN_OUT,
-            complete: () => whenTilesLoaded(() => nextHeight === finalMapHeight ? finishOpening() : descend(nextHeight)),
+        const roadMap = () => {
+          viewer.scene.morphTo2D(0);
+          viewer.camera.setView({destination:cesium.Cartesian3.fromDegrees(longitude, latitude, finalMapHeight), orientation});
+          whenTilesLoaded(finishOpening);
+        };
+        const startPreparedFlight = () => {
+          preparingFlight = false;
+          viewer.scene.globe.preloadSiblings = preloadSiblings;
+          viewer.camera.setView({destination:cesium.Cartesian3.fromDegrees(longitude, latitude, startHeight), orientation});
+          whenTilesLoaded(() => {
+            container.closest(".place-journey-scene")?.classList.add("is-cesium-live");
+            container.parentElement.querySelector(".place-journey-fallback")?.setAttribute("aria-hidden", "true");
+            mapMemoryEvents.rememberFlight(container.dataset.placeKey);
+            viewer.camera.flyTo({
+              destination:cesium.Cartesian3.fromDegrees(longitude, latitude, finalMapHeight), orientation,
+              maximumHeight:startHeight,
+              duration:Math.max(2.8, Math.min(9, Number(container.dataset.cesiumDuration || 5200) / 1000)),
+              easingFunction:cesium.EasingFunction.QUADRATIC_IN_OUT,
+              complete:roadMap,
+            });
           });
         };
-        const roadMap = height => {
-          // Change projection at the same scale, then load detail before descending again.
-          viewer.scene.morphTo2D(0);
-          viewer.camera.setView({destination:cesium.Cartesian3.fromDegrees(longitude, latitude, height), orientation});
-          whenTilesLoaded(() => height === finalMapHeight ? finishOpening() : descend(height));
+        let preloadHeight = startHeight;
+        const prepareZoom = () => {
+          preloadHeight = Math.max(finalMapHeight, preloadHeight / Math.SQRT2);
+          viewer.camera.setView({destination:cesium.Cartesian3.fromDegrees(longitude, latitude, preloadHeight), orientation});
+          whenTilesLoaded(preloadHeight === finalMapHeight ? startPreparedFlight : prepareZoom);
         };
         if (container.dataset.cesiumPending) {
           whenTilesLoaded(() => {
@@ -719,17 +758,22 @@ export function createPlaceWorkspace({
             stopOpening();
           });
         } else if (window.matchMedia("(prefers-reduced-motion: reduce)").matches || mapMemoryEvents.hasAnimatedCity(container.dataset.placeKey)) {
-          roadMap(finalMapHeight);
+          roadMap();
         } else {
-          const regionalHeight = Math.max(finalMapHeight, Math.min(800000, finalMapHeight * 16));
+          preparingFlight = true;
+          // Neighbouring tiles cover the view bounds between prepared zoom levels.
+          viewer.scene.globe.preloadSiblings = true;
           whenTilesLoaded(() => {
-            // A background repaint must not restart an opening flight already underway.
-            mapMemoryEvents.rememberFlight(container.dataset.placeKey);
-            viewer.camera.flyTo({
-              destination: cesium.Cartesian3.fromDegrees(longitude, latitude, regionalHeight), orientation,
-              duration: Math.max(2.8, Math.min(9, Number(container.dataset.cesiumDuration || 5200) / 1000)),
-              easingFunction: cesium.EasingFunction.QUADRATIC_IN_OUT,
-              complete: () => whenTilesLoaded(() => roadMap(regionalHeight)),
+            const scene = container.closest(".place-journey-scene");
+            const fallback = container.parentElement.querySelector(".place-journey-fallback");
+            // Hide preparation camera changes behind the existing map preview.
+            scene?.classList.remove("is-cesium-live");
+            fallback?.removeAttribute("aria-hidden");
+            viewer.scene.morphTo2D(0);
+            viewer.camera.setView({destination:cesium.Cartesian3.fromDegrees(longitude, latitude, finalMapHeight), orientation});
+            whenTilesLoaded(() => {
+              viewer.scene.morphTo3D(0);
+              prepareZoom();
             });
           });
         }
@@ -755,10 +799,12 @@ export function createPlaceWorkspace({
           layer.errorEvent.addEventListener(showImageryFallback);
           const requestImage = layer.requestImage.bind(layer);
           layer.requestImage = (...args) => {
+            const key = args.slice(0,3).join(":");
+            if (flightImages.has(key)) return flightImages.get(key);
             const request = requestImage(...args);
             // Undefined means Cesium throttled the request; preserve its retry contract.
             if (!request) return request;
-            return Promise.resolve(request).then(image => {
+            const pending = Promise.resolve(request).then(image => {
               if (image && !mapLayerFailed && container.isConnected && !viewer.isDestroyed()) {
                 mapLayerReady = true;
               }
@@ -767,6 +813,8 @@ export function createPlaceWorkspace({
               showImageryFallback();
               throw error;
             });
+            if (preparingFlight) flightImages.set(key,pending);
+            return pending;
           };
           mapLayer = viewer.imageryLayers.addImageryProvider(layer);
         }).catch(showImageryFallback);
