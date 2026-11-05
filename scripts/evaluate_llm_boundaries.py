@@ -43,7 +43,10 @@ async def execute(cases, output):
     async with httpx.AsyncClient(timeout=120, trust_env=False) as client:
         for case in cases:
             instructions, schema, payload = contract(case)
-            manifest = instruction_manifest(instructions, schema, variant='semantic-contract-evaluation')
+            prompt_name = {'extract': 'memoir/skills/author-timeline/extract',
+                'collector': 'memoir/agents/mira/reply', 'policy': 'memoir/agents/mira/policy-review'}[case['contract']]
+            manifest = instruction_manifest(instructions, schema, variant='semantic-contract-evaluation',
+                primary_name=prompt_name)
             response = await client.post(os.environ['MEMORY_SPARK_LLM_BASE_URL'].rstrip('/') + '/responses',
                 headers={'Authorization': 'Bearer ' + os.environ['MEMORY_SPARK_LLM_API_KEY']}, json={
                     'model': os.environ['MEMORY_SPARK_LLM_MODEL'], 'instructions': instructions,

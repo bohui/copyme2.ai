@@ -246,20 +246,15 @@ def run_stage(name, task_override=None, extra_inputs=None, *, dry_run=False):
     deferred_build=building and not dry_run and checkpoint.exists()
     paths=[config['skill']+'/SKILL.md']+[config['skill']+'/references/'+p for p in config['refs']]
     upstream={p:(SKILL/p).read_text() for p in paths}
-    def managed(name):
-        path=PROMPTS/(name+'.md')
-        if dry_run:
-            return path.read_text()
-        sys.path.insert(0,str(ROOT))
-        from apps.api.prompt_artifact import load_prompt_artifact
-        return load_prompt_artifact(path)
-    instructions=managed('adapter')+'\n\n'+'\n\n'.join('===== '+p+' =====\n'+v for p,v in upstream.items())
-    if name in ('concept','design','whitebox','art','production','production_style'):
-        instructions+='\n\n'+managed('journey')
+    sys.path.insert(0,str(ROOT))
+    from apps.api.prompt_composition import expanded_prompt, render_prompt_artifact
+    path=PROMPTS/(config['prompt']+'.md')
+    template=expanded_prompt(path, validate=not dry_run)
+    instructions=render_prompt_artifact(path, content=template, variables={
+        'upstream_instructions': '\n\n'.join('===== '+p+' =====\n'+v for p,v in upstream.items())})
     if building:
         if not (HERE/'design/JOURNEY_PLAN.json').is_file():
             raise ValueError('Generate and validate JOURNEY_PLAN.json before building')
-        instructions+='\n\n'+managed('assets')
         if deferred_build:
             # Compute the same request without changing a later build or seeding missing outputs.
             with tempfile.TemporaryDirectory(prefix='novel-game-checkpoint-') as scratch:
@@ -279,9 +274,13 @@ def run_stage(name, task_override=None, extra_inputs=None, *, dry_run=False):
     if extra_inputs:inputs.update(extra_inputs)
     # Send every source unit, with compact timeline metadata and stable internal citations.
     source=dict(title=public_source(packet)['title'],fictional=public_source(packet)['fictional'],chapters=packet['chapters'],timeline=[{k:v for k,v in e.items() if k!='source_refs'} for e in packet['timeline']],locale=packet['locale'])
-    user=dict(stage=name,task=task_override or managed(config['prompt']),format_contract=FORMAT,source=source,saved_artifacts=inputs,
+    user=dict(stage=name,format_contract=FORMAT,source=source,saved_artifacts=inputs,
         allowed_output_paths=config['outputs'],source_data_contract=dict(shape='{title,fictional,chapters:[{id,title,text}]}',
             chapter_ids=['C'+str(i+1) for i in range(len(packet['chapters']))],count=len(packet['chapters'])))
+    if task_override:
+        user['task']=task_override
+    if '{{upstream_instructions}}' not in template:
+        user['upstream_references']=upstream
     profile=HERE/'source/character-profile.json'
     if profile.exists():
         user['approved_character_profile']=json.loads(profile.read_text())

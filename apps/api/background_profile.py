@@ -4,7 +4,6 @@ from __future__ import annotations
 from copy import deepcopy
 from datetime import date
 import json
-from pathlib import Path
 from typing import Literal
 
 from pydantic import BaseModel, ConfigDict, Field
@@ -67,8 +66,9 @@ def profile_contract(page):
     ref = schema['$defs']['ProfileRef']['properties']
     ref['source_id']['enum'] = [packet['source']['id']]
     ref['version']['enum'] = [packet['source']['version']]
-    from .prompt_artifact import load_prompt_artifact
-    instructions = load_prompt_artifact(Path(__file__).resolve().parents[2] / 'skills/memoir-memory-context/SKILL.md')
+    from .prompt_artifact import prompt_path
+    from .prompt_composition import render_prompt_artifact
+    instructions = render_prompt_artifact(prompt_path('memoir/skills/memory-context/profile'))
     return instructions, schema
 
 

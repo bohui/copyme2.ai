@@ -32,14 +32,15 @@ def test_production_target_binds_the_executed_stage_and_its_adapters():
     target = bindings()['targets']['memoir/skills/story-game/production']
     prefix = 'memoir/skills/story-game/novel-to-game/'
     assert target['primary_prompt'] == prefix+'production'
-    assert {prefix+p for p in ('production','adapter','journey','assets')} <= set(target['evaluated_prompts'])
+    assert prefix+'production' in target['evaluated_prompts']
+    assert not {prefix+p for p in ('adapter', 'journey', 'assets')} & set(target['evaluated_prompts'])
 
 
-def test_missing_shared_component_is_rejected_even_if_the_primary_is_registered():
+def test_missing_primary_template_is_rejected_even_if_the_target_is_registered():
     cfg=bindings()
     target=cfg['targets']['memoir/skills/composer/review']
-    target['evaluated_prompts'].remove('memoir/skills/composer/shared/editorial-review')
-    with pytest.raises(ValueError,match='Missing composed prompt dependency'):
+    target['evaluated_prompts'].remove(target['primary_prompt'])
+    with pytest.raises(ValueError,match='Primary prompt missing'):
         validate(cfg,prompt_registry(include_unpublished=True))
 
 

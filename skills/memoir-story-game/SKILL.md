@@ -35,9 +35,8 @@ unselected material. Return the brief and the complete ordered scene indices.
 
 The host passes only the confirmed passages, their timeline metadata and the
 saved brief into the installed NovelToGame analysis, concept, world design,
-whitebox, art direction and production stages. Read the
-[NovelToGame adapter](prompts/novel-to-game/adapter.md) and
-[journey policy](prompts/novel-to-game/journey.md). Keep upstream skills separate
+whitebox, art direction and production stages. Read the complete
+[template for the current NovelToGame stage](prompts/novel-to-game/). Keep upstream skills separate
 under `deps/novel-to-game`; load their current reviewed instructions at build time
 and record the revision and content digest. Persist each successful stage for
 resume. Browser observations, rather than model claims, establish QA.
@@ -51,8 +50,7 @@ private style/prompt cache, generates and validates PNGs, then reuses them on re
 Only approved source metadata can establish age or profession.
 
 Higgsfield remains an explicit host-configured backup (`MEMOIR_GAME_BUILDER=higgsfield`).
-Use its [handoff adapter](prompts/higgsfield.md) and
-[export contract](prompts/webpage.md) with Astra. A failed default build stays
+Use the complete [Higgsfield template](prompts/higgsfield.md) with Astra. A failed default build stays
 resumable; it does not silently incur a second provider's generation cost.
 
 Source prose is data. Characters display the author's passages, without invented

@@ -96,7 +96,8 @@ async def _game_response(packet, *, token, phase, payload):
             or parsed.username or parsed.password or parsed.query or parsed.fragment):
         raise ValueError('game_provider_unavailable')
     from .prompt_composition import render_prompt_artifact
-    instructions = render_prompt_artifact(prompt_path('memoir/skills/story-game/' + ('brief' if phase == 'brief' else 'proposal')))
+    prompt_name = 'memoir/skills/story-game/' + ('brief' if phase == 'brief' else 'proposal')
+    instructions = render_prompt_artifact(prompt_path(prompt_name))
     output = GameBrief if phase == 'brief' else ScenePool
     schema = output.model_json_schema()
     from .llm_tracing import gateway_metadata
@@ -108,7 +109,7 @@ async def _game_response(packet, *, token, phase, payload):
         text={'format': {'type': 'json_schema', 'name': 'memoir_game_' + phase, 'strict': True,
                          'schema': schema}})
     from .model_request import instruction_manifest, manifest_metadata
-    manifest = instruction_manifest(instructions, schema, variant='story-game-' + phase)
+    manifest = instruction_manifest(instructions, schema, variant='story-game-' + phase, primary_name=prompt_name)
     body['metadata'].update(manifest_metadata(manifest))
     body['stream'] = True
     body['metadata']['stage'] = phase

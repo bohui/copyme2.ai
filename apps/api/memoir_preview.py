@@ -409,9 +409,8 @@ def snapshot_key(sources, project_id, language):
         'sources': sources, 'project_id': project_id, 'language': language,
         'free_round_limit': free_recall_rounds(),
         'skill': [(name, (SKILL / name).read_text()) for name in [
-            'SKILL.md', 'references/narrative-enrichment.md', 'references/editorial-and-length.md',
-            'references/workflows.md',
-            'references/editorial-review.prompt.md', 'schemas/request.schema.json',
+            'SKILL.md', 'prompts/prepare.md', 'prompts/draft.md', 'prompts/review.md',
+            'references/editorial-and-length.md', 'references/workflows.md', 'schemas/request.schema.json',
             'schemas/draft.schema.json', 'scripts/lib.mjs',
         ]],
     }, sort_keys=True).encode()).hexdigest()

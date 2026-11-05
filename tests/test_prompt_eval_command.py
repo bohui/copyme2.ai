@@ -39,10 +39,10 @@ def test_only_the_actual_source_window_contract_can_supply_input_prompt_provenan
     case=next(c for c in build_cases() if c['skill']=='memoir-author-timeline')
     actual=packet(case)
     manifest=evaluation_manifest(actual['instructions'],actual['schema'],input_packet=actual['input'])
-    assert 'memoir/skills/author-timeline/window' in {a['name'] for a in manifest['artifacts']}
+    assert manifest['input_contract_sha256'] == hashlib.sha256(actual['input']['window_contract'].encode()).hexdigest()
     changed=deepcopy(actual['input']);changed['window_contract']+='unpublished change'
     manifest=evaluation_manifest(actual['instructions'],actual['schema'],input_packet=changed)
-    assert 'memoir/skills/author-timeline/window' not in {a['name'] for a in manifest['artifacts']}
+    assert 'input_contract_sha256' not in manifest
 
 
 def test_all_prompt_command_refuses_partial_calibration_even_when_receipt_says_passed(tmp_path):

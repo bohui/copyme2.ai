@@ -317,23 +317,29 @@ def test_source_window_input_contract_is_pinned_in_the_request_manifest(tmp_path
     run(tmp_path)
     manifest = tracer.observations[0].fields['metadata']['prompt_manifest']
     names={p['name'] for p in manifest['artifacts']}
-    assert 'memoir/skills/author-timeline/window' in names
+    assert names == {'memoir/skills/author-timeline/extract'}
+    from apps.api.lifetime_memory_lane_engine import EXTRACTION_WINDOW_CONTRACT
+    from apps.api.model_request import digest
+    assert manifest['input_contract_sha256'] == digest(EXTRACTION_WINDOW_CONTRACT)
     assert Provider.bodies[0]['metadata']['manifest_sha256'] == manifest['manifest_sha256']
     assert len(tracer.observations) == 1
 
 
-@pytest.mark.parametrize('phase', ['prepare', 'draft', 'review'])
-def test_composer_preloads_only_its_phase_and_required_references(tmp_path, phase):
+# The pre-migration request includes the same phase-specific editorial clauses.
+@pytest.mark.parametrize('phase,prompt_sha256', [
+    ('prepare', '5de096d91055976019dc34721909382f5d791d3e07901fb1740245a9140795be'),
+    ('draft', 'f4a5d5980b7bd05c50990036307544527226ec62c4275fc84c700f58a25f03ef'),
+    ('review', 'aa897bc9696e9e0990081baa163a07b95e1aa783421182f5de0cd7225a406017'),
+])
+def test_composer_preloads_only_its_phase_and_required_references(tmp_path, phase, prompt_sha256):
     from apps.api.memoir_preview import composer_instructions
-    from apps.api.prompt_artifact import load_prompt_artifact, prompt_path
+    from apps.api.model_request import digest
     current = page('composer')
     run(tmp_path, transport(phase, current))
     body, = Provider.bodies
     assert body['instructions'].startswith(composer_instructions(phase))
-    for name, needed in [('shared/narrative-enrichment', phase in {'draft', 'review'}),
-                         ('shared/editorial-review', phase == 'review')]:
-        assert body['instructions'].count(load_prompt_artifact(prompt_path('memoir/skills/composer/' + name))) == int(needed)
-    assert load_prompt_artifact(prompt_path('memoir/skills/composer/instructions')) not in body['instructions']
+    assert digest(body['instructions']) == prompt_sha256
+    assert body['metadata']['langfuse_prompt_name'] == f'memoir/skills/composer/{phase}'
     assert body['tools'] == []
 
 

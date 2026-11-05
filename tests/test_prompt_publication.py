@@ -457,42 +457,42 @@ def test_real_git_pull_dispatches_the_tracked_hook(repo, tmp_path):
     assert json.loads((root / 'hook-called.json').read_text()) == ['--after-pull']
 
 
-def test_publication_expands_components_without_overwriting_the_recipe(repo, monkeypatch):
-    from apps.api import prompt_composition
+def test_publication_uses_the_complete_template_without_overwriting_local_text(repo):
     root, _, client = repo
-    shared = root / 'skills/shared.md'
-    shared.write_text('Complete shared rules')
-    (root / TARGET).write_text('{{prompt:publication_fixture}}\nFinal instructions\n')
-    monkeypatch.setitem(prompt_composition.COMPONENTS, 'publication_fixture', 'skills/shared.md')
-    commit(root, 'Use a complete prompt template')
-    git(root, 'push', 'origin', 'main')
+    text = 'Complete instructions\n{{#batch}}Batch rules\n{{/batch}}'
+    merged_edit(root, text)
     assert publication.main([], root=root) == 0
-    assert client.creates[-1]['prompt'] == 'Complete shared rules\nFinal instructions\n'
-    assert (root / TARGET).read_text().startswith('{{prompt:publication_fixture}}')
+    assert client.creates[-1]['prompt'] == (root / TARGET).read_text() == text
     receipt = json.loads((root / (TARGET + '.langfuse.json')).read_text())
-    assert receipt['sha256'] == hashlib.sha256(client.creates[-1]['prompt'].encode()).hexdigest()
-    assert receipt['source_sha256'] == hashlib.sha256((root / TARGET).read_bytes()).hexdigest()
+    assert receipt['sha256'] == hashlib.sha256(text.encode()).hexdigest()
+    assert receipt['version'] == 2 and 'source_sha256' not in receipt
     assert publication.main([], root=root) == 0
     assert len(client.creates) == 1
-    shared.write_text('Changed shared rules')
-    commit(root, 'Change a local prompt component')
-    git(root, 'push', 'origin', 'main')
+    merged_edit(root, 'Changed complete instructions\n')
     assert publication.main([], root=root) == 0
-    assert client.creates[-1]['prompt'] == 'Changed shared rules\nFinal instructions\n'
+    assert client.creates[-1]['prompt'] == 'Changed complete instructions\n'
     assert len(client.creates) == 2
 
 
-def test_local_components_keep_hashes_without_remote_publication(repo, monkeypatch):
-    from scripts import export_langfuse_prompt
+def test_unpublished_guides_do_not_sync_and_matching_older_pins_are_preserved(repo):
     root, _, client = repo
-    monkeypatch.setattr(publication, 'LOCAL_PROMPT_NAMES', {NAME})
-    monkeypatch.setattr(export_langfuse_prompt, 'LOCAL_PROMPT_NAMES', {NAME})
-    def no_remote(*args, **kwargs):
-        raise AssertionError('Local component was sent to the remote prompt API')
-    client.api.prompts.list = no_remote
-    client.get_prompt = no_remote
+    guide = root / 'skills/skill-guide.md'
+    guide.write_text('Tool reference only\n')
+    commit(root, 'Add a reference guide')
+    git(root, 'push', 'origin', 'main')
+    client.versions[2] = 'Newer draft from another branch\n'
+    receipt_path = root / (TARGET + '.langfuse.json')
+    receipt = json.loads(receipt_path.read_text())
+    receipt_path.write_text(json.dumps({**receipt, 'source_sha256': 'previous-recipe-hash'}))
     assert publication.main([], root=root) == 0
-    receipt = json.loads((root / (TARGET + '.langfuse.json')).read_text())
-    assert receipt['storage'] == 'local' and receipt['version'] is None
-    assert receipt['sha256'] == hashlib.sha256((root / TARGET).read_bytes()).hexdigest()
+    assert not client.creates
+    assert not guide.with_name(guide.name + '.langfuse.json').exists()
+    assert json.loads(receipt_path.read_text()) == receipt
+    assert client.versions[2] == 'Newer draft from another branch\n'
+
+
+def test_publication_rejects_fragment_references_before_writing(repo):
+    root, _, client = repo
+    merged_edit(root, '{{prompt:another_file}}\nFinal instructions\n')
+    assert publication.main([], root=root) == 1
     assert not client.creates

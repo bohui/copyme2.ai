@@ -19,8 +19,8 @@ def test_assembled_templates_preserve_original_instruction_bytes(case):
 
 
 def test_published_extraction_is_complete_and_has_one_operation_name():
-    from apps.api.prompt_catalog import PROMPT_PATHS, LOCAL_PROMPT_NAMES
-    names = {n for n in PROMPT_PATHS if n.startswith('memoir/skills/author-timeline/') and n not in LOCAL_PROMPT_NAMES}
+    from apps.api.prompt_catalog import PROMPT_PATHS
+    names = {n for n in PROMPT_PATHS if n.startswith('memoir/skills/author-timeline/')}
     assert names == {'memoir/skills/author-timeline/extract'}
     template = expanded_prompt(prompt_path(next(iter(names))))
     assert '{{prompt:' not in template
@@ -45,6 +45,4 @@ def test_one_published_template_owns_each_fixed_request(places):
         'places': places, 'events_only': not places, 'place_rules': places})
     manifest = instruction_manifest(instructions, {}, primary_name=name)
     assert [a['name'] for a in manifest['artifacts'] if a['status'] == 'published'] == [name]
-    sources = {a['name'] for a in manifest['artifacts']}
-    assert ('memoir/skills/place-journey/components/extract' in sources) == places
-    assert ('memoir/skills/author-timeline/derived-hints' in sources) == places
+    assert [a['name'] for a in manifest['artifacts']] == [name]

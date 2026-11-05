@@ -141,7 +141,8 @@ def test_atlas_system_prompt_is_agent_owned_and_the_shared_identity_is_retired()
 def test_skill_instructions_have_one_langfuse_name_and_developer_contracts_are_not_prompts():
     registry = prompt_registry()
     assert registry["memoir/skills/family-tree/extract"] == "skills/memoir-family-tree/SKILL.md"
-    assert registry["memoir/skills/place-journey/instructions"] == "skills/memoir-place-journey/SKILL.md"
+    assert registry["memoir/skills/place-journey/extract"] == "skills/memoir-place-journey/prompts/extract.md"
+    assert "skills/memoir-place-journey/SKILL.md" not in registry.values()
     assert "memoir/memory/family-tree" not in registry
     assert "skills/memoir-family-tree/references/contract.md" not in registry.values()
     assert "skills/memoir-place-groups/references/contract.md" not in registry.values()
@@ -166,7 +167,7 @@ def test_catalog_has_one_owner_per_source_and_no_unused_receipts():
             assert relative.startswith('skills/memoir-' + name.split('/')[2] + '/')
         assert not name.startswith(('memoir/composer/', 'memoir/memory/', 'memoir/interview/', 'memoir/research/'))
     publishing = prompt_registry(include_unpublished=True)
-    assert publishing['memoir/skills/composer/instructions'] == 'skills/memoir-composer/SKILL.md'
+    assert 'skills/memoir-composer/SKILL.md' not in publishing.values()
     assert 'skills/memoir-composer/references/workflows.md' not in registry.values()
 
 
@@ -175,7 +176,7 @@ def test_export_rejects_ambiguous_short_names():
     with pytest.raises(ValueError, match='Ambiguous prompt short name'):
         selected_prompts('en-AU', registry)
     assert selected_prompts('memoir/skills/composer/prepare', registry) == {
-        'memoir/skills/composer/prepare': 'skills/memoir-composer/prompts/requests/prepare.md'}
+        'memoir/skills/composer/prepare': 'skills/memoir-composer/prompts/prepare.md'}
 
 
 def test_retired_workflows_cannot_be_exported_again():

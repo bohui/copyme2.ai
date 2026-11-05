@@ -1,8 +1,8 @@
 {
-  "name": "memoir/skills/story-game/novel-to-game/components/concept",
+  "name": "memoir/skills/story-game/novel-to-game/concept",
   "schema_version": 1,
-  "sha256": "602a5db980d52f12678ea9346d52b84cd5d7c1700d32f0f2d410fa1445469a67",
-  "storage": "local",
+  "sha256": "3d938348722056f383d0356a48e6e56a101f079562eda54a4b97276a51d38cc2",
+  "source_sha256": "a728c4fd6c1308430b716686e26aeeaa31f7ee019690647e1a0685a9930029eb",
   "type": "text",
-  "version": null
+  "version": 1
 }

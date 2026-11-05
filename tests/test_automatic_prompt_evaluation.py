@@ -14,7 +14,8 @@ MIRA = 'memoir/agents/mira/reply'
 
 @pytest.mark.parametrize('selector, expected_cases', [
     ('PROMPT_EVAL_NAME=' + MIRA, 70),
-    ('SKILL_EVAL_NAME=author-timeline', 32),
+    ('SKILL_EVAL_NAME=author-timeline', 16),
+    ('SKILL_EVAL_NAME=place-journey', 16),
 ])
 def test_make_plan_selects_datasets_and_graders_without_credentials(selector, expected_cases):
     result = subprocess.run(['make', '--no-print-directory', 'prompt-eval-plan', selector,
@@ -25,7 +26,7 @@ def test_make_plan_selects_datasets_and_graders_without_credentials(selector, ex
     assert plan['dataset_names'] and plan['evaluator'] == 'scripts/run_memoir_agent_evaluation.py:scores'
     names = {p['name'] for p in plan['requested_prompts']}
     expected = {MIRA} if selector.startswith('PROMPT_') else {
-        name for name in prompt_registry() if name.startswith('memoir/skills/author-timeline/')}
+        name for name in prompt_registry() if name.startswith(f'memoir/skills/{selector.split("=", 1)[1]}/')}
     assert names == expected
     assert len(plan['cases']) == len(set(plan['cases']))
 

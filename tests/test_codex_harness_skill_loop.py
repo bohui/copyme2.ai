@@ -119,7 +119,11 @@ def test_native_codex_runs_tool_loop_and_receives_real_skill_instructions(tmp_pa
         assert observation.fields['name'] == 'memoir-atlas.orchestrate'
         assert 'You are Atlas' in requests[0]['instructions']
     artifacts={item['name'] for item in result['skill_receipt']['prompt_manifest']['artifacts']}
-    assert {'memoir/shared/skill-agent','memoir/agents/atlas/skill-selection',
-        'memoir/skills/author-timeline/instructions'}<=artifacts
+    assert artifacts == {'memoir/shared/skill-agent', 'memoir/agents/atlas/skill-selection'}
+    from apps.api.model_request import digest
+    from apps.api.prompt_artifact import ROOT
+    guide = 'skills/memoir-author-timeline/SKILL.md'
+    metadata = next(u['metadata'] for u in observation.updates if u.get('metadata', {}).get('skill_document_hashes'))
+    assert metadata['skill_document_hashes'] == {guide: digest((ROOT / guide).read_text())}
     # The second inference contains the actual tool result, not just a skill label.
     assert '# Memoir Author Timeline' in json.dumps(requests[1],ensure_ascii=False)

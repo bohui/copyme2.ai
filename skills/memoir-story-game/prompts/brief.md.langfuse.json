@@ -1,8 +1,8 @@
 {
-  "name": "memoir/skills/story-game/components/brief",
+  "name": "memoir/skills/story-game/brief",
   "schema_version": 1,
-  "sha256": "b7e94782fef5c59d3ebf6077472520aa5026991d115e755a172cc05f375429a7",
-  "storage": "local",
+  "sha256": "0b10e1c235102e7d0adfa842e55664fbd665eb6cf09159319bb9e066b82b158d",
+  "source_sha256": "a418cb20725653cbc6988ced8d00825498c25f37ec536a8f8a5e41f213f1b615",
   "type": "text",
-  "version": null
+  "version": 1
 }

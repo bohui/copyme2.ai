@@ -32,7 +32,7 @@ Result: **55 tests passed, 0 failed** at the time this bundle was built.
 
 The test suite validates deterministic behaviour, not factual entailment or book quality. The 7,000-word boundary tests use synthetic repeated words to exercise the counter; they are not sample memoirs to publish. Small fixture narratives deliberately stay as short as their evidence.
 
-No production database transaction, permission service, distributed event delivery, original photo resolution, real model composition, full PDF/EPUB build or printer submission was tested. Those integrations remain the application's responsibility. `references/editorial-review.prompt.md` specifies the separate source-to-prose review pass.
+No production database transaction, permission service, distributed event delivery, original photo resolution, real model composition, full PDF/EPUB build or printer submission was tested. Those integrations remain the application's responsibility. `prompts/review.md` specifies the separate source-to-prose review pass.
 
 The JSON schemas are also checked against all example request/candidate packets during packaging. The CLI implements only the JSON Schema subset used in this bundle; it is not a general JSON Schema library.
 

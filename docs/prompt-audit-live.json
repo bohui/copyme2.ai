@@ -1,6 +1,6 @@
 {
   "project_id": "cmut9t75w00071z02n8bdv7it",
-  "captured_at": "2026-11-05T11:58:32.683946+00:00",
+  "captured_at": "2026-11-05T22:21:24.613613+00:00",
   "scope": "Metadata, case hashes and score presence; no trace text, model calls or mutations",
   "prompts": [
     {
@@ -418,7 +418,9 @@
     {
       "name": "memoir/skills/author-timeline/extract",
       "versions": [
-        1
+        1,
+        2,
+        3
       ],
       "labels": [
         "latest"
@@ -25005,7 +25007,7 @@
       "name": "memoir/skills/story-game/brief/golden/delivery-v3",
       "target": "memoir/skills/story-game/brief",
       "items": 1,
-      "content_sha256": "903aee862806e8d2108c7b8512eabfc3dcfbd40e1e57221ecebc16be4415fee9",
+      "content_sha256": "573d03dba57703313f8ac83b51bbd98e35ab1c2bcc4378b728355642bb438aad",
       "source": "scripts/run_memoir_skill_evaluation.py:datasets"
     }
   ]

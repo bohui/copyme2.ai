@@ -36,10 +36,10 @@ def run(output, settings, *, resume=False, selection=None):
     with httpx.Client(trust_env=False, timeout=180) as client:
         def call(phase, payload, model, schema_type):
             from apps.api.prompt_composition import render_prompt_artifact
-            instructions = render_prompt_artifact(prompt_path(
-                'memoir/skills/story-game/' + ('proposal' if phase == 'scenes' else 'brief')))
+            prompt_name = 'memoir/skills/story-game/' + ('proposal' if phase == 'scenes' else 'brief')
+            instructions = render_prompt_artifact(prompt_path(prompt_name))
             schema = schema_type.model_json_schema()
-            manifest = instruction_manifest(instructions, schema, variant='story-game-' + phase)
+            manifest = instruction_manifest(instructions, schema, variant='story-game-' + phase, primary_name=prompt_name)
             request = dict(model=model, instructions=instructions, input=json.dumps(payload, ensure_ascii=False),
                 store=False, max_output_tokens=32768 if phase == 'scenes' else 16384,
                 reasoning={'effort': 'max'},

@@ -62,7 +62,7 @@ def test_sdk_grader_is_identified_separately_from_hosted_automation_rules():
 
 def test_one_dataset_and_evaluator_set_can_cover_multiple_prompts():
     coverage, bindings = inputs()
-    target='memoir/skills/historical-news-research/discovery'
+    target='memoir/skills/author-timeline/extract'
     dataset=next(d for d in bindings['datasets'] if d['target']==target
         and d['status']=='active' and d['name'].endswith('/golden/core'))
     snapshot=json.loads((ROOT/'docs/prompt-audit-live.json').read_text())

@@ -1,8 +1,8 @@
 {
-  "name": "memoir/skills/composer/components/review",
+  "name": "memoir/skills/composer/review",
   "schema_version": 1,
-  "sha256": "61be8f8c2fb1694d8a9cb1ed63ce572762ba65e0d842bb884d2b92ae3616e7c9",
-  "storage": "local",
+  "sha256": "8462252bad81335928b86ac877404e08ef80e265f6fa104ef6ad989fb97d2c78",
+  "source_sha256": "67279e21a1f9fe173a7818efd55e3dd8e6f5910592bb9eb155f0bf6a54dc0036",
   "type": "text",
-  "version": null
+  "version": 1
 }

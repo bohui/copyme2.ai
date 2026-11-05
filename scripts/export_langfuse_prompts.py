@@ -13,8 +13,6 @@ if str(ROOT) not in sys.path:
 from scripts.export_langfuse_prompt import sync_prompt
 from scripts.langfuse_prompt_client import prompt_client
 from scripts.prompt_registry import prompt_registry
-from apps.api.prompt_composition import composition_receipt
-from apps.api.prompt_catalog import LOCAL_PROMPT_NAMES
 
 
 def selected_prompts(name: str | None, registry: dict[str, str]) -> dict[str, str]:
@@ -36,9 +34,6 @@ def export_prompts(client, *, name: str | None = None, check: bool = False,
     receipts = []
     for prompt_name, target in selected.items():
         path = root / target
-        if prompt_name in LOCAL_PROMPT_NAMES:
-            receipts.append(sync_prompt(client, target=target, name=prompt_name, version=None, root=root, check=check))
-            continue
         if check:
             receipt_path = path.with_name(path.name + ".langfuse.json")
             receipt = json.loads(receipt_path.read_text(encoding="utf-8"))
@@ -57,8 +52,6 @@ def export_prompts(client, *, name: str | None = None, check: bool = False,
             version = current.version
         receipts.append(sync_prompt(client, target=target, name=prompt_name,
                                     version=version, root=root, check=check))
-    for receipt in receipts:
-        composition_receipt(root / receipt['target'])
     return receipts
 
 

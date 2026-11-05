@@ -1,13 +1,11 @@
 """Optional derived hints on the canonical timeline lane; no delivery authority."""
 from __future__ import annotations
 
-from pathlib import Path
-
 import asyncio
 from contextlib import AsyncExitStack, asynccontextmanager
 import os
 
-from .prompt_artifact import load_prompt_artifact, prompt_path
+from .prompt_artifact import prompt_path
 from .prompt_composition import render_prompt_artifact
 from .lifetime_memory_continuity import _Places
 from .interview_questions import PreparedQuestion, hint_evidence, question_candidates, question_priority
@@ -22,7 +20,7 @@ class DerivedHints(_Places):
 
 
 def extraction_contract(*, attribution=False, continuity=False, source=None, selected_skills=None):
-    from .memory_events import extraction_instructions, extraction_schema
+    from .memory_events import extraction_schema
     schema=extraction_schema()
     extension=DerivedHints.model_json_schema()
     extension['$defs']['_PlaceJourney']['required']=list(extension['$defs']['_PlaceJourney']['properties'])
@@ -33,14 +31,13 @@ def extraction_contract(*, attribution=False, continuity=False, source=None, sel
     schema['required']+=list(extension['properties'])
     timeline = selected_skills is None or 'memoir-author-timeline' in selected_skills
     places = selected_skills is None or 'memoir-place-journey' in selected_skills
-    instructions = extraction_instructions(derived_hints=places) if timeline else load_prompt_artifact(
-        prompt_path('memoir/skills/author-timeline/shared/grounding'))
-    if places:
-        instructions += '\n' + load_prompt_artifact(Path(__file__).resolve().parents[2] / 'skills/memoir-place-journey/references/two-lane.md')
-        instructions += render_prompt_artifact(prompt_path('memoir/skills/author-timeline/derived-hints'))
+    name = 'memoir/skills/author-timeline/extract' if timeline else 'memoir/skills/place-journey/extract'
+    instructions = render_prompt_artifact(prompt_path(name), variables={
+        'events_only': not places, 'places': places, 'place_rules': places,
+        'attribution': attribution, 'continuity': continuity,
+    })
     if attribution:
-        from .conversation_attribution import attribution_schema, INSTRUCTIONS
-        instructions += INSTRUCTIONS
+        from .conversation_attribution import attribution_schema
         schema = attribution_schema(schema)
     if continuity:
         from .lifetime_memory_continuity import continuity_schema
@@ -48,7 +45,6 @@ def extraction_contract(*, attribution=False, continuity=False, source=None, sel
         schema['$defs'].update(extension['$defs'])
         schema['properties'].update(extension['properties'])
         schema['required'].append('continuity_updates')
-        instructions += load_prompt_artifact(prompt_path('memoir/skills/author-timeline/continuity'))
     if selected_skills is not None:
         if 'memoir-author-timeline' not in selected_skills:
             for field in ('events', 'continuity_updates', 'event_places'):

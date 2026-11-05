@@ -10,7 +10,7 @@ import pytest
 
 from apps.api.codex_agent import CodexConnection
 from apps.api.memoir_skill_agent import SkillTools, run_skill_agent
-from apps.api.prompt_artifact import load_prompt_artifact, prompt_path
+from apps.api.prompt_artifact import ROOT, load_prompt_artifact, prompt_path
 
 
 class Publication:
@@ -45,9 +45,9 @@ def test_skill_selection_reads_the_actual_file_before_executor_runs():
         refused = await tools.call(params('memoir_execute_skill', skill='memoir-memory-context'))
         assert not refused['success'] and executed == []
         read = await tools.call(params('memoir_read_skill', skill='memoir-memory-context'))
-        assert decoded(read)['instructions'] == load_prompt_artifact(prompt_path(
-            'memoir/skills/memory-context/profile'))
-        assert tools.reads == [prompt_path('memoir/skills/memory-context/profile')]
+        guide = ROOT / 'skills/memoir-memory-context/SKILL.md'
+        assert decoded(read)['instructions'] == guide.read_text()
+        assert tools.reads == [guide]
         result = await tools.call(params('memoir_execute_skill', skill='memoir-memory-context'))
         assert decoded(result) == {'status':'saved'}
         assert executed == ['memoir-memory-context']
@@ -148,8 +148,8 @@ for line in sys.stdin:
         trace_name='memoir-atlas', phase='orchestrate'))
     assert json.loads(result['reply']) == {'events':[]}
     assert result['skill_receipt']['skills_read'] == ['memoir-memory-context']
-    assert json.loads(journal.read_text())['instructions'] == load_prompt_artifact(prompt_path(
-        'memoir/skills/memory-context/profile'))
+    guide = ROOT / 'skills/memoir-memory-context/SKILL.md'
+    assert json.loads(journal.read_text())['instructions'] == guide.read_text()
     assert publication.calls >= 3
     assert not list((tmp_path / 'homes').iterdir())
     assert [observation.fields['name'] for observation in tracer.observations]==[
