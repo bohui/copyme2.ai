@@ -2,8 +2,8 @@
   {
     "name": "memoir/agents/atlas/skill-selection",
     "source": "apps/api/prompts/atlas/system.md",
-    "version": 1,
-    "sha256": "70203c3a8c9c5beed54a512b888feaac2dc426be1c9f6b5a53273117125cda42",
+    "version": 2,
+    "sha256": "73fea50d746085fcab1502aafbf44c26b2f8e8d31df4db8e0cca6793fd44354d",
     "use": "runtime",
     "scenario": "Atlas selects Timeline for memoir events and geography, Profile for writable personal facts, or an empty selection. Event Group runs during timeline publication.",
     "consumers": [
@@ -2539,8 +2539,8 @@
   {
     "name": "memoir/skills/author-timeline/extract",
     "source": "skills/memoir-author-timeline/prompts/extract.md",
-    "version": 1,
-    "sha256": "8ba3224af906146a3e3eaba2d603d4862e6b1b843ef932e8fc95b8d3a28ce006",
+    "version": 4,
+    "sha256": "ddb0fb2d3f908f45fa118c06dcff04ae44c1c8966669e60c9056096a25d883d1",
     "use": "conditional",
     "scenario": "Draft supported timing, geography and chronology in the bounded source window. Resolve same-response and saved event relations through deterministic publication. Already-admitted legacy requests can include place hints.",
     "consumers": [
@@ -3919,8 +3919,8 @@
   {
     "name": "memoir/skills/memory-context/profile",
     "source": "skills/memoir-memory-context/prompts/profile.md",
-    "version": 1,
-    "sha256": "93dae2ca70696f2e66ee1c5b4313248d040fe11e1dcf41ee9a682d5e1b3569aa",
+    "version": 2,
+    "sha256": "9339e389cbef3150e203eac3c67da07d6b51d9607870e8b6b5957a2003254c5c",
     "use": "runtime",
     "scenario": "Draft eligible narrator name, birth details and avatar hint from authorized originals. Timeline owns residence, travel and remembered places.",
     "consumers": [
