@@ -199,6 +199,7 @@ CREATE TABLE public.user_lifetime_lane_snapshot (
     guidance_revision bigint DEFAULT 0 NOT NULL,
     guidance_news jsonb DEFAULT '{}'::jsonb NOT NULL,
     source_decision jsonb,
+    working_context jsonb DEFAULT '{}'::jsonb NOT NULL,
     background_batch_id uuid,
     background_turn_id uuid,
     background_source_start bigint,
@@ -4177,13 +4178,16 @@ begin
      'policy',project.policy_epoch,'preferences',identity.preference_revision,'privacy_digest',privacy_hash,'source',frontier,
      'events',project.event_sequence,'predecessor',previous.id,'predecessor_digest',previous.root_digest)::text;
    insert into public.user_lifetime_lane_snapshot(lane_id,user_id,project_id,conversation_id,policy_epoch,preference_revision,privacy_digest,locale,
-     source_high_water,event_high_water,round_high_water,milestone,base_revision,predecessor,base_event,last_event,root_digest,guidance_revision,guidance_news,background_batch_id,background_turn_id,background_source_start)
+     source_high_water,event_high_water,round_high_water,milestone,base_revision,predecessor,base_event,last_event,root_digest,guidance_revision,guidance_news,working_context,background_batch_id,background_turn_id,background_source_start)
    values(lane.id,lane.user_id,lane.project_id,identity.conversation_id,project.policy_epoch,identity.preference_revision,privacy_hash,lane.locale,
      frontier,project.event_sequence,rounds,lane.target_milestone,
      coalesce((select revision from public.user_memoir_edition where user_id=lane.user_id and project_id=lane.project_id and locale=lane.locale),0),
      previous.id,case when previous.preference_revision=identity.preference_revision and previous.policy_epoch=project.policy_epoch and previous.locale=lane.locale then previous.event_high_water else 0 end,
      case when previous.preference_revision=identity.preference_revision and previous.policy_epoch=project.policy_epoch and previous.locale=lane.locale then previous.event_high_water else 0 end,
-     encode(sha256(convert_to(seed,'UTF8')),'hex'),lane.guidance_revision,coalesce(news_manifest,'{}'),(background->>'batch_id')::uuid,(background->>'batch_turn_id')::uuid,
+     encode(sha256(convert_to(seed,'UTF8')),'hex'),lane.guidance_revision,coalesce(news_manifest,'{}'),
+     case when lane.skill='guidance' then '{}'::jsonb else jsonb_build_object('active_question',pins->'active_question',
+       'known_continuity',pins->'known_continuity','known_continuity_complete',pins->'known_continuity_complete') end,
+     (background->>'batch_id')::uuid,(background->>'batch_turn_id')::uuid,
      (background->>'source_low_water')::bigint) returning * into snap;
  end if;
  update public.user_memoir_lane set token=run_token,lease_until=least(clock_timestamp()+interval '60 seconds',clock_timestamp()+make_interval(secs=>p_run_seconds)),
@@ -9477,8 +9481,10 @@ begin
      and project_id=page->>'project_id' and id=(page->'source'->>'id')::uuid;
    context:=public.lifetime_attribution_decision(source.text,null)||jsonb_build_object('delivered_event',
      public.lifetime_source_context(source.user_id,source.project_id,source.id),
-     'recent_dialogue',public.lifetime_question_dialogue(source.user_id,source.project_id,source.id,
-       (page->>'source_high_water')::bigint));
+     'recent_dialogue',coalesce((select jsonb_agg(item) from jsonb_array_elements(
+       public.lifetime_question_dialogue(source.user_id,source.project_id,source.id,
+         (page->>'source_high_water')::bigint)) item
+       where (item->'question'->>'sequence')::bigint<source.sequence),'[]'::jsonb));
    page:=page||jsonb_build_object('attribution_context',context);
    if not(page ? 'profile_context') and coalesce(page->'memory_summary','null')='null' then
      inputs:=public.lifetime_timeline_context(source.user_id,source.project_id,source.id);
@@ -10010,6 +10016,9 @@ begin
  previous_owner:=current_setting('request.jwt.claim.sub',true);
  perform set_config('request.jwt.claim.sub',snap.user_id::text,true);
  preferences:=public.read_lifetime_pinned(snap.conversation_id);
+  -- Foreground questions and working memories cannot invalidate an admitted batch.
+  -- Privacy, language, chosen name and revision remain current authoritative pins.
+  preferences:=preferences||snap.working_context;
  -- Make optional transport defaults explicit without changing authoritative data.
  preferences:=jsonb_set(preferences,'{known_continuity}',coalesce((select jsonb_agg(
    jsonb_build_object('schema_version',1)||record||jsonb_build_object('data',
@@ -10570,8 +10579,6 @@ begin
        where c.user_id=snap.user_id and c.project_id=snap.project_id and c.source_id=(page->'source'->>'id')::uuid
          and c.source_version=(page->'source'->>'version')::bigint and c.next_offset>=(page->'source'->>'char_end')::integer) then return null;end if;
  end if;
- perform 1 from public.user_agent_turn_lease where user_id=snap.user_id for share;
- if exists(select 1 from public.user_agent_turn_lease where user_id=snap.user_id and expires_at>clock_timestamp()) then return null;end if;
  perform public.ensure_lifetime_profile_authority(snap.user_id);
  select * into authority from public.user_lifetime_profile_authority where user_id=snap.user_id;
  -- Older sessions coalesce to their newest milestone; no historical job replay.

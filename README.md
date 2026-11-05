@@ -430,6 +430,13 @@ Thinking steps for a combined batch appear on its last covered reply. Photo,
 grouping and news requests retain their latest-reply correlation, and progress
 shows actual start and finish times. Results are saved for later turns. Mira has reserved worker
 capacity and her own execution lock, so she does not wait for Atlas.
+Atlas pages retain their batch's interview question and bounded working context;
+ordinary Mira replies do not invalidate those pages or repeat their model calls.
+An in-flight result waits for a pending privacy review, then saves only if current
+policy, evidence versions and manual profile authority still permit it. This wait
+retains the result within the worker's existing lease and deadline. Profile
+extraction can run during a Mira turn; its save waits for that turn's snapshot to
+close, preserving the foreground reply and any manual field protections.
 Agent leases, revision checks and bounded retries survive restarts;
 required source work remains pending when a model stops early or a skill fails.
 Traces record the skills actually read and their prompt manifests, while native
