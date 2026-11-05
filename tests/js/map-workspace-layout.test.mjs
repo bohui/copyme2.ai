@@ -18,43 +18,16 @@ const photo=(place,id)=>({asset_id:id,image_url:`https://photos.example/${id}.jp
 const event=(id,age,place)=>({id,revision:1,canonical:true,status:'active',life_stage:'childhood',title:`Memory ${id}`,
   temporal:{expression:`Age ${age}`,precision:'age'},places:[{role:'setting',status:'supported',place}]});
 
-test('saving a city preserves a live viewer until the workspace is reopened',()=>{
-  let active=groupPlaces([city])[0].key;
-  const context=vm.createContext({state:{project:{id:'project'},lifeStage:'all'},
-    profile:()=>({memory_places:[city,north]}),placeWorkspaceSelection:()=>city,placeMapTarget:place=>place,
-    mergePlaces,placeHistoryKey,workspacePlaceGroups:groupPlaces,
-    mapMemoryEvents:{nodes:()=>[],activeCity:()=>active},
-    cesiumPlaceJourneyViewer:{},mapOpeningScope:null,mapOpeningCity:null,
-    translate:key=>key,escapeHtml:String,placeJourneyMarkup:(_,variant,group)=>group.city.place});
-  const source=readMemoirClientSource().match(/function workspaceMediaOverview\([^]*?\n\}/)[0];
-  vm.runInContext(source,context);
-  const initial=context.workspaceMediaOverview();
-  active=undefined;
-  context.state.workspaceFocus={place:'School family compound',source_sequence:2};
-  assert.equal(context.workspaceMediaOverview(),initial,'An unresolved question location must preserve the live map');
-  delete context.state.workspaceFocus;
-  active=groupPlaces([north])[0].key;
-  assert.equal(context.workspaceMediaOverview(),initial,'A background repaint must preserve the live map metadata');
-  context.cesiumPlaceJourneyViewer=null;
-  assert.match(context.workspaceMediaOverview(),/Chengde/,'A recreated map uses the newly saved city');
-  active=undefined;
-  context.workspaceMediaOverview();
-  context.cesiumPlaceJourneyViewer={};
-  active=groupPlaces([north])[0].key;
-  assert.match(context.workspaceMediaOverview(),/Chengde/,'A pending globe must adopt a confirmed city even without a new reply');
-});
-
-test('an unresolved question location shows a globe until its city is known',async t=>{
+test('map markup keeps the same global frame when the active location changes',async t=>{
   const {places,state}=await setup(t,[]);
+  const initial=places.workspaceMediaOverview();
+  state.currentActiveLocation=north;state.activeLocationChange=1;
   state.workspaceFocus={place:'School family compound',source_sequence:2};
-  assert.equal(places.mapMemoryEvents.activeCity(),undefined);
-  const pending=places.workspaceMediaOverview();
-  assert.match(pending,/workspace-media-map/);
-  assert.match(pending,/data-cesium-pending="true"/);
-  state.workspaceFocus={place:'Chengde',source_sequence:2};
-  const resolved=places.workspaceMediaOverview();
-  assert.doesNotMatch(resolved,/data-cesium-pending/);
-  assert.match(resolved,/data-cesium-latitude="40.95"/);
+  assert.equal(places.workspaceMediaOverview(),initial,'The loaded imagery stays mounted while the controller flies');
+  assert.match(initial,/data-place-key="all"/);
+  assert.match(initial,/data-cesium-latitude="0"/);
+  assert.match(initial,/sydney/);
+  assert.match(initial,/Chengde/);
 });
 
 async function setup(t,privatePhotos=[{photo_id:personalId,kind:'private_upload',title:'My school photo',event_ids:['school']}]) {
@@ -106,13 +79,13 @@ test('desktop fills the map, with chronological events and north-to-south albums
     'The personal image must be painted on top of the web image in the stack');
 });
 
-test('the follow-up city wins over another city acknowledged in the same turn',async t=>{
+test('map markup retains every city independently of question focus',async t=>{
   const {places,state}=await setup(t,[]);
-  state.placeJourney=city;
-  state.project.profile.memory_places=[city,north];
   state.workspaceFocus={place:'Chengde',source_sequence:1};
   const markup=places.workspaceMediaOverview();
-  assert.match(markup,/data-cesium-latitude="40.95"/,'Fly to the childhood question’s city, not the current residence');
+  assert.match(markup,/data-place-key="all"/);
+  assert.match(markup,/sydney/);
+  assert.match(markup,/Chengde/);
 });
 
 test('unlocated personal photos remain accessible without borrowing a nearby event location',async t=>{

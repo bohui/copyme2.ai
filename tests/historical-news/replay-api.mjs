@@ -4,12 +4,13 @@ import fs from 'node:fs';
 import vm from 'node:vm';
 import {historicalContext, historicalContextMarkup} from '../../apps/web/client/memoir/historical-news.mjs';
 import {readMemoirClientSource} from '../js/helpers/memoir-source.mjs';
+import {applyCurrentActiveLocation} from '../../apps/web/client/memoir/active-location.mjs';
 
 const {saved, replay, language, prior, text = 'What else could we explore?'} = JSON.parse(fs.readFileSync(0, 'utf8'));
 const source = readMemoirClientSource();
 const state = {supabase: {accessToken: 'synthetic'}, project: {id: saved.project_id}, chat: []};
 if (prior) state.chat.push({id: 'prior-reply', role: 'assistant', text: prior.reply});
-const context = vm.createContext({state, historicalContext,
+const context = vm.createContext({state, historicalContext, applyCurrentActiveLocation,
   conversationLanguage: () => language, simulatedLoopTrace: () => [],
   nextAssistantMessageId: () => 'current-reply', render() {}, updateStreamingAssistantMessage() {},
   refreshPrivateDraft: async () => {}, refreshStageReadiness: async () => {}, ensureRecallPreview: async () => {},

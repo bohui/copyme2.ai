@@ -5001,8 +5001,10 @@ begin
            'excluded_topics',page->'preferences'->'excluded_topics',
            'privacy_complete',page->'preferences'->'privacy_complete')::text,'UTF8')),'hex')))
      on conflict(user_id,project_id,source_id) do update set source_version=excluded.source_version,derived_fence=excluded.derived_fence,
-       journeys=(select coalesce(jsonb_agg(distinct j),'[]') from jsonb_array_elements(
-         case when user_lifetime_place_journey.source_version=excluded.source_version then user_lifetime_place_journey.journeys else '[]' end||excluded.journeys) j);
+       journeys=(select coalesce(jsonb_agg(j order by ordinal),'[]') from (
+         select j,min(ordinal) ordinal from jsonb_array_elements(
+           case when user_lifetime_place_journey.source_version=excluded.source_version then user_lifetime_place_journey.journeys else '[]' end||excluded.journeys)
+           with ordinality items(j,ordinal) group by j) ordered_places);
    end if;
 
  end if;

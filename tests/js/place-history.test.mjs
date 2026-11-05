@@ -110,8 +110,8 @@ test('workspace map omits the separate location button row', t => {
   chat:[{role:'user', text:'我叫慧博，现在生活在悉尼，但是我于1983年4月出生在河北省承德市附属医院'}]};
  const workspace = createPlaceWorkspace({state, profile:() => state.project.profile, lifeStageText:() => '',
   photos:{favoritePhotoWall:() => '', workspacePictureItems:() => [], renderablePictureItems:items => items}});
- assert.match(workspace.workspaceMediaOverview(),/data-cesium-pending="true"/,
-  'Keep the globe visible without choosing an extraction-order city');
+ assert.match(workspace.workspaceMediaOverview(),/data-place-key="all"/,
+  'The saved map opens on the whole journey');
  state.workspaceFocus={place:'承德市',source_sequence:1};
  const html = workspace.workspaceMediaOverview();
  assert.doesNotMatch(html, /place-choices|data-place-choice=/);
@@ -138,7 +138,7 @@ test('renderer keeps detailed title and parent map coordinates without a footer'
  const fs = await import('node:fs');
  const vm = await import('node:vm');
  const source=readMemoirClientSource();
- const context=vm.createContext({mapTarget, mergePlaces, placeHistoryKey, resolvedPlaceTargets:new Map(), unavailablePlaceMaps:new Set(), placeMapRenderKey:()=> 'map', profile:()=>({memory_places:[city,suburb]}), escapeHtml:String, translate:k=>k, translateWith:(k,v)=>`${k} ${v.place || ''}`, currentUiLocale:()=> 'en-AU'});
+ const context=vm.createContext({state:{},mapTarget, mergePlaces, placeHistoryKey, resolvedPlaceTargets:new Map(), unavailablePlaceMaps:new Set(), placeMapRenderKey:()=> 'map', profile:()=>({memory_places:[city,suburb]}), escapeHtml:String, translate:k=>k, translateWith:(k,v)=>`${k} ${v.place || ''}`, currentUiLocale:()=> 'en-AU'});
  for (const name of ['placeMapTarget','placeJourneyMarkup']) vm.runInContext(source.match(new RegExp(`function ${name}\\([^]*?\\n\\}`))[0],context);
  const markup=context.placeJourneyMarkup(suburb);
  assert.match(markup,/<h2>大石庙镇<\/h2>/);

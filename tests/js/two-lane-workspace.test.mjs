@@ -94,3 +94,15 @@ test('the first readiness read cannot overwrite a newer foreground question city
   applyDerivedWorkspace(s,{...update([place('Hobart')],1),workspace_focus:{place:'Hobart',source_sequence:1}});
   assert.equal(s.workspaceFocus.place,'Sydney');
 });
+
+test('active location hydration is static and stale snapshots cannot undo a live redirect',()=>{
+  const s=state();
+  applyDerivedWorkspace(s,{...update([place('Hobart'),place('Sydney')]),current_active_location:place('Hobart')});
+  assert.equal(s.activeLocationChange,undefined,'Saved geography establishes the refresh baseline');
+  s.currentActiveLocation=place('Sydney',3);s.activeLocationChange=1;
+  applyDerivedWorkspace(s,{...update([place('Hobart'),place('Sydney')],3),current_active_location:null});
+  assert.equal(s.currentActiveLocation.place,'Sydney','A snapshot captured before the redirect cannot clear it');
+  assert.equal(s.activeLocationChange,1);
+  applyDerivedWorkspace(s,{...update([],4),policy_epoch:2,current_active_location:null});
+  assert.equal(s.currentActiveLocation,null,'Privacy revocation clears active geography too');
+});

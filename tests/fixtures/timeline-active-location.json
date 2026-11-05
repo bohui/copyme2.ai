@@ -1,0 +1,282 @@
+{
+  "events": [
+    {
+      "id": null,
+      "existing_id": null,
+      "expected_revision": null,
+      "kind": "period",
+      "title": "目前在悉尼生活",
+      "life_stage": "unplaced",
+      "temporal": {
+        "expression": "现在",
+        "precision": "approximate",
+        "year_start": null,
+        "year_end": null,
+        "basis": [
+          {
+            "source_id": "7349a341-b34b-4ca3-84bb-f34590c937f9",
+            "version": 1,
+            "quote": "现在生活在悉尼",
+            "char_start": null,
+            "char_end": null,
+            "attribution": null
+          }
+        ]
+      },
+      "temporal_estimate": {
+        "year_start": 1983,
+        "year_end": 2026,
+        "age_start": 0,
+        "age_end": 43,
+        "confidence": 0.2,
+        "reference_year": 2026,
+        "rationale": "“现在”以原文采集年份2026年为锚点；居住起点未知，暂以出生年份1983年至采集年份作为整个居住时期的宽泛可能范围，年龄范围相应为0至43岁。这不表示自出生起就在悉尼生活。",
+        "basis": [
+          {
+            "source_id": "7349a341-b34b-4ca3-84bb-f34590c937f9",
+            "version": 1,
+            "quote": "现在生活在悉尼",
+            "char_start": null,
+            "char_end": null,
+            "attribution": null
+          },
+          {
+            "source_id": "7349a341-b34b-4ca3-84bb-f34590c937f9",
+            "version": 1,
+            "quote": "我于1983年4月出生在河北省承德市附属医院",
+            "char_start": null,
+            "char_end": null,
+            "attribution": null
+          }
+        ]
+      },
+      "stage_evidence": [],
+      "source_refs": [
+        {
+          "source_id": "7349a341-b34b-4ca3-84bb-f34590c937f9",
+          "version": 1,
+          "quote": "现在生活在悉尼",
+          "char_start": null,
+          "char_end": null,
+          "attribution": null
+        }
+      ],
+      "uncertainty": "悉尼的居住开始时间未知；估计范围仅为宽泛占位，不代表实际迁居年份，也不推断此前居住地。",
+      "location": {
+        "place": "悉尼",
+        "hierarchy": [
+          "Earth",
+          "澳大利亚",
+          "新南威尔士州",
+          "悉尼"
+        ],
+        "granularity": "city"
+      },
+      "location_basis": [
+        {
+          "source_id": "7349a341-b34b-4ca3-84bb-f34590c937f9",
+          "version": 1,
+          "quote": "现在生活在悉尼",
+          "char_start": null,
+          "char_end": null,
+          "attribution": null
+        }
+      ],
+      "locationConfidenceScore": 1,
+      "yearConfidenceScore": 0.2,
+      "person_ids": null,
+      "visibility": null,
+      "include_in_print": null,
+      "attribution": null,
+      "candidate_ids": [],
+      "relations": [],
+      "correction": null
+    },
+    {
+      "id": null,
+      "existing_id": null,
+      "expected_revision": null,
+      "kind": "event",
+      "title": "1983年4月出生于承德市附属医院",
+      "life_stage": "baby",
+      "temporal": {
+        "expression": "1983年4月",
+        "precision": "month",
+        "year_start": 1983,
+        "year_end": 1983,
+        "basis": [
+          {
+            "source_id": "7349a341-b34b-4ca3-84bb-f34590c937f9",
+            "version": 1,
+            "quote": "我于1983年4月出生在河北省承德市附属医院",
+            "char_start": null,
+            "char_end": null,
+            "attribution": null
+          }
+        ]
+      },
+      "temporal_estimate": null,
+      "stage_evidence": [
+        {
+          "source_id": "7349a341-b34b-4ca3-84bb-f34590c937f9",
+          "version": 1,
+          "quote": "我于1983年4月出生在河北省承德市附属医院",
+          "char_start": null,
+          "char_end": null,
+          "attribution": null
+        }
+      ],
+      "source_refs": [
+        {
+          "source_id": "7349a341-b34b-4ca3-84bb-f34590c937f9",
+          "version": 1,
+          "quote": "我于1983年4月出生在河北省承德市附属医院",
+          "char_start": null,
+          "char_end": null,
+          "attribution": null
+        }
+      ],
+      "uncertainty": null,
+      "location": {
+        "place": "承德市附属医院",
+        "hierarchy": [
+          "Earth",
+          "中国",
+          "河北省",
+          "承德市",
+          "承德市附属医院"
+        ],
+        "granularity": "landmark"
+      },
+      "location_basis": [
+        {
+          "source_id": "7349a341-b34b-4ca3-84bb-f34590c937f9",
+          "version": 1,
+          "quote": "出生在河北省承德市附属医院",
+          "char_start": null,
+          "char_end": null,
+          "attribution": null
+        }
+      ],
+      "locationConfidenceScore": 1,
+      "yearConfidenceScore": 1,
+      "person_ids": null,
+      "visibility": null,
+      "include_in_print": null,
+      "attribution": null,
+      "candidate_ids": [],
+      "relations": [],
+      "correction": null
+    }
+  ],
+  "place_journeys": [
+    {
+      "place": "悉尼",
+      "hierarchy": [
+        "Earth",
+        "澳大利亚",
+        "新南威尔士州",
+        "悉尼"
+      ],
+      "granularity": "city",
+      "latitude": -33.8688,
+      "longitude": 151.2093,
+      "research": null
+    },
+    {
+      "place": "承德市",
+      "hierarchy": [
+        "Earth",
+        "中国",
+        "河北省",
+        "承德市"
+      ],
+      "granularity": "city",
+      "latitude": 40.9515,
+      "longitude": 117.9634,
+      "research": {
+        "year_start": 1980,
+        "year_end": 1989,
+        "anchor_year": 1983,
+        "basis": "birth_decade",
+        "quote": "1983年4月出生在河北省承德市附属医院",
+        "char_start": 17,
+        "char_end": 37
+      }
+    }
+  ],
+  "event_places": [
+    {
+      "event_index": 0,
+      "role": "setting",
+      "place": {
+        "place": "悉尼",
+        "hierarchy": [
+          "Earth",
+          "澳大利亚",
+          "新南威尔士州",
+          "悉尼"
+        ],
+        "granularity": "city"
+      },
+      "source_ref": {
+        "source_id": "7349a341-b34b-4ca3-84bb-f34590c937f9",
+        "version": 1,
+        "quote": "现在生活在悉尼",
+        "char_start": null,
+        "char_end": null,
+        "attribution": null
+      }
+    },
+    {
+      "event_index": 1,
+      "role": "setting",
+      "place": {
+        "place": "承德市附属医院",
+        "hierarchy": [
+          "Earth",
+          "中国",
+          "河北省",
+          "承德市",
+          "承德市附属医院"
+        ],
+        "granularity": "landmark"
+      },
+      "source_ref": {
+        "source_id": "7349a341-b34b-4ca3-84bb-f34590c937f9",
+        "version": 1,
+        "quote": "出生在河北省承德市附属医院",
+        "char_start": null,
+        "char_end": null,
+        "attribution": null
+      }
+    }
+  ],
+  "passage_dispositions": [
+    {
+      "disposition": "non_story",
+      "reason": "profile_introduction",
+      "source_ref": {
+        "source_id": "7349a341-b34b-4ca3-84bb-f34590c937f9",
+        "version": 1,
+        "quote": "我叫慧博",
+        "char_start": null,
+        "char_end": null,
+        "attribution": null
+      }
+    }
+  ],
+  "continuity_updates": [
+    {
+      "kind": "person",
+      "text": "我叫慧博",
+      "assertion": "asserted",
+      "uncertainty": null,
+      "source_id": "7349a341-b34b-4ca3-84bb-f34590c937f9",
+      "source_version": 1,
+      "char_start": null,
+      "char_end": null,
+      "quote": "我叫慧博"
+    }
+  ]
+}

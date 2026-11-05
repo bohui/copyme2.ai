@@ -4,14 +4,32 @@ import {createPlaceWorkspace} from '../../../apps/web/client/memoir/place-worksp
 import {createFamilyWorkspace} from '../../../apps/web/client/memoir/family-workspace.mjs';
 import {buildMapMemoryJourney,cityEventCards} from '../../../apps/web/client/memoir/map-memory-journey.mjs';
 import {createMapMemoryEvents} from '../../../apps/web/client/memoir/map-memory-events.mjs';
-import {groupPlaces,mergePlaces} from '../../../apps/web/client/memoir/places.mjs';
+import {groupMapFrame,groupPlaces,mergePlaces} from '../../../apps/web/client/memoir/places.mjs';
+import {harness as mapImageryHarness} from './place-map-imagery.mjs';
 
 const {events,locations,places,grouping,snapshot,relative_current_home,estimated_current_home} = JSON.parse(readFileSync(0,'utf8'));
 const enriched = events.map(event => ({...event,canonical:true,map_places:locations[event.id].items.map(link => {
   const record=grouping[link.place.place].places[0];
   return {...link,place:{...link.place,map_city:record.city,map_city_key:record.city_key,map_pin:record.pin}};
 })}));
-const journey = buildMapMemoryJourney(enriched,groupPlaces(mergePlaces([...places,...enriched.flatMap(event=>event.map_places.map(link=>link.place))])));
+const groups=groupPlaces(mergePlaces([...places,...enriched.flatMap(event=>event.map_places.map(link=>link.place))]));
+const journey = buildMapMemoryJourney(enriched,groups);
+for (const provider of ['google','geoapify']) for (const group of groups) {
+  const frame=groupMapFrame(group,group.city);
+  assert.ok(Number.isFinite(frame.latitude) && Number.isFinite(frame.longitude));
+  const slow=await mapImageryHarness(provider,{journey:frame,projectId:snapshot.project_id,
+    placeKey:group.key,reducedMotion:false});
+  const pending=slow.imagery.requestImage(0,0,0);
+  slow.expireTileWait();
+  assert.equal(slow.unavailable.size,0,'Slow imagery must keep an API-backed city recoverable');
+  assert.ok(slow.viewer.view.destination.height>1000000,
+    "A restored map starts globally while its imagery is loading");
+  slow.resolveImage({width:256,height:256});await pending;slow.loadedTiles();
+  assert.equal(slow.classes.has('is-cesium-map'),true,'Late tiles must restore the canonical API city without reload');
+  assert.equal(slow.loads(),1);
+  assert.equal(slow.flights.length,0);
+  assert.equal(slow.viewer.scene.screenSpaceCameraController.enableInputs,true);
+}
 assert.equal(journey.nodes.length,2,'Both canonical API events need separate map cards');
 if (relative_current_home) {
   const groups=groupPlaces(enriched.flatMap(event=>event.map_places.map(link=>link.place)));
@@ -50,7 +68,7 @@ if (relative_current_home) {
     t:key=>key,lifeStageText:stage=>stage});
   let redraw,center=null;
   const viewer={isDestroyed:()=>false,scene:{mode:2,postRender:{addEventListener:callback=>{redraw=callback;}}},
-    camera:{frustum:{left:-100000,right:100000},flyTo(){}}};
+    camera:{frustum:{left:-100000,right:100000},flyTo(){},setView(){}}};
   overlay.sync(scene);
   overlay.attach(viewer,{SceneMode:{SCENE2D:2},Cartesian3:{fromDegrees:(longitude,latitude)=>({longitude,latitude})},
     SceneTransforms:{worldToWindowCoordinates:(_,point)=>center
@@ -128,7 +146,7 @@ workspace.mapMemoryEvents.sync(scene);
 workspace.mapMemoryEvents.selectCity(journey.nodes[0].groupKey);
 let afterRender;
 const viewer={isDestroyed:()=>false,scene:{mode:2,postRender:{addEventListener:callback=>{afterRender=callback;return ()=>{};}}},
-  camera:{frustum:{left:-50000,right:50000},flyTo(){}}};
+  camera:{frustum:{left:-50000,right:50000},flyTo(){},setView(){}}};
 workspace.mapMemoryEvents.attach(viewer,{SceneMode:{SCENE2D:2},Cartesian3:{fromDegrees:(longitude,latitude)=>({longitude,latitude})},
   SceneTransforms:{worldToWindowCoordinates:(_,point)=>({x:150+(point.longitude-151.18)*1000,y:240+(point.latitude+33.88)*1000})}});
 assert.doesNotMatch(cards.innerHTML,/map-memory-detail/);

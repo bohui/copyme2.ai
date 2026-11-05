@@ -210,6 +210,9 @@ async def run_lifetime_turn(runtime,storage,text,*,publication,project_id=None,l
                 response.update(public_interview_fields(interview))
                 if two_lane:
                     response['workspace_focus']=await call('read_lifetime_workspace_focus',p_project_id=project_id)
+                    from .active_location import current_active_location
+                    response['current_active_location']=current_active_location(
+                        await call('read_lifetime_place_journeys',p_project_id=project_id),response['workspace_focus'])
                 if (interview or {}).get('plan'):
                     if (interview['plan'].get('candidates')
                         and (interview.get('source') or {}).get('sequence')==fence['source_revision']):
@@ -474,6 +477,9 @@ async def run_lifetime_turn(runtime,storage,text,*,publication,project_id=None,l
                 'trace':list(progress.steps),'trace_mode':'live'}
             if two_lane:
                 response['workspace_focus']=await call('read_lifetime_workspace_focus',p_project_id=project_id)
+                from .active_location import current_active_location
+                response['current_active_location']=current_active_location(
+                    await call('read_lifetime_place_journeys',p_project_id=project_id),response['workspace_focus'])
             if two_lane:
                 response['reply_id']=committed['memory'][0]['id']
             if on_event:

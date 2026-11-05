@@ -193,6 +193,9 @@ async def _extract(page,worker):
                             result['event_places'].append(link)
                     result['passage_dispositions'].extend(policy_dispositions(page, original))
                 result.update(derived_hints(raw, page, attribution=result if page.get('attribution_context') else None))
+                from .active_location import chronological_places
+                result['place_journeys'] = chronological_places(result['place_journeys'], result['events'],
+                    result.get('event_places', []), page.get('preferences', {}))
                 if (page.get('two_lane') or {}).get('reply_contract') == 'reply-v2':
                     from .lifetime_memory_continuity import validate_continuity_updates
                     result['continuity_updates'] = validate_continuity_updates(

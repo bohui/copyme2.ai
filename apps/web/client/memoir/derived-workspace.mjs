@@ -1,4 +1,5 @@
 import {placeHistoryKey} from './places.mjs';
+import {applyCurrentActiveLocation} from './active-location.mjs';
 
 // An authorized full snapshot is distinct from an empty/failed B delta.
 // This function changes derived place state only; it never saves preferences,
@@ -17,6 +18,9 @@ export function applyDerivedWorkspace(state, update) {
   const focusChanged = Object.hasOwn(update,'workspace_focus') && focusCurrent
     && JSON.stringify(state.workspaceFocus || null) !== JSON.stringify(focus);
   if (focusChanged) state.workspaceFocus = update.workspace_focus;
+  const locationChanged = Object.hasOwn(update,'current_active_location') && applyCurrentActiveLocation(
+    state, update.current_active_location, {sourceRevision:update.source_revision,
+      reset:Boolean(prior && prior.policy_epoch !== update.policy_epoch)});
   const previousPlaces = state.project.profile?.memory_places || [];
   const preserve = prior ? prior.policy_epoch === update.policy_epoch : update.policy_epoch === 1;
   const previous = new Map(previousPlaces.map(p => [placeHistoryKey(p),p]));
@@ -31,7 +35,7 @@ export function applyDerivedWorkspace(state, update) {
     state.placeWorkspaceMap = null;
   }
   if (JSON.stringify(previousPlaces) === JSON.stringify(places)
-      && (!state.placeJourney || places.some(p => placeHistoryKey(p) === placeHistoryKey(state.placeJourney)))) return focusChanged;
+      && (!state.placeJourney || places.some(p => placeHistoryKey(p) === placeHistoryKey(state.placeJourney)))) return focusChanged || locationChanged;
   state.project = {...state.project,profile:{...state.project.profile,memory_places:places}};
   const currentKey = state.placeJourney && placeHistoryKey(state.placeJourney);
   const retained = currentKey && places.find(p => placeHistoryKey(p) === currentKey);
