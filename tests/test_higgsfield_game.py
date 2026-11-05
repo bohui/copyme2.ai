@@ -27,7 +27,10 @@ def response(output, index):
 
 
 @pytest.mark.parametrize('failure', [None, 'deployment', 'path', 'unvalidated'])
-def test_preloaded_skill_keeps_validation_loop_and_honours_environment(installed, monkeypatch, failure):
+@pytest.mark.parametrize('optional_reference', [False, True])
+def test_preloaded_skill_keeps_validation_loop_and_honours_environment(installed, monkeypatch, failure, optional_reference):
+    if optional_reference:
+        (installed / 'references/optional.md').write_text('# Additional game guidance\n')
     packet = build_packet()
     packet['brief'] = dict(design_brief='A reflective garden.', scene_indices=[0])
     html = webpage()['html']
@@ -56,6 +59,10 @@ def test_preloaded_skill_keeps_validation_loop_and_honours_environment(installed
         assert 'mother repaired' not in body['input'][0]['content']
         assert 'chapter_id' not in body['input'][0]['content'] and 'event_ids' not in body['input'][0]['content']
         assert 'deploy' not in [t['name'] for t in body['tools']]
+        readers = [tool for tool in body['tools'] if tool['name'] == 'read_skill_file']
+        assert bool(readers) == optional_reference
+        if readers:
+            assert readers[0]['parameters']['properties']['paths']['items']['enum'] == ['references/optional.md']
         for path in REQUIRED_FILES:
             assert body['instructions'].count('===== ' + path + ' =====\n') == 1
         if len(requests) == 1:

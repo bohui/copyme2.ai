@@ -14,17 +14,18 @@ def empty_document(body):
 
 def document_transport(respond=empty_document, *, before_send=None):
     """Script structured model output at the real fixed-worker HTTP boundary."""
-    async def provider(request):
-        from test_conversation_reply_transport import events, sse
-        if before_send:
-            before_send()
-        body = json.loads(await request.aread())
-        assert body['tools'] == [] and body['tool_choice'] == 'none'
-        output = respond(body)
-        if inspect.isawaitable(output):
-            output = await output
-        return httpx.Response(200, content=sse(events(json.dumps(output))))
-    return httpx.MockTransport(provider)
+    class Provider(httpx.AsyncBaseTransport):
+        async def handle_async_request(self, request):
+            from test_conversation_reply_transport import events, sse
+            if before_send:
+                before_send()
+            body = json.loads(await request.aread())
+            assert body['tools'] == [] and body['tool_choice'] == 'none'
+            output = respond(body)
+            if inspect.isawaitable(output):
+                output = await output
+            return httpx.Response(200, content=sse(events(json.dumps(output))))
+    return Provider()
 
 
 def install_document_provider(monkeypatch, respond=empty_document):

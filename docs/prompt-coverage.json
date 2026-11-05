@@ -4299,8 +4299,8 @@
   {
     "name": "memoir/skills/author-timeline/derived-hints",
     "source": "skills/memoir-author-timeline/prompts/derived-hints.md",
-    "version": 5,
-    "sha256": "03c8f2aa49dd0433a3c15b733e802ff05f22edc9e4054c4f75b52b9b8c657eb9",
+    "version": 6,
+    "sha256": "8eac382ff94f0f348d4c7947a6b6b9f2f3aef80cf86975f2143c0ebeb1bbbf1b",
     "use": "conditional",
     "scenario": "Timeline source extraction, exact attribution, continuity and optional place hints; window contract bounds source pages.",
     "consumers": [
@@ -4869,8 +4869,8 @@
   {
     "name": "memoir/skills/author-timeline/instructions",
     "source": "skills/memoir-author-timeline/SKILL.md",
-    "version": 15,
-    "sha256": "45f3f4a70e5f01c8b1e850ef9682fd1f95aab0b3440f75f456ee6cb633250287",
+    "version": 16,
+    "sha256": "1df8b98a65018764b00803972ce1c46c384578bcafc5ba90e94726bc1f2080eb",
     "use": "shared",
     "scenario": "Timeline source extraction, exact attribution, continuity and optional place hints; window contract bounds source pages.",
     "consumers": [
@@ -8390,8 +8390,8 @@
   {
     "name": "memoir/skills/story-game/higgsfield",
     "source": "skills/memoir-story-game/prompts/higgsfield.md",
-    "version": 1,
-    "sha256": "7f917826e50b0a17589acd73665d69a2e2d029b5e4099ba6f0489cd772a4bdfb",
+    "version": 2,
+    "sha256": "a9f55548a6adbe6aac220666cc7fce390ddfb45f06f424b8603dafa2c25e8785",
     "use": "conditional",
     "scenario": "Optional Higgsfield builder preloads mandatory upstream skill documents; optional references and HTML validation/repair retain their tool loop.",
     "consumers": [

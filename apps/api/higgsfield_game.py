@@ -4,6 +4,7 @@ This Memoir adapter exports static scenery to the existing trusted player. It
 has skill-file reads and document validation, never shell or deployment tools.
 """
 import asyncio
+from copy import deepcopy
 import hashlib
 import json
 import os
@@ -86,6 +87,12 @@ async def run_higgsfield_game(fence, *, packet_loader=None, transport=None, skil
     proposal = selected_scenes(packet)
     brief = validate_brief(packet['brief'], len(proposal['scenes']))
     files, skill_digest = skill_snapshot(skill_path)
+    tools = deepcopy(TOOLS)
+    optional_files = sorted(files.keys() - REQUIRED_FILES)
+    if optional_files:
+        tools[0]['parameters']['properties']['paths']['items']['enum'] = optional_files
+    else:
+        tools = tools[1:]
     instructions = '\n\n'.join('===== ' + path + ' =====\n' + files[path]
         for path in sorted(REQUIRED_FILES))
     instructions += '\n\n' + '\n\n'.join(load_prompt_artifact(prompt_path('memoir/skills/story-game/' + name))
@@ -107,7 +114,7 @@ async def run_higgsfield_game(fence, *, packet_loader=None, transport=None, skil
         for _ in range(12):
             check_issue14_dispatch(issue14_admission, role='tool_loop')
             check_lane_generation()
-            body = dict(model=model, instructions=instructions, input=history, tools=TOOLS,
+            body = dict(model=model, instructions=instructions, input=history, tools=tools,
                 tool_choice='auto', parallel_tool_calls=True, store=False,
                 reasoning={'effort': effort}, include=['reasoning.encrypted_content'], max_output_tokens=20000,
                 metadata={**manifest_metadata(manifest),
@@ -151,7 +158,7 @@ async def run_higgsfield_game(fence, *, packet_loader=None, transport=None, skil
                     if call['name'] == 'read_skill_file':
                         paths = arguments.get('paths')
                         if (set(arguments) != {'paths'} or not isinstance(paths, list) or not 1 <= len(paths) <= 8
-                                or any(not isinstance(p, str) or p not in files for p in paths)):
+                                or any(not isinstance(p, str) or p not in optional_files for p in paths)):
                             raise ValueError('game_skill_file_invalid')
                         read.update(paths)
                         value = {p: files[p] for p in paths}
@@ -173,7 +180,7 @@ async def run_higgsfield_game(fence, *, packet_loader=None, transport=None, skil
             text = ''.join(part.get('text', '') for item in output if item.get('type') == 'message'
                 for part in item.get('content', []) if part.get('type') == 'output_text')
             artifact = BuildArtifact.model_validate_json(text)
-            if not REQUIRED_FILES <= read or artifact.artifact_sha256 not in artifacts:
+            if artifact.artifact_sha256 not in artifacts:
                 raise ValueError('game_skill_or_validation_required')
             return dict(webpage={'html': artifacts[artifact.artifact_sha256]}, receipt=dict(
                 status='completed', response_id=responses[-1], response_ids=responses,
