@@ -43,8 +43,8 @@ Propose only fields present in the host's `profile_context.targets`, drawn from:
 | `avatar_style` | `male` or `female` artwork hint from clear narrator self-identification only. |
 
 Childhood settings, residences, travel and remembered places belong to timeline
-and place-journey work. They do not create profile fields or justify selecting
-this skill by themselves.
+work. They do not create profile fields or justify selecting this skill by
+themselves.
 
 For avatar style, direct self-description or an unambiguous self-identifying title
 can support a proposal. A name, spouse's identity, relative's gender, voice
@@ -88,8 +88,8 @@ profile replacements are not patches.
 The output contains only these personal-profile proposals. Language, consent,
 access, entitlements, payments, completed rounds, strategy/phase, receipts, caches,
 and processing/manual-authority metadata remain application-owned. Lane A owns
-replies and questions; `memoir-author-timeline` owns event identity, stages, timing,
-and chronology; `memoir-place-journey` owns geographic cues and mapping. Emit no
-interview text, legacy profile markers, event/stage classifications, coordinates,
+replies and questions. The timeline drafts event identity, stages, timing,
+chronology and location. The timeline publishes the events used by the map.
+Emit no interview text, legacy profile markers, event/stage classifications, coordinates,
 or place-journey records. Finish once every proposed value has valid original
 evidence and every unsupported, unchanged, or protected field is omitted.

@@ -18,7 +18,7 @@ from .prompt_artifact import load_prompt_artifact, prompt_path
 from .llm_tracing import trace_skill_execution
 
 LANE_SKILLS = {'timeline': 'memoir-author-timeline', 'composer': 'memoir-composer'}
-SOURCE_SKILLS = ('memoir-author-timeline', 'memoir-place-journey', 'memoir-memory-context')
+SOURCE_SKILLS = ('memoir-author-timeline', 'memoir-memory-context')
 
 
 class BackgroundAgentInput(Contract):
@@ -198,6 +198,8 @@ class BackgroundSkills:
         source_work = current.get('source_work')
         self.source_view = source_work['source'] if source_work else None
         if source_work:
+            source_work = {**source_work, 'available_skills': [name for name in source_work['available_skills']
+                if name in SOURCE_SKILLS]}
             work = [item for item in work if item['skill'] != 'memoir-author-timeline']
             work.extend({'skill':name,'required':False,'source_review':True}
                 for name in source_work['available_skills'])
@@ -206,7 +208,7 @@ class BackgroundSkills:
     async def process_source(self, names):
         current = await self.broker.rpc('read_memoir_background_work', p_fence=self.fence)
         source = current.get('source_work')
-        if not source or not set(names) <= set(source['available_skills']):
+        if not source or not set(names) <= set(source['available_skills']).intersection(SOURCE_SKILLS):
             return {'status':'unavailable'}
         if source['source'] != self.source_view:
             return {'status':'stale'}

@@ -186,6 +186,7 @@ test('reload restores the latest mentioned place while preserving chronological 
   ];
   const context = vm.createContext({
     state: {project: {id: 'p'},lifeStage:'all'}, profile: () => ({memory_places: places}), mergePlaces,
+    publishedMap:()=>false,
     placeHistoryKey: item => item.place, rememberPlaceJourneyProject: () => {},
     saveProfileUpdates: async () => {}, loadPlacePictures: async () => {}, resolvePlaceMap: () => {},
   });
@@ -203,6 +204,7 @@ test('old canonical turns show saved place restoration without inventing an exec
   let saves=0;
   const context=vm.createContext({state:{project:{id:'p'},chat:[old,unrelated]},
     profile:()=>({memory_places:[place]}),mergePlaces,placeHistoryKey:item=>item.place,
+    publishedMap:()=>false,
     translate:key=>key,persistChatHistory:()=>{saves++;},
     saveProfileUpdates:async()=>{},rememberPlaceJourneyProject:()=>{},loadPlacePictures:()=>{},resolvePlaceMap:()=>{},
   });
@@ -315,6 +317,7 @@ test('photo discovery does not reserve a gallery before any eligible result', ()
     state: {placeJourney: entry, project: {id: 'p'}, lifeStage: 'all', photoRequests: new Map()},
     escapeHtml: String, translate: key => key, placeWorkspaceSelection: () => entry,
     placeMapTarget: () => ({}), profile: () => ({memory_places: [entry]}), mergePlaces: items => items,
+    publishedMap:()=>false,
     placeHistoryChoices: () => '', placeJourneyMarkup: () => '<div>map</div>', groupMapFrame: () => ({pins:[]}),
     workspacePlaceGroups: () => [{city: entry, members: [entry]}], groupChoices: () => [entry],
     mapMemoryEvents: {activeCity: () => null, nodes: () => []},

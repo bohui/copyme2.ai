@@ -259,6 +259,7 @@ test-place-research: test-web ## Replay the two-place interview through the API,
 		tests/test_lane_b_question_priorities.py tests/test_lane_b_question_priorities_postgres.py \
 		tests/test_interview_guidance.py tests/test_interview_guidance_workflow.py tests/test_mira_realtime_interviewing.py \
 		tests/test_memoir_background_agent_workflow.py::test_resolved_language_reaches_background_skills_and_map_cards \
+		tests/test_memoir_background_agent_workflow.py::test_timeline_reconciles_and_revises_a_city_period \
 		tests/test_recall_limit_questions.py tests/test_recall_limit_postgres.py \
 		tests/test_two_lane_memory.py::test_confirmations_rank_first_and_survive_the_ordinary_hint_expiry \
 		tests/test_two_lane_memory.py::test_confirmation_from_an_earlier_source_window_stays_queued \

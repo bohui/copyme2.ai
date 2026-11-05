@@ -25,6 +25,7 @@ PROMPT_PATHS = {
     'memoir/shared/recall-invitations': 'apps/api/prompts/shared/recall-invitations.md',
     'memoir/shared/skill-agent': 'apps/api/prompts/skill-agent.md',
     'memoir/skills/author-timeline/extract': 'skills/memoir-author-timeline/prompts/extract.md',
+    'memoir/skills/author-timeline/reconcile': 'skills/memoir-author-timeline/prompts/reconcile.md',
     'memoir/skills/composer/draft': 'skills/memoir-composer/prompts/draft.md',
     'memoir/skills/composer/outline/leaf/en-AU': 'skills/memoir-composer/prompts/outline/leaf/en-AU.md',
     'memoir/skills/composer/outline/leaf/zh-CN': 'skills/memoir-composer/prompts/outline/leaf/zh-CN.md',

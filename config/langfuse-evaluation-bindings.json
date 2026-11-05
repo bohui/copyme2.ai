@@ -986,6 +986,17 @@
         "observed_scenario_checks_pass"
       ],
       "validator": "scripts/run_memoir_prompt_evaluation.py:scores"
+    },
+    "memoir/skills/author-timeline/reconcile": {
+      "scope": "model",
+      "primary_prompt": "memoir/skills/author-timeline/reconcile",
+      "evaluated_prompts": [
+        "memoir/skills/author-timeline/reconcile"
+      ],
+      "metrics": [
+        "contract"
+      ],
+      "validator": "scripts/memoir_live_skill_cases.py:validate_case"
     }
   },
   "datasets": [

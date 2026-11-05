@@ -21,8 +21,8 @@ def test_assembled_templates_preserve_original_instruction_bytes(case):
 def test_published_extraction_is_complete_and_has_one_operation_name():
     from apps.api.prompt_catalog import PROMPT_PATHS
     names = {n for n in PROMPT_PATHS if n.startswith('memoir/skills/author-timeline/')}
-    assert names == {'memoir/skills/author-timeline/extract'}
-    template = expanded_prompt(prompt_path(next(iter(names))))
+    assert names == {'memoir/skills/author-timeline/extract', 'memoir/skills/author-timeline/reconcile'}
+    template = expanded_prompt(prompt_path('memoir/skills/author-timeline/extract'))
     assert '{{prompt:' not in template
     assert '# Memoir Author Timeline' in template
     assert '# Shared MemoryEvent service' in template

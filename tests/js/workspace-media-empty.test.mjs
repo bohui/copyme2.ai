@@ -11,6 +11,7 @@ test(`a resolved location with no photos hides the photo lane (${JSON.stringify(
     state: {lifeStage: 'all', photoRequests: new Map([['place', request]])},
     placeWorkspaceSelection: () => place, placeMapTarget: () => place,
     profile: () => ({memory_places: [place]}), mergePlaces: places => places,
+    publishedMap:()=>false,
     workspacePlaceGroups: () => [], groupChoices: () => [], placeHistoryChoices: () => '',
     mapMemoryEvents: {activeCity: () => null, nodes: () => []},
     cesiumPlaceJourneyViewer:null, mapOpeningScope:null, mapOpeningCity:null,
@@ -52,6 +53,7 @@ test(`background location lookup ${outcome} only shows the workspace when a map 
   const context = vm.createContext({
     state: {project: {id: 'synthetic'}, placeJourney: journey, lifeStage: 'all', photoRequests: new Map()},
     composingWorkspaceActive: () => false,
+    publishedMap:()=>false,
     pendingPlaceTargets: pending, resolvedPlaceTargets: new Map(),
     resolvePlaceGroups: () => {},
     mapTarget: () => null, placeHistoryKey: () => 'synthetic-place',

@@ -43,7 +43,7 @@ for (const restore of ['live','refresh','reopen']) {
       longitude:places.find(candidate=>matchesEventPlace(candidate,place)).longitude}]}));
   state.placeJourney=state.project.profile.memory_places.find(place=>matchesEventPlace(place,other));
   state.selectedPlace=null;
-  state.timeline=events.map(event=>({...event,places:links[event.id].map(link=>({...link,
+  state.timeline=events.map(event=>({...event,canonical:true,places:links[event.id].map(link=>({...link,
     place:{...link.place,...places.find(candidate=>matchesEventPlace(candidate,link.place))}}))}));
   map.sync(null);await new Promise(resolve=>setImmediate(resolve));
   const markup=workspace.workspaceMediaOverview();

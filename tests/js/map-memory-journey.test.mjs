@@ -105,7 +105,7 @@ test('initial city grouping preserves separate event coordinates for zooming in'
   assert.equal(journey.legs[0].stageTransition,true);
 });
 
-test('city summaries show the city and first-to-last timing, with event copy reserved for event cards', () => {
+test('city summaries show the city and earliest-to-latest timing, with event copy reserved for event cards', () => {
   const events=[{...event('last',null,work),title:'Last event title',summary:'Last event description',
     temporal:{expression:'1991',precision:'year',year_start:1991}},
   {...event('first',null,school,'baby'),title:'Birth event title',summary:'Birth event description',uncertainty:'Event uncertainty',
@@ -125,26 +125,60 @@ test('city summaries show the city and first-to-last timing, with event copy res
   assert.match(individual,/data-memory-explore="first"/);
 });
 
-test('one-event city summaries still expand and retain unknown timing at the last event', () => {
+test('undated members do not erase the known city bounds', () => {
   const birth={...event('birth',0,city,'baby'),temporal:{expression:'1983',precision:'year',year_start:1983}};
   const later={...event('later',null,school),temporal:null};
   for (const events of [[birth],[birth,later]]) {
     const grouped=cityEventCards(buildMapMemoryJourney(events,groups,{birth_year:1983}).nodes)[0];
     const html=memoryEventCardMarkup(grouped,{t,lifeStageText:stage=>stage});
-    assert.match(html,events.length===1 ? /From 1983 · About age 0 to 1983 · About age 0/
-      : /From 1983 · About age 0 to \?/);
+    assert.match(html,/From 1983 · About age 0 to 1983 · About age 0/);
     assert.match(html,/Expand memories/);
     assert.doesNotMatch(html,/data-memory-explore|Explore this memory/);
   }
 });
 
-test('city timing uses the last event instead of the longest earlier interval', () => {
+test('city timing spans every event including a longer earlier residence', () => {
   const early={...event('early',null,school),temporal:{expression:'1983–2000',precision:'range',year_start:1983,year_end:2000}};
   const later={...event('later',null,work),temporal:{expression:'1991–1993',precision:'range',year_start:1991,year_end:1993}};
   const grouped=cityEventCards(buildMapMemoryJourney([later,early],groups,{birth_year:1983}).nodes)[0];
   const html=memoryEventCardMarkup(grouped,{t,lifeStageText:stage=>stage});
-  assert.match(html,/From 1983 · About age 0 to 1993 · About age 10/);
-  assert.doesNotMatch(html,/2000|age 17/);
+  assert.match(html,/From 1983 · About age 0 to 2000 · About age 17/);
+});
+
+test('city bounds include every interval regardless of event order or date estimation', () => {
+  const long={...event('long',null,city,'unplaced'),temporal:null,
+    temporal_estimate:{year_start:1971,year_end:1988,age_start:11,age_end:28,confidence:.4}};
+  const short={...event('short',null,school),temporal:{expression:'1975–1978',precision:'range',year_start:1975,year_end:1978}};
+  for (const input of [[long,short],[short,long]]) {
+    const cards=cityEventCards(buildMapMemoryJourney(input,groups,{birth_year:1960}).nodes);
+    assert.match(memoryEventCardMarkup(cards[0],{t,lifeStageText:stage=>stage}),
+      /From About 1971 · About age 11 to About 1988 · About age 28/);
+  }
+});
+
+test('birth-to-age ranges preserve both bounds in either source language', () => {
+  for (const end of [5,16,34]) for (const expression of [`从出生一直到${end}岁`,`from birth until age ${end}`]) {
+    assert.deepEqual(eventAge({temporal:{expression,precision:'age'}}),{start:0,end,approximate:false});
+  }
+});
+
+test('Chengde, Shanghai and Sydney cards retain whole residence periods and narrated order', () => {
+  const chengde={place:'Chengde',granularity:'city',hierarchy:['Earth','China','Chengde'],latitude:40.95,longitude:117.96};
+  const shanghai={place:'Shanghai',granularity:'city',hierarchy:['Earth','China','Shanghai'],latitude:31.23,longitude:121.47};
+  const residence=(id,place,start,end)=>({...event(id,null,place,'unplaced'),kind:'period',temporal:null,
+    temporal_estimate:{year_start:1983+start,year_end:1983+end,age_start:start,age_end:end,confidence:.4}});
+  const home={...residence('home',chengde,0,16),temporal:{expression:'从出生一直到16岁',precision:'age'}};
+  const study={...residence('study',shanghai,17,29),relations:[{kind:'before',event_id:'sydney'}]};
+  const sydney=residence('sydney',city,29,43);
+  const childhood=event('childhood',6,chengde);
+  const journey=buildMapMemoryJourney([sydney,study,home,childhood],groupPlaces([chengde,shanghai,city]),{birth_year:1983});
+  const cards=cityEventCards(journey.nodes);
+  assert.deepEqual(cards.map(card=>card.city),['Chengde','Shanghai','Sydney']);
+  const html=cards.map(card=>memoryEventCardMarkup(card,{t,lifeStageText:stage=>stage}));
+  assert.match(html[0],/From About 1983 · Age 0 to About 1999 · Age 16/);
+  assert.match(html[1],/From About 2000 · About age 17 to About 2012 · About age 29/);
+  assert.match(html[2],/From About 2012 · About age 29 to About 2026 · About age 43/);
+  assert.ok(journey.legs.some(leg=>leg.from.city==='Shanghai' && leg.to.city==='Sydney'));
 });
 
 test('Chinese city summaries use 展开记忆 and reserve 继续聊这段回忆 for events', context => {

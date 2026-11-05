@@ -2,15 +2,15 @@
   {
     "name": "memoir/agents/atlas/skill-selection",
     "source": "apps/api/prompts/atlas/system.md",
-    "version": 1,
-    "sha256": "70203c3a8c9c5beed54a512b888feaac2dc426be1c9f6b5a53273117125cda42",
+    "version": 3,
+    "sha256": "1eca75e245e2dd3a5b10afb2b7b10d668b8d91e128dea8df80d9a4015a3dbe37",
     "use": "runtime",
-    "scenario": "After saved originals, Atlas chooses and reads admitted skills; canonical commits remain host-owned. Background admission retains batch working context through ordinary foreground replies and waits for pending privacy review without repeating completed model calls.",
+    "scenario": "Atlas selects Timeline for memoir events and geography, Profile for writable personal facts, or an empty selection. Timeline runs extraction and reconciliation for nonempty drafts.",
     "consumers": [
       {
         "path": "apps/api/memoir_background_agent.py",
         "symbol": "run_background_agent",
-        "line": 273
+        "line": 275
       }
     ],
     "targets": [
@@ -60,7 +60,9 @@
       "tests/test_automatic_prompt_evaluation.py",
       "tests/test_memoir_background_agent_workflow.py::test_foreground_keeps_replying_while_background_finishes_then_batches_queued_narrations",
       "tests/test_memoir_background_agent_workflow.py::test_finished_background_output_waits_for_foreground_policy_without_another_model_call",
-      "tests/test_background_profile_postgres.py"
+      "tests/test_background_profile_postgres.py",
+      "tests/test_memoir_background_agent_workflow.py::test_lane_b_selects_each_source_skill_or_none_independently_of_lane_a_and_rounds",
+      "tests/test_memoir_background_agent_workflow.py::test_timeline_reconciles_and_revises_a_city_period"
     ],
     "gaps": [
       "No scored experiment items verified for the current pin"
@@ -1900,7 +1902,7 @@
       {
         "path": "scripts/memoir_live_skill_cases.py",
         "symbol": "cases",
-        "line": 186
+        "line": 251
       },
       {
         "path": "scripts/memoir_live_skill_cases.py",
@@ -1938,7 +1940,7 @@
       {
         "path": "scripts/memoir_live_skill_cases.py",
         "symbol": "cases",
-        "line": 186
+        "line": 251
       },
       {
         "path": "scripts/memoir_live_skill_cases.py",
@@ -1976,7 +1978,7 @@
       {
         "path": "scripts/memoir_live_skill_cases.py",
         "symbol": "cases",
-        "line": 186
+        "line": 251
       },
       {
         "path": "scripts/memoir_live_skill_cases.py",
@@ -2014,7 +2016,7 @@
       {
         "path": "scripts/memoir_live_skill_cases.py",
         "symbol": "cases",
-        "line": 186
+        "line": 251
       },
       {
         "path": "scripts/memoir_live_skill_cases.py",
@@ -2052,7 +2054,7 @@
       {
         "path": "scripts/memoir_live_skill_cases.py",
         "symbol": "cases",
-        "line": 186
+        "line": 251
       },
       {
         "path": "scripts/memoir_live_skill_cases.py",
@@ -2090,7 +2092,7 @@
       {
         "path": "scripts/memoir_live_skill_cases.py",
         "symbol": "cases",
-        "line": 186
+        "line": 251
       },
       {
         "path": "scripts/memoir_live_skill_cases.py",
@@ -2128,7 +2130,7 @@
       {
         "path": "scripts/memoir_live_skill_cases.py",
         "symbol": "cases",
-        "line": 186
+        "line": 251
       },
       {
         "path": "scripts/memoir_live_skill_cases.py",
@@ -2537,15 +2539,15 @@
   {
     "name": "memoir/skills/author-timeline/extract",
     "source": "skills/memoir-author-timeline/prompts/extract.md",
-    "version": 1,
-    "sha256": "8ba3224af906146a3e3eaba2d603d4862e6b1b843ef932e8fc95b8d3a28ce006",
+    "version": 5,
+    "sha256": "dee2b67275100aef548b4e3e324dc8d65582452daca8a1c2b293865b06cc7add",
     "use": "conditional",
-    "scenario": "Timeline source extraction, exact attribution, continuity and optional place hints; window contract bounds source pages.",
+    "scenario": "Draft original timing, geography and same-response chronology in a bounded source window. Canonical identity choices are deferred to reconciliation. Already-admitted legacy requests retain their identity and place contracts.",
     "consumers": [
       {
         "path": "apps/api/memory_events.py",
         "symbol": "extraction_instructions",
-        "line": 387
+        "line": 408
       },
       {
         "path": "apps/api/two_lane_memory.py",
@@ -2736,11 +2738,53 @@
       "tests/test_prompt_composition.py",
       "tests/test_assembled_prompts.py",
       "tests/test_prompt_publication.py",
-      "tests/test_prompt_usage_link.py"
+      "tests/test_prompt_usage_link.py",
+      "tests/test_memoir_background_agent_workflow.py::test_timeline_reconciles_and_revises_a_city_period",
+      "tests/test_timeline_reported_places.py::test_map_city_chronology_preserves_skill_relations_across_paginated_api",
+      "tests/js/map-memory-journey.test.mjs"
     ],
     "gaps": [
       "Requires scenario/branch-specific execution evidence",
       "No scored experiment items verified for the current pin"
+    ]
+  },
+  {
+    "name": "memoir/skills/author-timeline/reconcile",
+    "source": "skills/memoir-author-timeline/prompts/reconcile.md",
+    "version": 1,
+    "sha256": "469fd86900933eb0ef50f5dad45de931d8419bb94775034528f827c35e82198f",
+    "use": "runtime",
+    "scenario": "Reconcile nonempty validated drafts with nearby active events under the same Timeline publication fence. Scope create, update, and unresolved decisions before saving message links.",
+    "consumers": [
+      {
+        "path": "apps/api/lifetime_memory_composer.py",
+        "symbol": "_reconcile_timeline",
+        "line": 146
+      },
+      {
+        "path": "apps/api/lifetime_memory_lane_engine.py",
+        "symbol": "lane_contract",
+        "line": 212
+      }
+    ],
+    "targets": [
+      "memoir/skills/author-timeline/reconcile"
+    ],
+    "evaluators": [],
+    "sdk_evaluators": [],
+    "declared_metrics": [
+      "contract (requires code/reference or manual grading)"
+    ],
+    "hosted_rule_ids": [],
+    "datasets": [],
+    "regressions": [
+      "tests/test_memoir_background_agent_workflow.py::test_timeline_reconciles_and_revises_a_city_period",
+      "tests/test_lifetime_memory_lane_engine.py",
+      "tests/test_memoir_live_skills.py"
+    ],
+    "gaps": [
+      "No active hosted dataset",
+      "No active hosted grader verified; use the declared regression/calibration path"
     ]
   },
   {
@@ -2759,7 +2803,7 @@
       {
         "path": "apps/api/lifetime_memory_lane_engine.py",
         "symbol": "lane_contract",
-        "line": 207
+        "line": 212
       }
     ],
     "targets": [
@@ -3456,7 +3500,7 @@
       {
         "path": "apps/api/lifetime_memory_lane_engine.py",
         "symbol": "lane_contract",
-        "line": 207
+        "line": 212
       }
     ],
     "targets": [
@@ -3601,7 +3645,7 @@
       {
         "path": "apps/api/lifetime_memory_lane_engine.py",
         "symbol": "lane_contract",
-        "line": 207
+        "line": 212
       }
     ],
     "targets": [
@@ -3914,10 +3958,10 @@
   {
     "name": "memoir/skills/memory-context/profile",
     "source": "skills/memoir-memory-context/prompts/profile.md",
-    "version": 1,
-    "sha256": "93dae2ca70696f2e66ee1c5b4313248d040fe11e1dcf41ee9a682d5e1b3569aa",
+    "version": 3,
+    "sha256": "b0df7fbfe442d5446580c79499685376629f714efba6c6e95f522eb7bdb2304b",
     "use": "runtime",
-    "scenario": "Profile extraction from originals. Background admission retains batch working context through ordinary foreground replies and waits for pending privacy review without repeating completed model calls.",
+    "scenario": "Draft eligible narrator name, birth details and avatar hint from authorized originals. Timeline owns residence, travel and remembered places.",
     "consumers": [
       {
         "path": "apps/api/background_profile.py",
@@ -4026,7 +4070,8 @@
       "tests/test_memoir_background_agent_workflow.py::test_foreground_keeps_replying_while_background_finishes_then_batches_queued_narrations",
       "tests/test_memoir_background_agent_workflow.py::test_finished_background_output_waits_for_foreground_policy_without_another_model_call",
       "tests/test_background_profile_postgres.py",
-      "tests/test_prompt_usage_link.py"
+      "tests/test_prompt_usage_link.py",
+      "tests/test_memoir_background_agent_workflow.py::test_lane_b_selects_each_source_skill_or_none_independently_of_lane_a_and_rounds"
     ],
     "gaps": [
       "No scored experiment items verified for the current pin"
@@ -5162,7 +5207,7 @@
       {
         "path": "scripts/memoir_live_skill_cases.py",
         "symbol": "cases",
-        "line": 186
+        "line": 251
       }
     ],
     "targets": [

@@ -45,7 +45,10 @@ for (const name of ['captureProjectScope','isCurrentProjectScope','profile','pre
   assert.ok(declaration,`Missing production function ${name}`);
   vm.runInContext(declaration[0],context);
 }
-const snapshots=[packet.pending,packet.ready];
+// This fixture exercises the legacy hint-only extraction and its saved photo cache.
+// The published-event map has its own worker-to-client replay.
+const legacy = snapshot => ({...snapshot,derived_workspace:{...snapshot.derived_workspace,map_source:undefined}});
+const snapshots=[legacy(packet.pending),legacy(packet.ready)];
 context.storyApi=async()=>{
   assert.ok(snapshots.length,'Readiness must settle after Lane B finishes');
   return snapshots.shift();
@@ -161,7 +164,7 @@ for (const language of ['zh-CN','en-AU','zh-CN']) {
 }
 assert.ok(groups.includes('zh-CN') && groups.includes('en-AU'));
 const saved=plain(state.project.profile.memory_places);
-applyDerivedWorkspace(state,packet.ready.derived_workspace);
+applyDerivedWorkspace(state,legacy(packet.ready).derived_workspace);
 await places.hydratePlaceJourney();
 await Promise.all(loads);
 assert.deepEqual(plain(state.project.profile.memory_places),saved,'A refreshed snapshot must preserve photo cache metadata');

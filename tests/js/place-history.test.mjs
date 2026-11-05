@@ -178,6 +178,7 @@ test('keeps the last available map when a later selected place cannot be resolve
   state: {project: {id: 'project'}, placeJourney: unknown, lifeStage: 'all', selectedPlace: placeHistoryKey(unknown)},
   mapTarget, mergePlaces, placeHistoryKey, resolvedPlaceTargets: new Map(), unavailablePlaceMaps: new Set(),
   profile: () => ({memory_places: [unknown, mapped]}), composingWorkspaceActive: () => false, freeRecallFinished: () => false,
+  publishedMap:()=>false,
  });
  for (const name of ['placeMapTarget', 'placeMapRenderKey', 'placeMapAvailable', 'placeWorkspaceSelection', 'freeRecallFinished', 'workspaceContentAvailable', 'workspaceHasContent']) {
   vm.runInContext(source.match(new RegExp(`function ${name}\\([^]*?\\n\\}`))[0], context);

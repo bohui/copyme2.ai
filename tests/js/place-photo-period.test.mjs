@@ -109,7 +109,7 @@ test('selecting a restored place starts its own photo request', () => {
   const context = vm.createContext({state, profile: () => ({memory_places: [entry]}),
     placeHistoryKey: place => place.place, loadPlacePictures: (place, project) => calls.push([place, project]),
     render: () => {},resolvePlaceMap: place => mapped.push(place),
-    workspacePlaceGroups:()=>[{key:'chengde',members:[entry]}],mapMemoryEvents:{selectCity:key=>chosen.push(key)},
+    workspacePlaceGroups:()=>[{key:'chengde',members:[entry]}],mapMemoryEvents:{selectCity:key=>chosen.push(key)},publishedMap:()=>false,
   });
   vm.runInContext(source.match(/function selectPlace\([^]*?\n\}/)[0], context);
   context.selectPlace('承德市');

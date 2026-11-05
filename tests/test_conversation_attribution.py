@@ -48,6 +48,9 @@ class Conversation:
                 self.admissions.append((bounded['phase'], packet))
                 if bounded['phase'] == 'profile':
                     output = {'profile_patch': []}
+                elif bounded['phase'] == 'reconcile':
+                    from controlled_skill_harness import create_draft_decisions
+                    output = create_draft_decisions(packet['drafts'])
                 elif bounded['phase'] == 'guidance':
                     if guidance:
                         output = guidance(packet)

@@ -12,20 +12,23 @@ a completed round requires a saved successful reply. Technical replay adds no
 source or round. An empty extraction is successful processing.
 
 The host supplies [the shared contract](references/contract.md) and the required
-phase instructions with this skill. Apply them and return only JSON matching
-the supplied output schema to the private worker. Do not emit a conversational
-reply, Family-document timeline marker, or direct database write. The application
-validates proposals and atomically commits them to PostgreSQL.
+phase instructions with this skill. Return private draft events in the supplied
+JSON schema. Include a start and end estimate and a location candidate when
+supported by the originals. Leave unsupported bounds or geography unknown and
+retain the evidence and confidence for every proposed placement. The Timeline
+reconciliation step matches these drafts to published events before the host commits.
 
 Read saved canonical events and original context before reconciliation. One
 input may support zero, one or several events, and an event may collect several
-inputs, including late details about a much older memory. Use `existing_id` and
-`expected_revision` only when original evidence establishes continuity. Similar
-titles, dates and places do not establish identity. Keep recurring experiences
-separate. Ambiguous matches retain scoped `candidate_ids` and unresolved status;
-conflicting accounts retain attribution and uncertainty rather than a winner.
-Propose new or changed events; use unchanged saved facts as context. An
-acknowledgement with no new personal evidence returns an empty event list.
+inputs, including late details about a much older memory. When the schema
+requires a null existing_id, return a private draft for new testimony even if it
+continues a known event. Keep expected_revision and correction null and leave
+candidate_ids empty. The next Timeline operation selects the identity. Legacy
+requests that allow existing_id require original evidence for continuity. Similar
+titles, dates and places alone do not establish identity. Keep recurring
+experiences separate. Combine passages about the same memory in one draft
+and retain all supporting original spans. An acknowledgement with no new
+personal evidence returns an empty event list.
 
 Read conversation_history (the preceding twenty conversation rounds, oldest
 first) AND last_event before resolving the current memory's identity, location
@@ -55,7 +58,7 @@ stated historical name; a public map resolves coordinates separately. Household,
 building-unit and room details stay in the narrative; an unnamed hospital or
 school compound supplies no landmark identity. City-only context stays city-level
 until originals support a finer setting. Preserve detailed placements on later
-continuations. place_journeys remain separate coarse city-level workspace cues.
+continuations. Only legacy requests can include a separate place_journeys array.
 When only a country or broader setting is plausible, still choose a provisional
 real city within that setting, preferring the narrator's known places. Give this
 city a confidence strictly between 0 and 0.2, typically 0.05–0.15. Its name need
@@ -72,13 +75,12 @@ The workspace groups provisional candidates with a small question mark below
 lower-confidence placement for clarification. Keep primary source_refs on the
 CURRENT original; earlier placement evidence is a dependency, not new testimony.
 
-When later originals improve a saved event's placement confidence, update that
-event with existing_id and expected_revision, revised placement values and the
-new evidence. When a follow-up adds activity details without new placement
+When later originals improve a saved event’s placement, draft the revised
+placement with the new evidence. Leave identity selection to reconciliation
+when the schema requires a null existing_id. When a follow-up adds activity details without new placement
 evidence, carry forward its candidate location and temporal_estimate with their
 authorized basis and confidence. Revise them when new evidence supports a
-different estimate or contradicts the earlier guess. Return those placements on
-the same identity. Keep yearConfidenceScore aligned with
+different estimate or contradicts the earlier guess. Keep the full period together so the host can match it to the same identity. Keep yearConfidenceScore aligned with
 temporal_estimate.confidence while the preferred year remains inferred. New
 stated timing takes precedence over an earlier guess.
 
@@ -98,6 +100,16 @@ cited original's created_at year, recorded as reference_year, so replay keeps th
 same estimate. Allow for rounded durations and gaps between life periods.
 For a period, estimate its whole span; an explicitly current residence may end
 at its original capture year. For a point event, the range expresses uncertainty.
+When a narrated sequence supplies a start age and durations, use them to revise
+the affected periods together, including an already saved current residence.
+Use stated anchors and durations first. Where a duration is missing, make a
+context-specific provisional assumption, explain it in rationale and lower
+confidence; there is no fixed study length or residence age band. Propagate the
+result through the connected periods so an earlier residence ends around the
+next move and the later residence starts around that same transition. Only an
+explicitly current residence runs to the original capture year. Preserve stated
+ages and dates separately from inferred, rounded period bounds. Revise existing
+canonical events as well as new proposals; city labels are only their projection.
 Use the narrator's own birth evidence to convert years and ages; a relative's
 birth year is not that anchor. A supported life stage may justify a broad age
 range with low confidence (typically 0.2–0.5); calendar estimates need an original
@@ -117,15 +129,23 @@ period interval record, even when it crosses several life stages.
 Every source reference cites an authorised original ID/version and exact quote,
 with optional Unicode code-point span and attribution. Assistant questions,
 summaries and earlier prose are not testimony. Source language is independent
-of memoir locale. Before/after relations require a scoped canonical event target
-and their original evidence. Person links use already established canonical
+of memoir locale. Preserve explicitly narrated order in sourced before/after
+relations even when temporal_estimate intervals overlap or share a boundary.
+When the schema supports draft targets, label each related draft with a
+unique ID such as `draft-1` and use `draft_id` for a target in this same output.
+Reconciliation can add links to published events. A legacy schema can link a
+supplied canonical event ID directly. Cite the contiguous
+original passage establishing the sequence. Put the relation on the appropriate
+new or updated event and retain supported order on later updates.
+Unknown transition dates stay uncertain, and capture order alone supplies no
+chronology. Person links use already established canonical
 family identities; unresolved names do not create or identify a person.
 
-An explicit current chat correction may include `correction` citing the whole
-original statement and the target's expected revision. The backend records actor,
-origin and authority. Saved user overrides take precedence over model estimates.
-A location-only clarification uses an ordinary existing_id update; correction
-is for stage or date changes.
+For a current chat correction, draft the corrected stage, dates or location
+with the original evidence. Reconciliation can recognize explicit author
+correction wording. When the legacy schema permits correction, cite the whole
+original statement and the target revision. The backend records actor, origin
+and authority. Saved user overrides take precedence over model estimates.
 A stale revision requires a fresh snapshot. The model cannot grant privacy or
 print rights. Removed source links cannot be silently restored.
 
@@ -183,9 +203,8 @@ source, independently of premium display.
 matching the supplied schema; empty extraction is a successful result.
 {{/events_only}}{{#places}}Return {"events": [...], "place_journeys": [...]}
 matching the supplied schema; empty arrays are valid.
-{{/places}}Read saved canonical
-events before proposing existing_id and expected_revision. Similar title, place,
-or date does not establish continuity. Leave ambiguous candidate IDs unresolved.
+{{/places}}Read saved canonical context for placement. Only a legacy schema
+that accepts existing_id can choose a saved identity during extraction.
 Cite exact original source IDs/versions/quotes. Keep the original source language;
 never cite assistant replies or earlier prose. Retain date expressions and their
 uncertainty, use unplaced/unknown when unsupported, and keep life periods whole.

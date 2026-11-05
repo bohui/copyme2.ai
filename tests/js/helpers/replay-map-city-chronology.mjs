@@ -42,7 +42,7 @@ for (const city of cities) {
   assert.doesNotMatch(html,/Birth|Growing up|Shanghai study and work|Sydney residence|data-memory-explore|confidence/);
   if (city.city==='Chengde') assert.ok(html.includes(with_estimates
     ? 'From 1983 · About age 0 to About 2000 · About age 17'
-    : 'From 1983 · About age 0 to ?'));
+    : 'From 1983 · About age 0 to 1983 · About age 0'));
 }
 assert.ok(journey.legs.some(leg=>leg.from.city==='Shanghai' && leg.to.city==='Sydney'),
   'The skill’s sourced before relation must survive the database/API/client boundary');
@@ -118,6 +118,7 @@ map.dispose();
 scene.child=null;
 state.placeJourney=destination;
 const refreshed=workspace();
+refreshed.mapMemoryEvents.sync(null);
 assert.match(refreshed.workspaceMediaOverview(),/data-cesium-latitude="0"/,
   'Refresh opens the whole journey regardless of the previous camera selection');
 const beforeArrival=frames.length;

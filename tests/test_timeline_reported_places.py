@@ -518,18 +518,26 @@ def test_reported_places_replay_from_sql_api_to_client(sql, tmp_path, monkeypatc
         assert result.returncode == 0, result.stdout + result.stderr
 
 
-@pytest.mark.parametrize('with_estimates,repair_estimate', [(False,False), (True,False), (True,True)])
-def test_map_city_chronology_preserves_skill_relations_across_paginated_api(sql, tmp_path, monkeypatch, with_estimates, repair_estimate):
+@pytest.mark.parametrize('with_estimates,repair_estimate,overlap', [
+    (False,False,False), (True,False,False), (True,True,False), (True,False,True)])
+def test_map_city_chronology_preserves_skill_relations_across_paginated_api(sql, tmp_path, monkeypatch, with_estimates, repair_estimate, overlap):
     from pathlib import Path
     import subprocess
     from test_shared_memory_events_postgres import literal
     home_quote = 'I currently live in Sydney. I have lived here for fourteen years.'
     first = 'I was born in Chengde in 1983. ' + home_quote
     later = 'I grew up in Chengde. Later I studied and worked in Shanghai for five years before moving to Sydney.'
+    followup = 'I still remember going to work by train in Shanghai.'
     home_id = None
+    study_id = None
 
     def extract(packet):
         text = packet['sources'][0]['text']
+        if text == followup:
+            saved = next(event for event in packet['events'] if event['id'] == study_id)
+            item = dict(episode(packet,followup,title=saved['title']),kind='period',life_stage='unplaced',
+                existing_id=study_id,expected_revision=saved['revision'],relations=[])
+            return {**empty(packet),'events':[item]}
         if repair_estimate and text==first and packet.get('retry_reason'):
             assert packet['retry_reason']=='TEMPORAL_ESTIMATE_RANGE'
         events, links = [], []
@@ -552,6 +560,8 @@ def test_map_city_chronology_preserves_skill_relations_across_paginated_api(sql,
                 anchor=source if text==first else packet['conversation_history'][-1]['source']
                 year=int(anchor['created_at'][:4])
                 start,end,confidence = (year-15,year,.8) if city=='Sydney' else (year-20,year-13,.65) if city=='Shanghai' else (1986,2000,.4)
+                if overlap and city in {'Shanghai','Sydney'}:
+                    start,end,confidence = (1999 if city=='Shanghai' else 2004),year,.3
                 dependency=dict(source_id=anchor['id'],version=anchor['version'],
                     quote=home_quote if city=='Shanghai' else 'I was born in Chengde in 1983.')
                 item['temporal_estimate']=dict(year_start=start,year_end=end,age_start=start-1983,age_end=end-1983,
@@ -574,6 +584,12 @@ def test_map_city_chronology_preserves_skill_relations_across_paginated_api(sql,
         assert home_id
         conversation.say(later)
         conversation.drain()
+        if overlap:
+            study_id=sql(f"select id from public.user_memory_event where project_id={literal(conversation.project)} and data->>'title'='Shanghai study and work';").stdout.strip()
+            assert study_id
+            conversation.say(followup)
+            conversation.drain()
+            assert sql(f"select jsonb_array_length(data->'relations') from public.user_memory_event where id={literal(study_id)};").stdout.strip() == '1', 'An unrelated follow-up must preserve sourced chronology'
         pages, orders, locations = {}, {}, {}
         cursor = None
         while True:

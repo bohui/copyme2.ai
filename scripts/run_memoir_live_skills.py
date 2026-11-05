@@ -346,6 +346,8 @@ async def execute(args):
     for case_id, skill, case in tasks:
         before = len(receipt['calls'])
         result = dict(case_id=case_id, skill=skill, status='running', scope=(case.get('scope') if isinstance(case, dict) else None))
+        if isinstance(case, dict) and case.get('prompt_manifest'):
+            result['prompt_manifest'] = case['prompt_manifest']
         tick = time.monotonic()
         try:
             if skill == 'memoir-composer':

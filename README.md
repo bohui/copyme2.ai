@@ -406,15 +406,18 @@ historical evaluation case/dataset IDs remain stable.
 
 Atlas runs in Lane B through the durable `MemoirBackgroundAgent` workflow in the
 private Codex worker. Atlas reviews each bounded original window and selects
-`memoir-author-timeline`, `memoir-place-journey`, `memoir-memory-context`, or none.
+`memoir-author-timeline`, `memoir-memory-context`, or none.
 It reads the selected versioned `SKILL.md` through `memoir_read_skill`, then calls
 `memoir_process_source` with those choices. Profile extraction is available on any
 narration, subject to manual field protection and automatic-profile settings.
 Its fields are name, birth details and an explicit avatar artwork hint. Childhood
-settings remain timeline/place evidence rather than profile settings.
+settings belong to timeline extraction.
 Mira produces her reply in Lane A without a skill-selection handoff. The host records
-the source choice in the durable lane snapshot; a new window needs a new choice,
-and selected timeline/place work can share one extraction request.
+the source choice in the durable lane snapshot. Each new window gets its own choice.
+Author Timeline first extracts private drafts. Its reconciliation step compares
+them with nearby published events and proposes which identities to update or
+create. The host validates both steps and publishes the event revisions and
+original message links in the same transaction.
 The storyteller can send corrections or further parts while Mira is replying.
 Each input keeps its own turn ID and original source. The browser queues inputs
 in order and interrupts Mira after the preceding source is acknowledged, then
@@ -871,11 +874,20 @@ is recorded separately; it is never reported as a live pass.
 
 Manual Google Web OAuth and Supabase Google sign-in setup is documented in [`gcp/google_oauth.md`](gcp/google_oauth.md). The standard Web OAuth client is created in Google Cloud Console and the client secret is stored in Supabase, not in the browser.
 
-### Place journeys in the integrated Codex worker
+### Published events on the memoir map
 
-The project skill at [`skills/memoir-place-journey/SKILL.md`](skills/memoir-place-journey/SKILL.md) turns an explicitly named, coarse place into a durable Earth-to-place workspace journey. The API validates the skill's `MEMORY_SPARK_PLACE_JOURNEY` marker, rejects markers not grounded in the current storyteller message, removes accepted markers from the spoken reply, persists the current versioned record in Supabase, and returns both `place_journey` and a `place_journey_change` envelope; the Memoir browser reveals and hydrates that record only after the current project has been activated by an explicit place cue, then uses CesiumJS `camera.flyTo` with the configured geocoder and map tiles when the matching server and browser keys are configured. The opening globe fits the map panel, and arrival finishes in a north-up 2D map at a scale appropriate to the place. Reduced-motion preferences skip the flight. The geocoding key stays server-side, and only the selected provider’s restricted browser key is exposed. The application still keeps places approximate and falls back to saved parents or the hierarchy view without treating a location as biographical fact. The finest supported location is a named suburb or town. Hospitals, schools, streets, compounds, and generic labels stay in the story; an explicitly named containing city or suburb becomes the journey location. The parser normalises `地球` to the canonical `Earth` root and accepts every grounded place in a message. Local Compose mounts the place skill into both the API and private Codex worker so restarting those services loads the current contract; built images retain a copy for deployment. Photo searches use a calendar period only for the place it describes and report `memoir-place-photo-research` progress in Thinking steps.
+Timeline extraction produces private drafts with supported locations, estimated
+time bounds, and evidence for ordering. Timeline reconciliation selects
+published event identities and revisions. The map reads active published
+events, groups their locations by city, and uses each city's earliest event
+start and latest event end for its card. Sourced before and after relations
+preserve the journey when estimates overlap.
 
-The background [`memoir-place-groups` skill](skills/memoir-place-groups/SKILL.md) checks every new place preview, confirmed update, and restored history against existing city groups. `POST /v1/projects/{project_id}/place-groups` uses public hierarchy and cached geocoder administrative metadata without another model call. A city's named suburbs, towns, and administrative districts share one map with independent pins; another city creates another choice. Original location records, stages, and photographs stay distinct. Partial matches and missing child coordinates remain visibly pending, rather than receiving the parent's centre coordinates. The newest mention is checked first, and stale responses cannot overwrite a correction or another project's workspace. Grouping and photo requests run independently of the conversation stream.
+The place journey and place groups skills are deprecated. Their existing data
+and routes support compatibility and photo research. The grouping route resolves
+public geography through the configured geocoder without a model call. A city's
+suburbs, towns, and districts share its map with independent pins. The map can
+reuse cached coordinates and photographs for the same published location.
 
 Choose the provider with `MEMOIR_GEO_PROVIDER` in the API environment. The flag selects both public-place geocoding and map tiles; Cesium keeps rendering the globe, flight and final map. Google remains the default when the flag is absent or blank. Changing the flag requires restarting/recreating the API service and reloading the browser.
 

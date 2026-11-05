@@ -359,6 +359,7 @@ def build_router(
                     focus = storage.lifetime_rpc('read_lifetime_workspace_focus',p_project_id=project_id)
                     result['derived_workspace']={'project_id':project_id,'policy_epoch':fence.policy_epoch,
                         'source_revision':fence.source_revision,'places':places,'authoritative':True,
+                        'map_source':'published_events',
                         'workspace_focus':focus,'current_active_location':current_active_location(places, focus)}
                     profile = storage.profile()
                     automation = storage.lifetime_rpc('read_lifetime_profile_automation')

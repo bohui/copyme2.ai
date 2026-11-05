@@ -183,6 +183,71 @@ def validate_profile_case(case, value):
         raise ValueError('profile_semantic_mismatch')
 
 
+def timeline_chronology_case(locale, variant='study'):
+    text = ('I was born in 1983 and lived in Chengde until university at sixteen. '
+        'Later I studied in Shanghai for my undergraduate and postgraduate degrees, then worked there for five years, '
+        'and afterwards moved to Sydney to settle, work and live.' if locale == 'en-AU' else
+        '我于1983年出生。从出生到16岁上大学前，我一直在承德生活。'
+        '后来去了上海读大学本科和研究生，然后又工作了5年，后来来到悉尼定居工作和生活。')
+    text += (' For a provisional estimate, use age seventeen as the start of Shanghai residence, '
+        'four undergraduate years and two and a half postgraduate years. These are assumptions; the move dates are unconfirmed.'
+        if locale == 'en-AU' else
+        '暂估上海居住期从17岁起，本科按4年、研究生按2.5年计算；这些是假设，实际迁居日期仍未确认。')
+    birth, starts, ages = 1983, [1999,2004], [[17,29],[29,43]]
+    titles = ['Shanghai study and work','Sydney residence'] if locale == 'en-AU' else ['上海求学与工作','悉尼定居']
+    if variant == 'work':
+        text = ('I was born in 1976. At twenty I moved to Lima and trained for three years, then worked there '
+            'for eight years. Afterwards I moved to Oslo, where I still live. I do not remember the move dates.'
+            if locale == 'en-AU' else
+            '我于1976年出生。20岁时搬到利马，培训3年后又在那里工作8年。后来搬到奥斯陆，现在仍住在那里。我记不清迁居日期。')
+        birth, starts, ages = 1976, [1996,2000], [[20,31],[31,50]]
+        titles = ['Lima training and work','Oslo residence'] if locale == 'en-AU' else ['利马培训与工作','奥斯陆定居']
+    original = dict(id='synthetic-chronology-source', version=1, status='active',
+        text=text, created_at='2026-11-06T00:00:00Z')
+    ref = dict(source_id=original['id'], version=1, quote=text)
+    saved = [dict(id=identity, revision=1, kind='period', life_stage='unplaced', status='active',
+        title=title, source_refs=[ref], relations=[], temporal=None,
+        temporal_estimate=dict(year_start=start, year_end=2026, confidence=.3,
+            rationale='Broad bounds; the actual transition year is unknown.', basis=[ref]),
+        yearConfidenceScore=.3) for identity, title, start in [
+            ('saved-earlier', titles[0], starts[0]), ('saved-current', titles[1], starts[1])]]
+    from apps.api.model_request import instruction_manifest
+    instructions = extraction_instructions() + '\n' + EXTRACTION_WINDOW_CONTRACT
+    schema = extraction_schema()
+    return dict(id='timeline-overlapping-chronology-' + variant + '-' + locale, skill='memoir-author-timeline',
+        instructions=instructions, schema=schema, input=dict(sources=[original], events=saved),
+        prompt_manifest=instruction_manifest(instructions, schema),
+        original=original, saved_events=saved, validator='chronology',
+        expected=dict(before='saved-earlier', after='saved-current', birth_year=birth,
+            ages=dict(zip(['saved-earlier','saved-current'], ages))),
+        scope='Narrated order and provisional degree/work duration estimates; exact transition dates stay unknown')
+
+
+def timeline_reconciliation_case(locale):
+    from apps.api.lifetime_memory_lane_engine import lane_contract, lane_prompt_name
+    from apps.api.model_request import instruction_manifest
+    departure, visit, residence, old_visit = (
+        ('2010年我结束了在台北的定居。', '2010年我第一次去台北的动物园。',
+         '我1999年开始在台北定居，直到离开台湾。', '我2005年去台北拜访表妹。')
+        if locale == 'zh-CN' else
+        ('I ended my residence in Porto in 2010.', 'I first went to Porto Zoo in 2010.',
+         'I began living in Porto in 1999 and stayed until I left Portugal.', 'In 2005 I visited my cousin in Porto.'))
+    city, country = ('台北','台湾') if locale == 'zh-CN' else ('Porto','Portugal')
+    location = dict(place=city, hierarchy=['Earth',country,city], granularity='city')
+    original = dict(id='synthetic-reconciliation-source',version=1,status='active',text=f'{departure} {visit}')
+    drafts = [dict(kind=kind,title=quote,location=location,source_refs=[
+        dict(source_id=original['id'],version=1,quote=quote)]) for kind,quote in [('period',departure),('event',visit)]]
+    published = [dict(id='saved-residence',revision=2,kind='period',title=residence,description=residence,
+        location=location,start_year=1999,end_year=2012),dict(id='saved-visit',revision=1,kind='event',
+        title=old_visit,description=old_visit,location=location,start_year=2005,end_year=2005)]
+    instructions,schema = lane_contract('reconcile',locale)
+    return dict(id='timeline-reconcile-'+locale,skill='memoir-author-timeline',instructions=instructions,schema=schema,
+        input=dict(drafts=drafts,published_events=published,message_id='synthetic-reconciliation-message'),
+        original=original,validator='reconciliation',expected=['saved-residence',None],
+        prompt_manifest=instruction_manifest(instructions,schema,primary_name=lane_prompt_name('reconcile')),
+        scope='Select a published residence for new placement evidence and create a separate recollection')
+
+
 def cases():
     rows = profile_cases()
     for locale in ('en-AU', 'zh-CN'):
@@ -193,6 +258,8 @@ def cases():
                  schema=extraction_schema(), input={'sources': [original], 'saved_events': []},
                  original=original, validator='extraction'),
         ])
+        rows.extend(timeline_chronology_case(locale, variant) for variant in ('study','work'))
+        rows.append(timeline_reconciliation_case(locale))
     rows.append(dict(id='family-explicit-mother', skill='memoir-family-tree', schema=None,
         instructions=skill_prompt('memoir-family-tree'),
         input={'fixture_scope': 'isolated contract test; no entitlement or persistence claim',
@@ -264,6 +331,31 @@ def validate_case(case, value):
                     continue
                 return
         raise ValueError('lost_source_fact')
+    elif kind == 'chronology':
+        events = validate_extraction(value, [case['original']], case['saved_events'])
+        before, after = case['expected']['before'], case['expected']['after']
+        if not any((event.get('existing_id'), relation['kind'], relation['event_id']) in {
+                (before, 'before', after), (after, 'after', before)}
+                for event in events for relation in event.get('relations') or []):
+            raise ValueError('missing_narrated_chronology')
+        merged = {event['id']:event for event in case['saved_events']}
+        for event in events:
+            if event.get('existing_id') in merged:
+                merged[event['existing_id']] = {**merged[event['existing_id']], **event}
+        for identity, ages in case['expected']['ages'].items():
+            estimate = merged[identity].get('temporal_estimate') or {}
+            actual = [estimate['age_' + bound] if estimate.get('age_' + bound) is not None
+                else (estimate.get('year_' + bound) or 0) - case['expected']['birth_year']
+                for bound in ('start', 'end')]
+            if actual != ages:
+                raise ValueError('narrated_period_estimate')
+    elif kind == 'reconciliation':
+        from apps.api.timeline_reconciliation import assign_event_identities
+        data = case['input']
+        assigned = assign_event_identities(value,data['drafts'],data['published_events'],case['original'])
+        if ([event.get('existing_id') for event in assigned] != case['expected']
+                or any(event.get('candidate_ids') or event.get('correction') for event in assigned)):
+            raise ValueError('incorrect_timeline_identity')
     elif kind == 'family':
         _, tree = extract_family_tree_context(value)
         if not tree or not any(p['name'] == 'Mei' and p.get('family_title') == 'mother'

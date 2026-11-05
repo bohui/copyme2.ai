@@ -21,16 +21,17 @@ class DerivedHints(_Places):
 
 def extraction_contract(*, attribution=False, continuity=False, source=None, selected_skills=None):
     from .memory_events import extraction_schema
-    schema=extraction_schema()
-    extension=DerivedHints.model_json_schema()
-    extension['$defs']['_PlaceJourney']['required']=list(extension['$defs']['_PlaceJourney']['properties'])
-    for field in ('latitude','longitude'):
-        extension['$defs']['_PlaceJourney']['properties'][field].pop('default',None)
-    schema.setdefault('$defs',{}).update(extension['$defs'])
-    schema['properties'].update(extension['properties'])
-    schema['required']+=list(extension['properties'])
     timeline = selected_skills is None or 'memoir-author-timeline' in selected_skills
     places = selected_skills is None or 'memoir-place-journey' in selected_skills
+    schema = extraction_schema(allow_draft_relations=timeline and not places)
+    if places:
+        extension = DerivedHints.model_json_schema()
+        extension['$defs']['_PlaceJourney']['required'] = list(extension['$defs']['_PlaceJourney']['properties'])
+        for field in ('latitude', 'longitude'):
+            extension['$defs']['_PlaceJourney']['properties'][field].pop('default', None)
+        schema['$defs'].update(extension['$defs'])
+        schema['properties'].update(extension['properties'])
+        schema['required'] += list(extension['properties'])
     name = 'memoir/skills/author-timeline/extract' if timeline else 'memoir/skills/place-journey/extract'
     instructions = render_prompt_artifact(prompt_path(name), variables={
         'events_only': not places, 'places': places, 'place_rules': places,
@@ -50,8 +51,6 @@ def extraction_contract(*, attribution=False, continuity=False, source=None, sel
             for field in ('events', 'continuity_updates', 'event_places'):
                 if field in schema['properties']:
                     schema['properties'][field]['maxItems'] = 0
-        if 'memoir-place-journey' not in selected_skills:
-            schema['properties']['place_journeys']['maxItems'] = 0
     return instructions,schema
 
 

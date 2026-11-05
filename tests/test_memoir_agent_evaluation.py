@@ -65,6 +65,8 @@ def background_output(case, skills=None):
 
 def test_residence_does_not_justify_profile_and_wrong_selection_fails():
     case = next(c for c in background_cases() if c['id'] == 'lane-b/residence/en-AU')
+    assert case['gold']['skills'] == ['memoir-author-timeline']
+    assert 'memoir-place-journey' not in case['task']['work']['source_work']['available_skills']
     correct = background_output(case, case['gold']['skills'])
     assert all(evaluation.grade_background(case, correct).values())
     correct['executions'][0]['source_work']['skills'].append('memoir-memory-context')
