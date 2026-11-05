@@ -531,18 +531,29 @@ full schema reset. Use
 For an intentional full schema reset, use:
 
 ```bash
-make db-reset                         # includes Memoir's Langfuse run history
-make db-reset include-langfuse=false  # Supabase only
+make db-reset                         # database, Storage objects and Langfuse run history
+make db-reset include-storage=false   # preserve Storage objects
+make db-reset include-langfuse=false  # preserve Langfuse run history
+make db-reset include-storage=false include-langfuse=false  # database only
 ```
+
+`include-storage` defaults to `true`. The reset empties every Supabase Storage
+bucket through the Storage API, including recordings, private photos and Mira's
+`memory-spark` checkpoints. Bucket definitions are preserved. This requires
+`SUPABASE_URL` and the server-only `SUPABASE_SECRET_KEY` (or
+`SUPABASE_SERVICE_ROLE_KEY`) in `ENV_FILE` or the environment. Storage access is
+checked before deletion; each bucket is verified empty before the database reset.
+A cleanup failure stops the reset and reports that Storage cleanup may be partial.
+`include-storage=false` skips Storage access and its credential requirements.
 
 `include-langfuse` defaults to `true`. The reset uses the Memoir project
 credentials from `PROMPT_CREDENTIAL_FILE`, the same file as `make prompt-sync`.
 It clears traces, observations and scores, including scores attached directly
 to sessions or experiments. Prompt versions, evaluation datasets and their
 saved items, and score configurations are preserved.
-It checks the project and collects trace and score IDs before resetting Supabase,
+It checks the project and collects trace and score IDs before clearing Storage or resetting Supabase,
 then deletes standalone scores and submits trace deletion in batches. A Langfuse
-preflight failure prevents the Supabase reset; a deletion failure after the
+preflight failure prevents Storage deletion and the Supabase reset; a deletion failure after the
 database reset returns an error and reports that cleanup may be partial.
 The backend operation lock prevents the reset from
 interrupting a live evaluation. Langfuse deletes the selected traces and their

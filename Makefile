@@ -42,6 +42,7 @@ EVAL_PROGRESSIVE_RERUN ?= 0
 MEMORY_SPARK_CODEX_WORKER_TIMEOUT ?= 240
 ENV_FILE ?= .env
 include-langfuse ?= true
+include-storage ?= true
 PROMPT_CREDENTIAL_FILE ?= $(HOME)/llm_provider/.env
 PROMPT_NAME ?=
 PROMPT_EVAL_NAME ?=
@@ -154,14 +155,14 @@ migrate: ## Apply the consolidated Supabase migration using tracked migration hi
 	command -v supabase >/dev/null || { echo "Missing Supabase CLI. Install it before running migrations."; exit 1; }; \
 	supabase db push --db-url "$${SUPABASE_DB_URL}" --yes
 
-db-reset: ## Reset disposable Supabase and Memoir Langfuse history; opt out with include-langfuse=false.
+db-reset: ## Reset disposable Supabase, Storage and Memoir Langfuse history; opt out with include-storage=false or include-langfuse=false.
 	@python3 scripts/backend_operation_lock.py -- $(MAKE) --no-print-directory _db-reset
 
 _db-reset:
 	@set -a; \
 	if test -f "$(ENV_FILE)"; then . "$(ENV_FILE)"; fi; \
 	set +a; \
-	python3 scripts/reset_database.py --include-langfuse "$(include-langfuse)" --credential-file "$(PROMPT_CREDENTIAL_FILE)"
+	python3 scripts/reset_database.py --include-langfuse "$(include-langfuse)" --include-storage "$(include-storage)" --credential-file "$(PROMPT_CREDENTIAL_FILE)"
 
 db-truncate: ## Clear user/app data, Auth, Storage and local Compose state; preserve shared photo search cache; pass RESET_CONFIRM=1.
 	@python3 scripts/backend_operation_lock.py -- $(MAKE) --no-print-directory _db-truncate

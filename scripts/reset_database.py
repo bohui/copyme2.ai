@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Reset disposable Supabase data and optionally Memoir's Langfuse run history."""
+"""Reset disposable Supabase data, Storage objects and Memoir's Langfuse history."""
 
 import argparse
 from datetime import datetime, timezone
@@ -14,6 +14,7 @@ if str(ROOT) not in sys.path:
     sys.path.insert(0, str(ROOT))
 
 from scripts.langfuse_prompt_client import prompt_client
+from scripts.truncate_local_data import StorageClient
 
 # Bound Langfuse's parallel per-trace audit-log transactions.
 TRACE_DELETE_BATCH_SIZE = 100
@@ -65,12 +66,24 @@ def langfuse_history(client):
     return project.name, sorted(trace_ids), sorted(score_ids)
 
 
-def reset_database(*, include_langfuse, credential_file):
+def reset_database(*, include_langfuse, credential_file, include_storage=True):
     database_url = os.environ.get("SUPABASE_DB_URL", "").strip()
     if not database_url:
         raise ValueError("Set SUPABASE_DB_URL in ENV_FILE or the environment.")
     if not shutil.which("supabase"):
         raise ValueError("Missing Supabase CLI. Install it before resetting the database.")
+
+    storage = None
+    if include_storage:
+        supabase_url = os.environ.get("SUPABASE_URL", "").strip()
+        storage_key = (os.environ.get("SUPABASE_SECRET_KEY", "").strip()
+                       or os.environ.get("SUPABASE_SERVICE_ROLE_KEY", "").strip())
+        if not supabase_url or not storage_key:
+            raise ValueError(
+                "Storage reset requires SUPABASE_URL and SUPABASE_SECRET_KEY "
+                "(or SUPABASE_SERVICE_ROLE_KEY) in ENV_FILE or the environment."
+            )
+        storage = StorageClient(supabase_url, storage_key)
 
     client = None
     try:
@@ -84,12 +97,34 @@ def reset_database(*, include_langfuse, credential_file):
                     "Check PROMPT_CREDENTIAL_FILE and the Memoir project connection."
                 ) from error
 
+        if storage is not None:
+            try:
+                buckets = storage.list_buckets()
+            except Exception as error:
+                raise RuntimeError(
+                    "Storage preflight failed; the database and bucket contents were not reset. "
+                    "Check SUPABASE_URL and the server-only Supabase key."
+                ) from error
+            try:
+                # Use the Storage API while the existing object metadata is still intact.
+                for bucket in buckets:
+                    removed = storage.clear_bucket(bucket)
+                    print(f"Storage {bucket}: deleted {removed} object(s).")
+            except Exception as error:
+                raise RuntimeError(
+                    "Storage cleanup failed; bucket contents may be partially deleted. "
+                    "The database was not reset and Langfuse history was not deleted."
+                ) from error
+
         try:
             subprocess.run([
                 "supabase", "db", "reset", "--db-url", database_url, "--no-seed", "--yes",
             ], check=True)
         except subprocess.CalledProcessError as error:
-            raise RuntimeError("Supabase reset failed; Langfuse history was not deleted.") from error
+            storage_status = " Storage bucket contents were already cleared." if storage is not None else ""
+            raise RuntimeError(
+                "Supabase reset failed; Langfuse history was not deleted." + storage_status
+            ) from error
 
         if include_langfuse:
             try:
@@ -114,11 +149,13 @@ def reset_database(*, include_langfuse, credential_file):
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--include-langfuse", choices=("true", "false"), default="true")
+    parser.add_argument("--include-storage", choices=("true", "false"), default="true")
     parser.add_argument("--credential-file", type=Path,
                         default=Path.home() / "llm_provider" / ".env")
     args = parser.parse_args()
     try:
         reset_database(include_langfuse=args.include_langfuse == "true",
+                       include_storage=args.include_storage == "true",
                        credential_file=args.credential_file)
     except (ValueError, RuntimeError) as error:
         print(str(error), file=sys.stderr)

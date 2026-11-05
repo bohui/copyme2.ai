@@ -41,6 +41,43 @@ def test_storage_remove_uses_supabase_delete_objects_endpoint(monkeypatch):
     ]
 
 
+@pytest.mark.parametrize("retain_objects", [False, True])
+def test_clear_bucket_handles_nested_pages_batches_and_verifies_deletion(monkeypatch, retain_objects):
+    client = StorageClient("https://example.test", "secret")
+    originals = {"root.txt", "user/agent/memory.jsonl", "user/sandbox/conversation/checkpoint.zip"}
+    objects = set(originals)
+    deleted = []
+    monkeypatch.setattr(truncate_local_data, "STORAGE_PAGE_SIZE", 1)
+    monkeypatch.setattr(truncate_local_data, "STORAGE_REMOVE_BATCH_SIZE", 1)
+
+    def request(method, path, payload=None):
+        if method == "POST":
+            assert path == "object/list/memory-spark"
+            prefix = payload["prefix"]
+            entries = {}
+            for name in sorted(objects):
+                if name.startswith(prefix):
+                    child, separator, _ = name[len(prefix):].partition("/")
+                    entries[child] = {"name": child, "id": None if separator else "fixture-object"}
+            start = payload["offset"]
+            return sorted(entries.values(), key=lambda entry: entry["name"])[start:start + payload["limit"]]
+        assert (method, path) == ("DELETE", "object/memory-spark")
+        assert len(payload["prefixes"]) == 1
+        deleted.extend(payload["prefixes"])
+        if not retain_objects:
+            objects.difference_update(payload["prefixes"])
+        return []
+
+    monkeypatch.setattr(client, "_request", request)
+    if retain_objects:
+        with pytest.raises(RuntimeError, match="still contains 3 object"):
+            client.clear_bucket("memory-spark")
+    else:
+        assert client.clear_bucket("memory-spark") == 3
+        assert not objects
+    assert sorted(deleted) == sorted(originals)
+
+
 def test_truncate_database_deletes_auth_users(monkeypatch):
     calls = []
 
