@@ -518,7 +518,7 @@
     "version": 7,
     "sha256": "b4270c4c59303c8a7c101afb43c4661cf3ba1367047bd8040fc76378ddb54dfb",
     "use": "runtime",
-    "scenario": "Every narrator reply; persistent native Mira thread ordered as system instructions, authorized chat history, optional Atlas context and current narrator answer. Atlas supplies context only; Mira chooses one next question.",
+    "scenario": "Every narrator reply; persistent native Mira thread ordered as system instructions, authorized chat history, optional Atlas context and current narrator answer. Atlas supplies context only; Mira chooses one next question. Consecutive accepted inputs retain separate native user messages; cancelled replies are discarded and a resumed thread receives every intervening unanswered input before the latest answer.",
     "consumers": [
       {
         "path": "apps/api/conversation_reply.py",
@@ -656,7 +656,10 @@
       "tests/test_lane_b_question_priorities.py",
       "tests/test_recall_limit_questions.py",
       "tests/test_skill_eval_interviewer.py",
-      "tests/test_automatic_prompt_evaluation.py"
+      "tests/test_automatic_prompt_evaluation.py",
+      "tests/test_conversation_interruptions.py",
+      "tests/test_conversation_interruptions_browser.py",
+      "tests/test_interview_native_harness.py::test_cancelled_native_reply_uses_turn_interrupt_before_reaping_the_process"
     ],
     "gaps": [
       "No scored experiment items verified for the current pin"

@@ -270,6 +270,7 @@ def test_policy_wait_after_a_background_lane_claim_is_cancellable_and_releases_o
         f"values('{OWNER}',{literal(identity['project_id'])},'timeline',1) returning id;").stdout.strip()
     claim=service(sql,'claim_memoir_background_agent',p_id=run,p_run_seconds=300)
     current=service(sql,'read_memoir_background_work',p_fence=claim)
+    policy_pending=asyncio.Event()
     class InterruptedBroker(AgentBroker):
         async def rpc(self,name,**arguments):
             if cancelled and name=='select_lifetime_source_skills':
@@ -279,6 +280,7 @@ def test_policy_wait_after_a_background_lane_claim_is_cancellable_and_releases_o
                 # Raw acceptance leaves policy pending, as in the reported race.
                 sql(as_user('select public.accept_user_narrator_source('+
                     literal(identity['project_id'])+','+literal(str(uuid4()))+",'My next memory.');"))
+                policy_pending.set()
             return result
     async def scenario():
         broker=InterruptedBroker(BackgroundAgentPublication(sql.publication_dsn,claim))
@@ -289,9 +291,14 @@ def test_policy_wait_after_a_background_lane_claim_is_cancellable_and_releases_o
         if cancelled:
             with pytest.raises(asyncio.CancelledError):await execute()
         else:
-            with pytest.raises(TimeoutError):
-                async with asyncio.timeout(.3):
-                    await execute()
+            task=asyncio.create_task(execute())
+            try:
+                await asyncio.wait_for(policy_pending.wait(),10)
+                with pytest.raises(TimeoutError):
+                    async with asyncio.timeout(.3):await task
+            finally:
+                task.cancel()
+                await asyncio.gather(task,return_exceptions=True)
         with pytest.raises(TimeoutError):
             async with asyncio.timeout(.2):
                 await broker.rpc('read_memoir_background_work',p_fence=claim)

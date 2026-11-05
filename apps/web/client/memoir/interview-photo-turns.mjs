@@ -72,11 +72,12 @@ export function createInterviewPhotoState({state, scope, render, api, storage,
   }
   function pending() { return current(active) ? active : null; }
   function prepare(options) {
-    const retry = options.retry || pending();
+    const previous = pending();
+    const retry = options.retry || (options.id && options.id !== previous?.id ? null : previous);
     if (current(retry) && (options.retry || retry.conversationText === options.conversationText && retry.text === options.text && JSON.stringify(retry.recordingIds || []) === JSON.stringify(options.recordingIds || []) && JSON.stringify(retry.workspaceFocus || null) === JSON.stringify(options.workspaceFocus || null))) return retry;
     const saved = state.project?.profile?.photo_memories?.[scope().projectId] || {};
     const attachments = options.attachments || [];
-    const turn = {...scope(), id:uuid(), text:options.text, conversationText:options.conversationText,
+    const turn = {...scope(), id:options.id || uuid(), text:options.text, conversationText:options.conversationText,
       recordingIds:[...(options.recordingIds || [])], sourceKind:options.sourceKind || 'narrator_chat', language:options.language,
       workspaceFocus:options.workspaceFocus ? {...options.workspaceFocus} : null,
       firstReplyLocalization:options.firstReplyLocalization || false, serverAction:options.serverAction || null,

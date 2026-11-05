@@ -17,6 +17,76 @@ from test_interview_native_session import admission, packets
 
 
 @pytest.mark.skipif(not shutil.which('codex'), reason='Codex app-server is not installed')
+def test_cancelled_native_reply_uses_turn_interrupt_before_reaping_the_process(tmp_path):
+    release = threading.Event()
+    sent, received = [], []
+    class Provider(BaseHTTPRequestHandler):
+        def log_message(self, *args):
+            pass
+
+        def do_POST(self):
+            self.rfile.read(int(self.headers['Content-Length']))
+            self.send_response(200)
+            self.send_header('Content-Type', 'text/event-stream')
+            self.end_headers()
+            item = dict(type='message', id='reply', role='assistant', status='in_progress',
+                phase='final_answer', content=[])
+            events = [dict(type='response.created', response=dict(id='response', status='in_progress', output=[])),
+                dict(type='response.output_item.added', output_index=0, item=item),
+                dict(type='response.content_part.added', item_id='reply', output_index=0, content_index=0,
+                    part=dict(type='output_text', text='', annotations=[])),
+                dict(type='response.output_text.delta', item_id='reply', output_index=0, content_index=0,
+                    delta='An unfinished answer.')]
+            try:
+                self.wfile.write(''.join('data: ' + json.dumps(event) + '\n\n' for event in events).encode())
+                self.wfile.flush()
+                release.wait(20)
+            except (BrokenPipeError, ConnectionResetError):
+                pass
+
+    class ObservedConnection(CodexConnection):
+        async def send(self, message):
+            sent.append(message)
+            return await super().send(message)
+
+        async def receive(self):
+            message = await super().receive()
+            received.append(message)
+            return message
+
+    server = ThreadingHTTPServer(('127.0.0.1', 0), Provider)
+    server.daemon_threads = True
+    thread = threading.Thread(target=server.serve_forever, daemon=True)
+    thread.start()
+    first, _, _, _ = packets()
+    async def run():
+        seen = asyncio.Event()
+        async def delta(_):
+            seen.set()
+        async with open_interview(root=tmp_path, packet=first, view=reply_packet(first), schema={},
+            model='gpt-6.1-sol', effort='low', base_url=f'http://127.0.0.1:{server.server_port}/v1',
+            api_key='synthetic-loopback-key', command=[shutil.which('codex'), 'app-server'], timeout=12,
+            admission=admission, connection_factory=ObservedConnection) as (session, connection):
+            task = asyncio.create_task(connection.turn(session.thread_id, first.current.narrator.original, on_delta=delta))
+            try:
+                await asyncio.wait_for(seen.wait(), 10)
+            finally:
+                task.cancel()
+                await asyncio.gather(task, return_exceptions=True)
+        assert connection.process.returncode is not None
+    try:
+        asyncio.run(run())
+    finally:
+        release.set()
+        server.shutdown(); server.server_close(); thread.join(timeout=2)
+    interrupted = [message for message in sent if message.get('method') == 'turn/interrupt']
+    assert len(interrupted) == 1
+    assert any(message.get('method') == 'turn/completed'
+        and message.get('params', {}).get('turn', {}).get('status') == 'interrupted' for message in received)
+    assert not list(tmp_path.glob('.interview-*.json')), 'An interrupted candidate must not be resumed'
+
+
+@pytest.mark.skipif(not shutil.which('codex'), reason='Codex app-server is not installed')
 @pytest.mark.parametrize('streamed', [False, True])
 def test_native_deepseek_busy_response_does_not_repeat_until_timeout(tmp_path, streamed):
     requests = []

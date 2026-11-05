@@ -151,9 +151,10 @@ async def open_interview(*, root, packet, view, schema, model, effort, base_url,
             narrator = entry['narrator']
             session.sources[f"{narrator['source_id']}:{narrator['version']}"] = [entry['sequence'],
                 dict(char_start=narrator['char_start'], char_end=narrator['char_end'])]
-        session.entities, session.history = conversation_context(view, session.sources)
+        session.entities, session.history = conversation_context(view, session.sources,
+            after_sequence=session.state['sequence'] if session.resumed else None)
         previous = session.state['entities'] if session.resumed else None
-        items = [] if session.resumed else [_item(message) for message in session.history]
+        items = [_item(message) for message in session.history]
         items.append(_item(dict(role='user', content=context_update(session.entities, previous))))
         if repair:
             items.append(_item(dict(role='developer', content=repair)))
