@@ -56,6 +56,8 @@ export function eventAge(event, profile = {}) {
   const timing = event.temporal || {};
   const expression = timing.expression || event.date_expression || "";
   if ((timing.precision || event.precision) === "age") {
+    const fromBirth = expression.match(/from birth\s+(?:until|to)\s+(?:age\s+)?(\d{1,3})|(?:从)?出生(?:一直)?(?:到|至)(\d{1,3})岁/i);
+    if (fromBirth) return {start:0,end:Number(fromBirth[1] || fromBirth[2]),approximate:false};
     const match = expression.match(/(?:\bage(?:d)?\s*|\bat\s+|\bwhen I was\s+)(\d{1,3})(?:\s*[-–至到]\s*(\d{1,3}))?|(?<!\d)(\d{1,3})(?:\s*[-–至到]\s*(\d{1,3}))?\s*(?:岁|years? old)/i);
     if (match) return {start:Number(match[1] || match[3]), end:Number(match[2] || match[4] || match[1] || match[3]), approximate:false};
     const words = expression.match(new RegExp(`(?:\\bage(?:d)?\\s+|\\bat\\s+|\\bwhen I was\\s+)(${ageWord})\\b(?:\\s+(?:to|–)\\s+(${ageWord})\\b)?`,"i"));
@@ -274,7 +276,14 @@ function memoryEventTimingText(node, t) {
       const year = end ? event.yearEnd : event.year, age = end ? event.age.end : event.age.start;
       return memoryEventTimingText({...event,year,yearEnd:year,age:{...event.age,start:age,end:age}},t);
     };
-    const start = endpoint(node.nodes[0]), end = endpoint(node.nodes.at(-1),true);
+    const years = node.nodes.filter(item => item.year !== null && item.yearEnd !== null);
+    const members = years.length ? years : node.nodes.filter(item => item.age.start !== null);
+    const boundary = end => {
+      const value = item => years.length ? item[end ? "yearEnd" : "year"] : item.age[end ? "end" : "start"];
+      const selected = members.reduce((best,item) => !best || (end ? value(item) > value(best) : value(item) < value(best)) ? item : best,null);
+      return selected ? endpoint(selected,end) : "?";
+    };
+    const start = boundary(false), end = boundary(true);
     return start === "?" && end === "?" ? "?" : t("mapEventCityRange",{start,end});
   }
   const temporal = node.event.temporal;

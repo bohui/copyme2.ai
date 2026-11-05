@@ -182,6 +182,34 @@ def validate_profile_case(case, value):
         raise ValueError('profile_semantic_mismatch')
 
 
+def timeline_chronology_case(locale):
+    text = ('I was born in 1983 and lived in Chengde until university at sixteen. '
+        'Later I studied in Shanghai for my undergraduate and postgraduate degrees, then worked there for five years, '
+        'and afterwards moved to Sydney to settle, work and live.' if locale == 'en-AU' else
+        '我于1983年出生。从出生到16岁上大学前，我一直在承德生活。'
+        '后来去了上海读大学本科和研究生，然后又工作了5年，后来来到悉尼定居工作和生活。')
+    original = dict(id='synthetic-chronology-source', version=1, status='active',
+        text=text, created_at='2026-11-06T00:00:00Z')
+    ref = dict(source_id=original['id'], version=1, quote=text)
+    saved = [dict(id=identity, revision=1, kind='period', life_stage='unplaced', status='active',
+        title=title, source_refs=[ref], relations=[], temporal=None,
+        temporal_estimate=dict(year_start=start, year_end=2026, confidence=.3,
+            rationale='Broad bounds; the actual transition year is unknown.', basis=[ref]),
+        yearConfidenceScore=.3) for identity, title, start in [
+            ('saved-shanghai', 'Shanghai study and work' if locale == 'en-AU' else '上海求学与工作', 1999),
+            ('saved-sydney', 'Sydney residence' if locale == 'en-AU' else '悉尼定居', 2004)]]
+    from apps.api.model_request import instruction_manifest
+    instructions = extraction_instructions() + '\n' + EXTRACTION_WINDOW_CONTRACT
+    schema = extraction_schema()
+    return dict(id='timeline-overlapping-chronology-' + locale, skill='memoir-author-timeline',
+        instructions=instructions, schema=schema, input=dict(sources=[original], events=saved),
+        prompt_manifest=instruction_manifest(instructions, schema),
+        original=original, saved_events=saved, validator='chronology',
+        expected=dict(before='saved-shanghai', after='saved-sydney',
+            ages={'saved-shanghai':[17,29], 'saved-sydney':[29,43]}),
+        scope='Narrated order and provisional degree/work duration estimates; exact transition dates stay unknown')
+
+
 def cases():
     rows = profile_cases()
     for locale in ('en-AU', 'zh-CN'):
@@ -192,6 +220,7 @@ def cases():
                  schema=extraction_schema(), input={'sources': [original], 'saved_events': []},
                  original=original, validator='extraction'),
         ])
+        rows.append(timeline_chronology_case(locale))
     rows.append(dict(id='family-explicit-mother', skill='memoir-family-tree', schema=None,
         instructions=skill_prompt('memoir-family-tree'),
         input={'fixture_scope': 'isolated contract test; no entitlement or persistence claim',
@@ -263,6 +292,24 @@ def validate_case(case, value):
                     continue
                 return
         raise ValueError('lost_source_fact')
+    elif kind == 'chronology':
+        events = validate_extraction(value, [case['original']], case['saved_events'])
+        before, after = case['expected']['before'], case['expected']['after']
+        if not any((event.get('existing_id'), relation['kind'], relation['event_id']) in {
+                (before, 'before', after), (after, 'after', before)}
+                for event in events for relation in event.get('relations') or []):
+            raise ValueError('missing_narrated_chronology')
+        merged = {event['id']:event for event in case['saved_events']}
+        for event in events:
+            if event.get('existing_id') in merged:
+                merged[event['existing_id']] = {**merged[event['existing_id']], **event}
+        for identity, ages in case['expected']['ages'].items():
+            estimate = merged[identity].get('temporal_estimate') or {}
+            actual = [estimate['age_' + bound] if estimate.get('age_' + bound) is not None
+                else (estimate.get('year_' + bound) or 0) - 1983
+                for bound in ('start', 'end')]
+            if actual != ages:
+                raise ValueError('narrated_period_estimate')
     elif kind == 'family':
         _, tree = extract_family_tree_context(value)
         if not tree or not any(p['name'] == 'Mei' and p.get('family_title') == 'mother'

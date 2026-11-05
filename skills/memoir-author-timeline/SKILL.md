@@ -98,6 +98,16 @@ cited original's created_at year, recorded as reference_year, so replay keeps th
 same estimate. Allow for rounded durations and gaps between life periods.
 For a period, estimate its whole span; an explicitly current residence may end
 at its original capture year. For a point event, the range expresses uncertainty.
+When a narrated sequence supplies a start age and durations, use them to revise
+the affected periods together, including an already saved current residence.
+Fill missing study durations with plausible provisional assumptions, state each
+assumption in rationale and lower confidence. For example, childhood through 16,
+then undergraduate and postgraduate study plus five years of work, then current
+residence, can use four undergraduate years and 2.5 postgraduate years: whole-age
+bands 0–16, about 17–29, and about 29–current age. Preserve stated ages separately;
+these rounded residence bands and their calendar conversions are estimates.
+An earlier residence ends around the next move; only the current residence runs
+to the original capture year. Update the canonical events, not just city labels.
 Use the narrator's own birth evidence to convert years and ages; a relative's
 birth year is not that anchor. A supported life stage may justify a broad age
 range with low confidence (typically 0.2–0.5); calendar estimates need an original
@@ -117,8 +127,13 @@ period interval record, even when it crosses several life stages.
 Every source reference cites an authorised original ID/version and exact quote,
 with optional Unicode code-point span and attribution. Assistant questions,
 summaries and earlier prose are not testimony. Source language is independent
-of memoir locale. Before/after relations require a scoped canonical event target
-and their original evidence. Person links use already established canonical
+of memoir locale. Preserve explicitly narrated order in sourced before/after
+relations even when temporal_estimate intervals overlap or share a boundary.
+Use a supplied canonical event ID as the relation target and cite the contiguous
+original passage establishing the sequence. For a newly extracted earlier period,
+link it before the already saved later residence; retain that order on updates.
+Unknown transition dates stay uncertain, and capture order alone supplies no
+chronology. Person links use already established canonical
 family identities; unresolved names do not create or identify a person.
 
 An explicit current chat correction may include `correction` citing the whole

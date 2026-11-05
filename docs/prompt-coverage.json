@@ -1900,7 +1900,7 @@
       {
         "path": "scripts/memoir_live_skill_cases.py",
         "symbol": "cases",
-        "line": 185
+        "line": 213
       },
       {
         "path": "scripts/memoir_live_skill_cases.py",
@@ -1938,7 +1938,7 @@
       {
         "path": "scripts/memoir_live_skill_cases.py",
         "symbol": "cases",
-        "line": 185
+        "line": 213
       },
       {
         "path": "scripts/memoir_live_skill_cases.py",
@@ -1976,7 +1976,7 @@
       {
         "path": "scripts/memoir_live_skill_cases.py",
         "symbol": "cases",
-        "line": 185
+        "line": 213
       },
       {
         "path": "scripts/memoir_live_skill_cases.py",
@@ -2014,7 +2014,7 @@
       {
         "path": "scripts/memoir_live_skill_cases.py",
         "symbol": "cases",
-        "line": 185
+        "line": 213
       },
       {
         "path": "scripts/memoir_live_skill_cases.py",
@@ -2052,7 +2052,7 @@
       {
         "path": "scripts/memoir_live_skill_cases.py",
         "symbol": "cases",
-        "line": 185
+        "line": 213
       },
       {
         "path": "scripts/memoir_live_skill_cases.py",
@@ -2090,7 +2090,7 @@
       {
         "path": "scripts/memoir_live_skill_cases.py",
         "symbol": "cases",
-        "line": 185
+        "line": 213
       },
       {
         "path": "scripts/memoir_live_skill_cases.py",
@@ -2128,7 +2128,7 @@
       {
         "path": "scripts/memoir_live_skill_cases.py",
         "symbol": "cases",
-        "line": 185
+        "line": 213
       },
       {
         "path": "scripts/memoir_live_skill_cases.py",
@@ -4211,7 +4211,7 @@
     "version": null,
     "sha256": "74be68eb6d63d92ae48ed2086054491cd42ddf08852b212c00bfe57417b68703",
     "use": "component",
-    "scenario": "Local source expanded into an assembled operation template; tracked by source hash without a separate Langfuse prompt. Timeline source extraction, exact attribution, continuity and optional place hints; window contract bounds source pages.",
+    "scenario": "Local source expanded into an assembled operation template; tracked by source hash without a separate Langfuse prompt. Timeline source extraction, exact attribution, continuity and optional place hints; window contract bounds source pages. Preserve sourced narrated order across overlapping period estimates and revise consecutive residence spans from provisional study/work durations.",
     "consumers": [
       {
         "path": "apps/api/memory_events.py",
@@ -4411,7 +4411,10 @@
       "tests/test_memory_context_transport.py",
       "tests/test_prompt_composition.py",
       "tests/test_assembled_prompts.py",
-      "tests/test_prompt_publication.py"
+      "tests/test_prompt_publication.py",
+      "tests/test_memoir_live_skills.py::test_overlapping_chronology_case_rejects_the_reported_missing_or_reversed_relation",
+      "tests/test_timeline_reported_places.py::test_map_city_chronology_preserves_skill_relations_across_paginated_api",
+      "tests/js/map-memory-journey.test.mjs"
     ],
     "gaps": [
       "No scored experiment items verified for the current pin"
@@ -5059,7 +5062,7 @@
     "version": 1,
     "sha256": "8ba3224af906146a3e3eaba2d603d4862e6b1b843ef932e8fc95b8d3a28ce006",
     "use": "conditional",
-    "scenario": "Timeline source extraction, exact attribution, continuity and optional place hints; window contract bounds source pages.",
+    "scenario": "Timeline source extraction, exact attribution, continuity and optional place hints; window contract bounds source pages. Preserve sourced narrated order across overlapping period estimates and revise consecutive residence spans from provisional study/work durations.",
     "consumers": [
       {
         "path": "apps/api/memory_events.py",
@@ -5255,7 +5258,10 @@
       "tests/test_prompt_composition.py",
       "tests/test_assembled_prompts.py",
       "tests/test_prompt_publication.py",
-      "tests/test_prompt_usage_link.py"
+      "tests/test_prompt_usage_link.py",
+      "tests/test_memoir_live_skills.py::test_overlapping_chronology_case_rejects_the_reported_missing_or_reversed_relation",
+      "tests/test_timeline_reported_places.py::test_map_city_chronology_preserves_skill_relations_across_paginated_api",
+      "tests/js/map-memory-journey.test.mjs"
     ],
     "gaps": [
       "Requires scenario/branch-specific execution evidence",
@@ -5268,7 +5274,7 @@
     "version": null,
     "sha256": "c4b2d944fa386f1b2fdee6148d16cbc31c2570a02d142d2b882cf48cbcdded60",
     "use": "component",
-    "scenario": "Local source expanded into an assembled operation template; tracked by source hash without a separate Langfuse prompt. Timeline source extraction, exact attribution, continuity and optional place hints; window contract bounds source pages.",
+    "scenario": "Local source expanded into an assembled operation template; tracked by source hash without a separate Langfuse prompt. Timeline source extraction, exact attribution, continuity and optional place hints; window contract bounds source pages. Preserve sourced narrated order across overlapping period estimates and revise consecutive residence spans from provisional study/work durations.",
     "consumers": [
       {
         "path": "apps/api/memory_events.py",
@@ -5468,7 +5474,10 @@
       "tests/test_memory_context_transport.py",
       "tests/test_prompt_composition.py",
       "tests/test_assembled_prompts.py",
-      "tests/test_prompt_publication.py"
+      "tests/test_prompt_publication.py",
+      "tests/test_memoir_live_skills.py::test_overlapping_chronology_case_rejects_the_reported_missing_or_reversed_relation",
+      "tests/test_timeline_reported_places.py::test_map_city_chronology_preserves_skill_relations_across_paginated_api",
+      "tests/js/map-memory-journey.test.mjs"
     ],
     "gaps": [
       "No scored experiment items verified for the current pin"
@@ -5480,7 +5489,7 @@
     "version": null,
     "sha256": "1df8b98a65018764b00803972ce1c46c384578bcafc5ba90e94726bc1f2080eb",
     "use": "component",
-    "scenario": "Local source expanded into an assembled operation template; tracked by source hash without a separate Langfuse prompt. Timeline source extraction, exact attribution, continuity and optional place hints; window contract bounds source pages. Background admission retains batch working context through ordinary foreground replies and waits for pending privacy review without repeating completed model calls.",
+    "scenario": "Local source expanded into an assembled operation template; tracked by source hash without a separate Langfuse prompt. Timeline source extraction, exact attribution, continuity and optional place hints; window contract bounds source pages. Background admission retains batch working context through ordinary foreground replies and waits for pending privacy review without repeating completed model calls. Preserve sourced narrated order across overlapping period estimates and revise consecutive residence spans from provisional study/work durations.",
     "consumers": [
       {
         "path": "apps/api/memory_events.py",
@@ -5683,7 +5692,10 @@
       "tests/test_prompt_publication.py",
       "tests/test_memoir_background_agent_workflow.py::test_foreground_keeps_replying_while_background_finishes_then_batches_queued_narrations",
       "tests/test_memoir_background_agent_workflow.py::test_finished_background_output_waits_for_foreground_policy_without_another_model_call",
-      "tests/test_background_profile_postgres.py"
+      "tests/test_background_profile_postgres.py",
+      "tests/test_memoir_live_skills.py::test_overlapping_chronology_case_rejects_the_reported_missing_or_reversed_relation",
+      "tests/test_timeline_reported_places.py::test_map_city_chronology_preserves_skill_relations_across_paginated_api",
+      "tests/js/map-memory-journey.test.mjs"
     ],
     "gaps": [
       "No scored experiment items verified for the current pin"
@@ -11917,7 +11929,7 @@
       {
         "path": "scripts/memoir_live_skill_cases.py",
         "symbol": "cases",
-        "line": 185
+        "line": 213
       }
     ],
     "targets": [

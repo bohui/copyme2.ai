@@ -7,7 +7,7 @@ import time
 import httpx
 import pytest
 
-from scripts.memoir_live_skill_cases import cases, validate_case
+from scripts.memoir_live_skill_cases import cases, timeline_chronology_case, validate_case
 from scripts.run_memoir_live_skills import LiveProvider, manifest, provider_rejection, json_framing_kind
 
 
@@ -42,6 +42,27 @@ def response(text=None, **kwargs):
 def test_every_checked_in_skill_has_a_live_case():
     covered = {c['skill'] for c in cases()} | {'memoir-composer', 'memoir-historical-news-research', 'memoir-place-photo-research'}
     assert covered == set(manifest()['skills'])
+
+
+@pytest.mark.parametrize('locale', ['en-AU', 'zh-CN'])
+def test_overlapping_chronology_case_rejects_the_reported_missing_or_reversed_relation(locale):
+    case = timeline_chronology_case(locale)
+    event = {key:deepcopy(value) for key,value in case['saved_events'][0].items()
+        if key not in {'id', 'revision', 'status'}}
+    event.update(existing_id='saved-shanghai', expected_revision=1)
+    for relations in (None, [], [dict(kind='after', event_id='saved-sydney', source_refs=event['source_refs'])]):
+        event['relations'] = relations
+        with pytest.raises(ValueError, match='missing_narrated_chronology'):
+            validate_case(case, {'events':[event]})
+    event['relations'] = [dict(kind='before', event_id='saved-sydney', source_refs=event['source_refs'])]
+    with pytest.raises(ValueError, match='narrated_period_estimate'):
+        validate_case(case, {'events':[event]})
+    event['temporal_estimate'].update(year_start=2000, year_end=2012, age_start=17, age_end=29)
+    home = {key:deepcopy(value) for key,value in case['saved_events'][1].items()
+        if key not in {'id', 'revision', 'status'}}
+    home.update(existing_id='saved-sydney', expected_revision=1)
+    home['temporal_estimate'].update(year_start=2012, age_start=29, age_end=43)
+    validate_case(case, {'events':[event,home]})
 
 
 def test_cancelled_provider_dispatch_is_recorded_and_consumes_allowance(monkeypatch, tmp_path):
