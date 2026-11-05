@@ -35,7 +35,8 @@ def run(output, settings, *, resume=False, selection=None):
     save('input.json', fixture)
     with httpx.Client(trust_env=False, timeout=180) as client:
         def call(phase, payload, model, schema_type):
-            instructions = load_story_game_skill() + '\n\n' + load_prompt_artifact(prompt_path(
+            from apps.api.prompt_composition import render_prompt_artifact
+            instructions = render_prompt_artifact(prompt_path(
                 'memoir/skills/story-game/' + ('proposal' if phase == 'scenes' else 'brief')))
             schema = schema_type.model_json_schema()
             manifest = instruction_manifest(instructions, schema, variant='story-game-' + phase)

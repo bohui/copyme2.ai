@@ -95,8 +95,8 @@ async def _game_response(packet, *, token, phase, payload):
     if (not key or not model or parsed.scheme not in {'http', 'https'} or not parsed.hostname
             or parsed.username or parsed.password or parsed.query or parsed.fragment):
         raise ValueError('game_provider_unavailable')
-    instructions = load_story_game_skill() + '\n\n' + load_prompt_artifact(
-        prompt_path('memoir/skills/story-game/' + ('brief' if phase == 'brief' else 'proposal')))
+    from .prompt_composition import render_prompt_artifact
+    instructions = render_prompt_artifact(prompt_path('memoir/skills/story-game/' + ('brief' if phase == 'brief' else 'proposal')))
     output = GameBrief if phase == 'brief' else ScenePool
     schema = output.model_json_schema()
     from .llm_tracing import gateway_metadata

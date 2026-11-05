@@ -81,3 +81,22 @@ Repository `AGENTS.md` points here so future Codex sessions retain this workflow
 This uses Codex's documented [project instructions](https://developers.openai.com/codex/guides/agents-md/).
 The evaluation distinctions follow [OpenAI evaluation best practices](https://developers.openai.com/api/docs/guides/evaluation-best-practices)
 and [Langfuse evaluator calibration](https://langfuse.com/guides/llm-as-a-judge-calibration-skill).
+
+## Assembled templates and the development baseline
+
+Local source components remain in the coverage inventory and dependency sets,
+with `storage: local`, a SHA-256 and no published version. The publisher expands
+all component references into each operation template. Its receipt pins both the
+published assembled text and the local recipe when their bytes differ. Runtime
+section selection retains actual request hashes and excludes unused components
+from execution credit. Review shared cases and graders whenever a component
+changes, including every operation that can include it.
+
+The explicitly requested development reset is scoped by
+`config/development-prompt-reset.json`. Its committed archive preserves all old
+versions, source receipts, labels, tags and configuration. The publisher checks
+the project, every archived version and exact live-main revision before deletion.
+It removes local-component rows and recreates current skill operations at version
+1. A baseline marker makes reruns safe and preserves subsequent normal versions.
+This reset does not delete datasets, experiment runs, scores or traces and does
+not transfer their old quality claims onto the new publication IDs.

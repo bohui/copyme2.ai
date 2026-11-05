@@ -211,7 +211,8 @@ def _linked_prompt(metadata):
         from langfuse.model import TextPromptClient
         from langfuse.api import Prompt_Text
         from .prompt_artifact import prompt_path, load_prompt_artifact
-        text = load_prompt_artifact(prompt_path(primary['name']))
+        from .prompt_composition import expanded_prompt
+        text = expanded_prompt(prompt_path(primary['name']))
         return TextPromptClient(Prompt_Text(name=primary['name'],version=primary['version'],prompt=text,
             config={},labels=[],tags=[]))
     except Exception:
@@ -232,6 +233,7 @@ def trace_llm_call(
     with trace_scope(trace_name or name):
         with _trace_observation(_origin_name(name), model, input_summary=input_summary, metadata=metadata, gateway=gateway, client=client) as observation:
             yield observation
+
 
 
 @contextmanager

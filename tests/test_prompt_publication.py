@@ -455,3 +455,44 @@ def test_real_git_pull_dispatches_the_tracked_hook(repo, tmp_path):
     merged_edit(other)
     git(root, 'pull', '--ff-only', 'origin', 'main')
     assert json.loads((root / 'hook-called.json').read_text()) == ['--after-pull']
+
+
+def test_publication_expands_components_without_overwriting_the_recipe(repo, monkeypatch):
+    from apps.api import prompt_composition
+    root, _, client = repo
+    shared = root / 'skills/shared.md'
+    shared.write_text('Complete shared rules')
+    (root / TARGET).write_text('{{prompt:publication_fixture}}\nFinal instructions\n')
+    monkeypatch.setitem(prompt_composition.COMPONENTS, 'publication_fixture', 'skills/shared.md')
+    commit(root, 'Use a complete prompt template')
+    git(root, 'push', 'origin', 'main')
+    assert publication.main([], root=root) == 0
+    assert client.creates[-1]['prompt'] == 'Complete shared rules\nFinal instructions\n'
+    assert (root / TARGET).read_text().startswith('{{prompt:publication_fixture}}')
+    receipt = json.loads((root / (TARGET + '.langfuse.json')).read_text())
+    assert receipt['sha256'] == hashlib.sha256(client.creates[-1]['prompt'].encode()).hexdigest()
+    assert receipt['source_sha256'] == hashlib.sha256((root / TARGET).read_bytes()).hexdigest()
+    assert publication.main([], root=root) == 0
+    assert len(client.creates) == 1
+    shared.write_text('Changed shared rules')
+    commit(root, 'Change a local prompt component')
+    git(root, 'push', 'origin', 'main')
+    assert publication.main([], root=root) == 0
+    assert client.creates[-1]['prompt'] == 'Changed shared rules\nFinal instructions\n'
+    assert len(client.creates) == 2
+
+
+def test_local_components_keep_hashes_without_remote_publication(repo, monkeypatch):
+    from scripts import export_langfuse_prompt
+    root, _, client = repo
+    monkeypatch.setattr(publication, 'LOCAL_PROMPT_NAMES', {NAME})
+    monkeypatch.setattr(export_langfuse_prompt, 'LOCAL_PROMPT_NAMES', {NAME})
+    def no_remote(*args, **kwargs):
+        raise AssertionError('Local component was sent to the remote prompt API')
+    client.api.prompts.list = no_remote
+    client.get_prompt = no_remote
+    assert publication.main([], root=root) == 0
+    receipt = json.loads((root / (TARGET + '.langfuse.json')).read_text())
+    assert receipt['storage'] == 'local' and receipt['version'] is None
+    assert receipt['sha256'] == hashlib.sha256((root / TARGET).read_bytes()).hexdigest()
+    assert not client.creates

@@ -2,6 +2,7 @@
   "name": "memoir/skills/author-timeline/derived-hints",
   "schema_version": 1,
   "sha256": "8eac382ff94f0f348d4c7947a6b6b9f2f3aef80cf86975f2143c0ebeb1bbbf1b",
+  "storage": "local",
   "type": "text",
-  "version": 6
+  "version": null
 }

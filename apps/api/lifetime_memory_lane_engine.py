@@ -196,6 +196,14 @@ def _object(value):
     return parsed
 
 
+def lane_prompt_name(phase, *, timeline=True):
+    if phase in {'profile', 'summarize'}:
+        return 'memoir/skills/memory-context/' + ('summary' if phase == 'summarize' else phase)
+    if phase == 'extract':
+        return 'memoir/skills/' + ('author-timeline' if timeline else 'place-journey') + '/extract'
+    return 'memoir/skills/composer/' + phase
+
+
 def lane_contract(phase, locale, *, batch=False, two_lane=False, fence=None, retry_reason=None):
     """Use server code, never client-supplied instructions or output schemas."""
     if phase not in {'extract', 'summarize', 'profile', 'prepare', 'draft', 'review'}:
@@ -257,15 +265,18 @@ def lane_contract(phase, locale, *, batch=False, two_lane=False, fence=None, ret
             choices.append(choice)
         if choices:
             schema['$defs']['ref']={'anyOf':choices}
-    if batch:
-        if phase == 'prepare':
-            instructions += load_prompt_artifact(prompt_path('memoir/skills/composer/batch/prepare'))
-        else:
-            instructions += load_prompt_artifact(prompt_path('memoir/skills/composer/batch/compose'))
-    locale_name = 'zh-CN' if locale == 'zh-CN' else 'en-AU'
-    instructions += render_prompt_artifact(prompt_path(f'memoir/shared/bounded-context/{locale_name}'))
-    if getattr(fence, 'attribution_coverage', None):
-        instructions += load_prompt_artifact(prompt_path('memoir/shared/place-conflicts'))
+    selected = fence.two_lane.selected_skills if fence and fence.two_lane else None
+    timeline = selected is None or 'memoir-author-timeline' in selected
+    places = two_lane and (selected is None or 'memoir-place-journey' in selected)
+    name = lane_prompt_name(phase, timeline=timeline)
+    instructions = render_prompt_artifact(prompt_path(name), variables={
+        'events_only': not places, 'places': places, 'place_rules': places,
+        'attribution': bool(two_lane and fence and fence.attribution_context),
+        'continuity': bool(two_lane and fence and fence.two_lane.reply_contract == 'reply-v2'),
+        'batch': batch, 'bounded': True,
+        'conflicts': bool(getattr(fence, 'attribution_coverage', None)),
+        'output_language': 'Simplified Chinese' if locale == 'zh-CN' else 'Australian English',
+    })
     return instructions, schema
 
 
@@ -833,7 +844,8 @@ async def run_bounded_lane(*, command, home_root, base_url, api_key, model,
         raise ValueError('Lane provider is not configured')
     input_prompt_names = ('memoir/skills/author-timeline/window',) if (bounded.phase == 'extract'
         and _object(bounded.packet)['payload'].get('window_contract') == EXTRACTION_WINDOW_CONTRACT) else ()
-    manifest = instruction_manifest(instructions, schema, variant=bounded.phase, extra_names=input_prompt_names)
+    manifest = instruction_manifest(instructions, schema, variant=bounded.phase, extra_names=input_prompt_names,
+        primary_name=lane_prompt_name(bounded.phase, timeline=skill_name != 'memoir-place-journey'))
     call_name = f'{skill_name}.{bounded.phase}'
     payload = dict(model=model, instructions=instructions, input=bounded.packet,
         store=False, stream=True, tools=[], tool_choice='none', parallel_tool_calls=False,

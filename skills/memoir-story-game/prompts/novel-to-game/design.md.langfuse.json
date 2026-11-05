@@ -1,7 +1,8 @@
 {
-  "name": "memoir/skills/story-game/novel-to-game/design",
+  "name": "memoir/skills/story-game/novel-to-game/components/design",
   "schema_version": 1,
   "sha256": "7ad4d7cb4ab51ad79bc2e725d740bdf5997469b946b5123ceef722a1cee79746",
+  "storage": "local",
   "type": "text",
-  "version": 1
+  "version": null
 }

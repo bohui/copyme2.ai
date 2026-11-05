@@ -2,6 +2,7 @@
   "name": "memoir/skills/author-timeline/attribution",
   "schema_version": 1,
   "sha256": "46b3ebee11562ffbe236890c2cc21ce308420ecdaf30a1290358f6a408c59d50",
+  "storage": "local",
   "type": "text",
-  "version": 3
+  "version": null
 }

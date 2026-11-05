@@ -27,7 +27,7 @@ def replace_component(monkeypatch, tmp_path, key, text):
     receipt = json.loads(original.with_name(original.name + '.langfuse.json').read_text())
     path = tmp_path / original.name
     path.write_text(text)
-    receipt.update(version=receipt['version'] + 1, sha256=hashlib.sha256(text.encode()).hexdigest())
+    receipt.update(version=None if receipt.get('storage') == 'local' else receipt['version'] + 1, sha256=hashlib.sha256(text.encode()).hexdigest())
     path.with_name(path.name + '.langfuse.json').write_text(json.dumps(receipt))
     monkeypatch.setitem(composition.COMPONENTS, key, str(path))
     return path, receipt
@@ -61,14 +61,14 @@ def test_one_editorial_component_reaches_drafting_review_and_evaluation(monkeypa
         assert manifest['sha256'] == hashlib.sha256(instructions.encode()).hexdigest()
 
 
-def test_unknown_or_nested_prompt_components_fail_closed(monkeypatch, tmp_path):
+def test_unknown_or_cyclic_prompt_components_fail_closed(monkeypatch, tmp_path):
     path = ROOT / 'skills/memoir-composer/prompts/review.md'
     with pytest.raises(ValueError, match='Unknown prompt component'):
         composition.render_prompt_artifact(path, content='{{prompt:missing}}')
     with pytest.raises(ValueError, match='malformed reference'):
         composition.render_prompt_artifact(path, content='{{prompt:unfinished')
-    replace_component(monkeypatch, tmp_path, 'narrative_enrichment', '{{prompt:editorial_review}}')
-    with pytest.raises(ValueError, match='Nested prompt components'):
+    replace_component(monkeypatch, tmp_path, 'narrative_enrichment', '{{prompt:narrative_enrichment}}')
+    with pytest.raises(ValueError, match='Cyclic prompt components'):
         composition.render_prompt_artifact(path)
 
 

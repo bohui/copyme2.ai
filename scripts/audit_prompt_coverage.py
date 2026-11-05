@@ -121,7 +121,8 @@ def rows(coverage, bindings, snapshot=None, *, root=ROOT):
         entry = coverage['prompts'][name]
         targets = [t for t,s in bindings['targets'].items() if name in s['evaluated_prompts']]
         datasets = [d for d in bindings['datasets'] if d['target'] in targets and d['status']=='active']
-        pin = json.loads((root/(relative+'.langfuse.json')).read_text())
+        receipt_path = root / (relative + '.langfuse.json')
+        pin = json.loads(receipt_path.read_text()) if receipt_path.is_file() else dict(version=None, sha256=digest((root/relative).read_bytes()))
         metrics = sorted({m for t in targets for m in bindings['targets'][t]['metrics']})
         relevant_rules=[r for r in hosted.get('rules',[]) if r['status']=='ACTIVE' and (
             r['name'] in {t+'/online/quality' for t in targets} or
@@ -210,7 +211,8 @@ def markdown(report, upstream=(), retired=None, examples=()):
         '| Prompt / source pin | Source consumers | Scenario | Evaluator / regression | Active datasets (ID; items; experiments / scored items) | Gaps |',
         '| --- | --- | --- | --- | --- | --- |']
     for r in report:
-        prompt=f"`{r['name']}` v{r['version']}<br>[source](../{r['source']})"
+        label = "local source" if r["use"] == "component" else "unpublished" if r["version"] is None else "v" + str(r["version"])
+        prompt=f"`{r['name']}` {label}<br>[source](../{r['source']})"
         consumers='<br>'.join(f"[{c['path']}:{c['line']}](../{c['path']}#L{c['line']}) `{c['symbol']}`" for c in r['consumers'])
         evaluation='<br>'.join([*('`'+e+'` (hosted)' for e in r['evaluators']),
             *('`'+e+'` (SDK/code)' for e in r['sdk_evaluators']),

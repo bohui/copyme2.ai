@@ -16,6 +16,8 @@ if str(ROOT) not in sys.path:
     sys.path.insert(0, str(ROOT))
 
 from apps.api.prompt_artifact import load_prompt_artifact
+from apps.api.prompt_catalog import LOCAL_PROMPT_NAMES
+from apps.api.prompt_composition import expanded_prompt
 from scripts.langfuse_prompt_client import prompt_client
 
 
@@ -45,10 +47,11 @@ def _replace(path: Path, content: str) -> None:
         temporary.unlink(missing_ok=True)
 
 
-def sync_prompt(client, *, target: str, name: str, version: int,
+def sync_prompt(client, *, target: str, name: str, version: int | None,
                 root: Path = ROOT, check: bool = False,
                 expected_content: str | None = None) -> dict:
-    if not name or version < 1:
+    local = name in LOCAL_PROMPT_NAMES
+    if not name or (not local and (type(version) is not int or version < 1)):
         raise ValueError("A prompt name and positive exact version are required")
     root = root.resolve()
     path = target_path(target, root)
@@ -59,6 +62,18 @@ def sync_prompt(client, *, target: str, name: str, version: int,
         raise ValueError("Repository prompt changed during publication")
     if receipt_path.exists() and expected_content is None:
         load_prompt_artifact(path)  # Refuse to overwrite a locally edited, pinned prompt.
+    source = path.read_text(encoding='utf-8')
+    compiled = expanded_prompt(path, root=root, validate=False)
+    if local:
+        receipt = dict(schema_version=1, name=name, version=None, type='text', storage='local',
+                       sha256=hashlib.sha256(source.encode()).hexdigest())
+        receipt_text = json.dumps(receipt, indent=2, sort_keys=True) + '\n'
+        if check:
+            if not receipt_path.is_file() or json.loads(receipt_path.read_text()) != receipt:
+                raise ValueError('Local prompt component receipt differs: ' + name)
+        elif not receipt_path.is_file() or receipt_path.read_text() != receipt_text:
+            _replace(receipt_path, receipt_text)
+        return {'target': str(path.relative_to(root)), **receipt}
     prompt = client.get_prompt(name, version=version, type="text",
                                cache_ttl_seconds=0, max_retries=0)
     content = getattr(prompt, "prompt", None)
@@ -67,7 +82,7 @@ def sync_prompt(client, *, target: str, name: str, version: int,
             or getattr(prompt, "version", None) != version
             or not isinstance(content, str) or not content.strip()):
         raise ValueError("Langfuse returned a different, fallback or empty prompt version")
-    if expected_content is not None and content != expected_content:
+    if (expected_content is not None or compiled != source) and content != compiled:
         raise ValueError("Langfuse prompt differs from the committed prompt content")
     receipt = {
         "schema_version": 1,
@@ -76,15 +91,17 @@ def sync_prompt(client, *, target: str, name: str, version: int,
         "type": "text",
         "sha256": hashlib.sha256(content.encode("utf-8")).hexdigest(),
     }
+    if compiled != source:
+        receipt['source_sha256'] = hashlib.sha256(source.encode('utf-8')).hexdigest()
     if check:
-        if not receipt_path.exists() or path.read_text(encoding="utf-8") != content:
+        if not receipt_path.exists() or compiled != content:
             raise ValueError("Repository prompt differs from the selected Langfuse version")
         if json.loads(receipt_path.read_text(encoding="utf-8")) != receipt:
             raise ValueError("Repository prompt receipt differs from the selected Langfuse version")
     else:
         if expected_content is not None and path.read_text(encoding="utf-8") != expected_content:
             raise ValueError("Repository prompt changed during publication")
-        if expected_content is None:
+        if expected_content is None and compiled == source:
             _replace(path, content)
         receipt_text = json.dumps(receipt, indent=2, sort_keys=True) + "\n"
         if not receipt_path.exists() or receipt_path.read_text(encoding="utf-8") != receipt_text:

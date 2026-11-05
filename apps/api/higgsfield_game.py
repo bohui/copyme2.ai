@@ -93,12 +93,12 @@ async def run_higgsfield_game(fence, *, packet_loader=None, transport=None, skil
         tools[0]['parameters']['properties']['paths']['items']['enum'] = optional_files
     else:
         tools = tools[1:]
-    instructions = '\n\n'.join('===== ' + path + ' =====\n' + files[path]
-        for path in sorted(REQUIRED_FILES))
-    instructions += '\n\n' + '\n\n'.join(load_prompt_artifact(prompt_path('memoir/skills/story-game/' + name))
-        for name in ('higgsfield', 'webpage'))
+    from .prompt_composition import render_prompt_artifact
+    instructions = render_prompt_artifact(prompt_path('memoir/skills/story-game/higgsfield'), variables={
+        'upstream_instructions': '\n\n'.join('===== ' + path + ' =====\n' + files[path]
+            for path in sorted(REQUIRED_FILES))})
     schema = BuildArtifact.model_json_schema()
-    manifest = instruction_manifest(instructions, schema, variant='higgsfield-game')
+    manifest = instruction_manifest(instructions, schema, variant='higgsfield-game', primary_name='memoir/skills/story-game/higgsfield')
     payload = dict(type='game', target='memoir-private-player', locale=packet['authority']['locale'],
         ui=game_ui(packet['authority']['locale']), brief=brief, scenes=public_scenes(proposal))
     history = [dict(role='user', content=json.dumps(payload, ensure_ascii=False))]

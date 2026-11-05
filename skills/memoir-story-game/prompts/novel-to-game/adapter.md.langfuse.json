@@ -2,6 +2,7 @@
   "name": "memoir/skills/story-game/novel-to-game/adapter",
   "schema_version": 1,
   "sha256": "02e34bd45576f21ad6e7e13114d014fa82370854c1c473f1da05f41dcee79b31",
+  "storage": "local",
   "type": "text",
-  "version": 2
+  "version": null
 }

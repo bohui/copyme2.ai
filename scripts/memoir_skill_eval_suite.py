@@ -193,7 +193,8 @@ def packet(item):
     elif skill == 'memoir-story-game' and item['phase'] == 'proposal':
         from apps.api.memoir_story_game import load_story_game_skill
         from apps.api.story_game_selection import ScenePool
-        instructions = load_story_game_skill() + '\n\n' + load_prompt_artifact(prompt_path('memoir/skills/story-game/proposal'))
+        from apps.api.prompt_composition import render_prompt_artifact
+        instructions = render_prompt_artifact(prompt_path('memoir/skills/story-game/proposal'))
         schema, payload = ScenePool.model_json_schema(), task
     else:
         raise ValueError('requires_application_adapter')

@@ -110,10 +110,9 @@ class GatewayHistoricalProvider:
             raise ValueError('Historical search is not configured')
         from .model_request import prompt_manifest, manifest_metadata
         name = 'memoir/skills/historical-news-research/discovery'
-        names = ['memoir/skills/historical-news-research/instructions',
-            'memoir/skills/historical-news-research/contract', name]
-        instructions = '\n\n'.join(load_prompt_artifact(prompt_path(item)) for item in names)
-        manifest = prompt_manifest(names,instructions,variant='historical-native-search')
+        from .prompt_composition import render_prompt_artifact
+        instructions = render_prompt_artifact(prompt_path(name))
+        manifest = prompt_manifest([name], instructions, variant='historical-native-search')
         prompt = instructions.replace('{{query}}', query)
         from .llm_tracing import gateway_metadata, gateway_trace_headers, trace_llm_call
         call_name = 'memoir-historical-news-research.discovery'
