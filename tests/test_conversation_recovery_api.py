@@ -51,6 +51,18 @@ def recovery(monkeypatch):
                 assert body['p_project_id']
                 assert UUID(body['p_client_turn_id'])
                 return httpx.Response(200, content='null')
+            if request.url.path == '/rest/v1/rpc/read_user_conversation_page':
+                body = json.loads(request.content)
+                assert request.method == 'POST'  # Read-only projection, including source-only inputs.
+                result = [deepcopy(row) for row in rows['user_memory']
+                    if row['user_id'] == owner and row['project_id'] == body['p_project_id']
+                    and row['kind'] in {'agent', 'agent_greeting'}]
+                result.sort(key=lambda row:(row['created_at'], row['id']), reverse=True)
+                if body['p_before_created_at'] is not None:
+                    from datetime import datetime
+                    boundary = (datetime.fromisoformat(body['p_before_created_at']), body['p_before_id'])
+                    result = [row for row in result if (datetime.fromisoformat(row['created_at']), row['id']) < boundary]
+                return httpx.Response(200, json=result[:body['p_limit']])
             assert request.method == 'GET', 'Recovery must never accept narration or generate'
             if request.url.path == '/auth/v1/user':
                 return httpx.Response(200, json={'id': owner})

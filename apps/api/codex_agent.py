@@ -7,6 +7,8 @@ import signal
 import time
 from pathlib import Path
 
+import anyio
+
 from .diagnostics import configure_diagnostic_logger, elapsed_ms, log_diagnostic, new_request_id
 from .trajectory_evaluation import normalise_correlation, protocol_request_evidence
 from .issue14_execution_admission import check_issue14_dispatch, validate_optional_issue14_admission
@@ -90,6 +92,49 @@ class CodexConnection:
         return self
 
     async def __aexit__(self, *args):
+        closing = asyncio.create_task(self._stop())
+        cancelled = False
+        with anyio.CancelScope(shield=True):
+            while not closing.done():
+                try:
+                    await asyncio.shield(closing)
+                except asyncio.CancelledError:
+                    cancelled = True
+            closing.result()
+        if cancelled:
+            raise asyncio.CancelledError
+
+    async def _stop(self):
+        try:
+            try:
+                await self.interrupt()
+            except (RuntimeError, OSError, TimeoutError, ValueError):
+                pass  # Process teardown remains the bounded fallback.
+        finally:
+            await self._close()
+
+    async def interrupt(self):
+        if self.active_thread is None or self.active_turn is None:
+            return
+        thread_id, turn_id = self.active_thread, self.active_turn
+        self.sequence += 1
+        request_id = self.sequence
+        async with asyncio.timeout(2):
+            await self.send({'id':request_id, 'method':'turn/interrupt',
+                'params':{'threadId':thread_id, 'turnId':turn_id}})
+            while True:
+                event = await self.receive()
+                if self.trajectory:
+                    self.trajectory.record_protocol(event, phase='codex.interrupt')
+                if event.get('id') == request_id and 'error' in event:
+                    raise CodexRequestError('turn/interrupt', event['error'])
+                if (event.get('method') == 'turn/completed'
+                        and event.get('params', {}).get('threadId') == thread_id
+                        and event['params'].get('turn', {}).get('id') == turn_id):
+                    self.active_thread, self.active_turn = None, None
+                    return
+
+    async def _close(self):
         self.active_thread, self.active_turn = None, None
         # Include any children of app-server; the supervisor retains CAP_KILL
         # while the tenant process drops to an unprivileged UID.

@@ -20,7 +20,7 @@ def evidence_key(ref):
     return ':'.join(str(ref[key]) for key in ('source_id', 'version', 'char_start', 'char_end'))
 
 
-def conversation_context(view, known_sources=None):
+def conversation_context(view, known_sources=None, *, after_sequence=None):
     """Keep narrator testimony separate from application-supplied reference data."""
     current = view['current']
     originals = [entry['narrator'] for entry in [*view.get('dialogue', []), current]]
@@ -53,7 +53,8 @@ def conversation_context(view, known_sources=None):
             if ref := _span(answer):
                 originals.append(answer)
                 narrated[f"{ref['source_id']}:{ref['version']}"] = (sequence, ref)
-    history = [dict(role=role, content=text) for _, _, role, text in sorted(turns, key=lambda row: row[:2])]
+    history = [dict(role=role, content=text) for sequence, _, role, text in sorted(turns, key=lambda row: row[:2])
+        if after_sequence is None or sequence > after_sequence]
     evidence = {}
     def reference(value):
         ref = _span(value)

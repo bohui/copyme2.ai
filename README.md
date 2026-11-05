@@ -415,6 +415,13 @@ settings remain timeline/place evidence rather than profile settings.
 Mira produces her reply in Lane A without a skill-selection handoff. The host records
 the source choice in the durable lane snapshot; a new window needs a new choice,
 and selected timeline/place work can share one extraction request.
+The storyteller can send corrections or further parts while Mira is replying.
+Each input keeps its own turn ID and original source. The browser queues inputs
+in order and interrupts Mira after the preceding source is acknowledged, then
+requests a reply with all the intervening narration. Interrupted candidates are
+discarded; completed replies remain in history. Owner/project-scoped pending
+inputs survive a browser refresh, and unanswered originals remain in saved history.
+Cancelling Mira uses the Codex `turn/interrupt` protocol and leaves Atlas running.
 Atlas also uses `memoir_execute_skill` for due private-draft composition and
 enabled historical-news research. The host retains ownership, consent, dependency, evidence
 and publication checks. Explicit book/game actions and independent photo/group

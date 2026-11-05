@@ -95,16 +95,18 @@ def test_two_lanes_default_on_and_foreground_place_work_stays_in_background(monk
     assert validate_governed_collector_result(output,context)['place_journeys']==[]
 
 
-def test_acceptance_is_idempotent_and_a_failed_reply_blocks_a_different_turn(sql):
+def test_acceptance_is_idempotent_and_consecutive_inputs_remain_separate(sql):
     turn=str(uuid4())
     identity,accepted=accept(sql,turn=turn)
     again=rpc(sql,'accept_two_lane_interview_turn',f"{literal(identity['project_id'])},'{turn}',{literal(TEXT)}")
     assert again['source']['id']==accepted['source']['id']
-    failed=rpc(sql,'accept_two_lane_interview_turn',f"{literal(identity['project_id'])},'{uuid4()}','another turn'",check=False)
-    assert failed.returncode!=0
-    assert sql('select count(*) from public.user_narrator_source;').stdout.strip()=='1'
+    next_turn=str(uuid4())
+    following=rpc(sql,'accept_two_lane_interview_turn',f"{literal(identity['project_id'])},'{next_turn}','another turn'")
+    assert following['source']['id'] != accepted['source']['id']
+    assert following['source']['sequence'] > accepted['source']['sequence']
+    assert sql('select count(*) from public.user_narrator_source;').stdout.strip()=='2'
     assert sql('select count(*) from public.user_completed_round;').stdout.strip()=='0'
-    assert sql('select count(*) from public.user_lifetime_two_lane_source;').stdout.strip()=='1'
+    assert sql('select count(*) from public.user_lifetime_two_lane_source;').stdout.strip()=='2'
 
 
 def test_background_places_and_candidates_use_separate_fenced_writers(sql):
@@ -955,7 +957,8 @@ def test_complete_vertical_slice_background_hint_consumed_next_turn_and_replay_d
         assert sql("select count(*) from public.user_memoir_lane where skill='composer';").stdout.strip()=='0'
 
 
-def test_commit_failure_reports_pending_source_blocks_overlap_and_retries_same_source(sql,tmp_path,monkeypatch):
+def test_commit_failure_keeps_both_inputs_and_retries_the_latest_source(sql,tmp_path,monkeypatch):
+    from test_conversation_reply import proposal as reply_proposal
     from apps.api import agent_routes
     from apps.api.codex_runtime import CodexRuntime
     from apps.api.main import create_app
@@ -965,7 +968,7 @@ def test_commit_failure_reports_pending_source_blocks_overlap_and_retries_same_s
     monkeypatch.setenv('MEMOIR_TWO_LANES','1');monkeypatch.setenv('MEMOIR_PUBLICATION_DATABASE_URL',sql.publication_dsn)
     monkeypatch.setattr(agent_routes,'authenticated_storage',lambda _:PostgresRest(sql,OWNER).storage())
     def provider(request):
-        output=proposal(mode='extract',name=None);output['plan']['conversation_phase']='explore'
+        output=reply_proposal()
         return httpx.Response(200,json={'reply':json.dumps(output),'thread_id':'a','artifacts':[]})
     monkeypatch.setattr(agent_routes,'runtime',CodexRuntime(home_root=tmp_path,worker_url='http://controlled.invalid',worker_secret='synthetic',worker_transport=httpx.MockTransport(provider)))
     sql("alter table public.user_memory add constraint issue70_save_failure check (kind<>'agent');")
@@ -978,13 +981,16 @@ def test_commit_failure_reports_pending_source_blocks_overlap_and_retries_same_s
             source_id=failed.json()['detail']['accepted_source_id']
             assert sql('select count(*) from public.user_lifetime_reply;').stdout.strip()=='0'
             assert sql('select count(*) from public.user_completed_round;').stdout.strip()=='0'
-            other=client.post('/v1/agent/turn',json={**payload,'client_turn_id':str(uuid4())})
-            assert other.status_code in {409,503}
-            assert sql('select count(*) from public.user_narrator_source;').stdout.strip()=='1'
+            latest={**payload,'project_id':failed.json()['detail'].get('project_id') or sql('select project_id from public.user_memoir_project;').stdout.strip(),
+                'text':'Actually, I grew up in Launceston.', 'client_turn_id':str(uuid4())}
+            other=client.post('/v1/agent/turn',json=latest)
+            assert other.status_code==503
+            assert other.json()['detail']['accepted_source_id'] != source_id
+            assert sql('select count(*) from public.user_narrator_source;').stdout.strip()=='2'
             sql('alter table public.user_memory drop constraint issue70_save_failure;')
-            retried=client.post('/v1/agent/turn',json=payload)
+            retried=client.post('/v1/agent/turn',json=latest)
             assert retried.status_code==200,retried.text
-            assert retried.json()['accepted_source_id']==source_id
+            assert retried.json()['accepted_source_id']==other.json()['detail']['accepted_source_id']
             assert retried.json()['reply_id']!=source_id
     finally:
         sql('alter table public.user_memory drop constraint if exists issue70_save_failure;')
