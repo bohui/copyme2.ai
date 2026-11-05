@@ -14,6 +14,8 @@
       "evaluated_prompts": [
         "memoir/agents/atlas/skill-selection",
         "memoir/shared/skill-agent",
+        "memoir/skills/author-timeline/instructions",
+        "memoir/skills/memory-context/components/profile",
         "memoir/skills/place-journey/instructions"
       ],
       "metrics": [
@@ -1133,6 +1135,15 @@
         "observed_scenario_checks_pass"
       ],
       "validator": "scripts/run_memoir_prompt_evaluation.py:scores"
+    },
+    "memoir/skills/event-group/group": {
+      "scope": "code",
+      "primary_prompt": null,
+      "evaluated_prompts": [],
+      "metrics": [
+        "contract"
+      ],
+      "validator": "apps/api/event_groups.py:group_event_drafts"
     }
   },
   "datasets": [
@@ -1161,6 +1172,8 @@
       "evaluated_prompts": [
         "memoir/agents/atlas/skill-selection",
         "memoir/shared/skill-agent",
+        "memoir/skills/author-timeline/instructions",
+        "memoir/skills/memory-context/components/profile",
         "memoir/skills/place-journey/instructions"
       ],
       "metrics": [
@@ -1186,6 +1199,8 @@
       "evaluated_prompts": [
         "memoir/agents/atlas/skill-selection",
         "memoir/shared/skill-agent",
+        "memoir/skills/author-timeline/instructions",
+        "memoir/skills/memory-context/components/profile",
         "memoir/skills/place-journey/instructions"
       ],
       "metrics": [

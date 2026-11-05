@@ -67,7 +67,7 @@ def validate_page(page):
     return page
 
 
-def extraction_events(raw,page,original=None):
+def extraction_events(raw,page,original=None, *, allow_draft_relations=False):
     """Validate in the transmitted window, then restore exact original offsets."""
     source=page['source']
     from .timeline_context import context_sources
@@ -112,7 +112,8 @@ def extraction_events(raw,page,original=None):
             or original['text'][source['char_start']:source['char_end']]!=source['text']):
             raise ValueError('Whole-source policy authority changed')
     admitted = [{**original,'char_start':0} if original is not None else source,*context]
-    updates=validate_extraction({'events':updates},admitted,page.get('events',[]))
+    updates=validate_extraction({'events':updates},admitted,page.get('events',[]),
+        allow_draft_relations=allow_draft_relations)
     core_start=page.get('core_start',source['char_start'])
     if any(ref['source_id'] != source['id'] for event in updates for ref in event['source_refs']):
         raise ValueError('Event testimony must belong to the current source')
@@ -168,6 +169,7 @@ async def _extract(page,worker):
         try:
             raw=json.loads(response['reply'])
             selected = (page.get('two_lane') or {}).get('selected_skills')
+            grouped_timeline = selected is not None and 'memoir-place-journey' not in selected
             if selected is not None:
                 if 'memoir-author-timeline' not in selected and any(raw.get(field) for field in ('events','continuity_updates','event_places')):
                     raise ValueError('Unselected timeline output')
@@ -179,9 +181,10 @@ async def _extract(page,worker):
                     allowed.update({'event_places', 'passage_dispositions'})
                 if not isinstance(raw, dict) or set(raw) - allowed:
                     raise ValueError('Unexpected background reply fields')
-            result={'events':extraction_events({'events':raw['events']},page,original)}
+            result={'events':extraction_events({'events':raw['events']},page,original,
+                allow_draft_relations=grouped_timeline)}
+            links = []
             if page.get('two_lane'):
-                from .two_lane_memory import derived_hints
                 if page.get('attribution_context'):
                     from .conversation_attribution import validate_attribution, policy_dispositions
                     result.update(validate_attribution(raw, page, result['events']))
@@ -192,14 +195,24 @@ async def _extract(page,worker):
                                 for item in result['event_places']):
                             result['event_places'].append(link)
                     result['passage_dispositions'].extend(policy_dispositions(page, original))
-                result.update(derived_hints(raw, page, attribution=result if page.get('attribution_context') else None))
-                from .active_location import chronological_places
-                result['place_journeys'] = chronological_places(result['place_journeys'], result['events'],
-                    result.get('event_places', []), page.get('preferences', {}))
+                    links = result['event_places']
                 if (page.get('two_lane') or {}).get('reply_contract') == 'reply-v2':
                     from .lifetime_memory_continuity import validate_continuity_updates
                     result['continuity_updates'] = validate_continuity_updates(
                         raw['continuity_updates'], page['source'], background=True)
+            if grouped_timeline:
+                from .event_groups import event_place_journeys, group_event_drafts
+                with trace_skill_execution('memoir-event-group', 'group'):
+                    result['events'], links = group_event_drafts(result['events'], links, page['events'], page['preferences'])
+                    result['place_journeys'] = event_place_journeys(result['events'], links, page)
+                if 'event_places' in result:
+                    result['event_places'] = links
+            elif page.get('two_lane'):
+                from .two_lane_memory import derived_hints
+                from .active_location import chronological_places
+                result.update(derived_hints(raw, page, attribution=result if page.get('attribution_context') else None))
+                result['place_journeys'] = chronological_places(result['place_journeys'], result['events'],
+                    links, page['preferences'])
             return result
         except (ValueError,TypeError,KeyError) as error:
             # Only fixed validator messages cross the logging boundary.

@@ -30,7 +30,8 @@ export function applyDerivedWorkspace(state, update) {
     return Object.fromEntries(Object.entries({...saved,...p}).filter(([key]) => Object.hasOwn(p,key)
       || decorations.includes(key) || key.startsWith('photo_search_') || key === 'photo_next_cursor'));
   });
-  state.derivedWorkspace = {project_id:update.project_id, policy_epoch:update.policy_epoch, source_revision:update.source_revision};
+  state.derivedWorkspace = {project_id:update.project_id, policy_epoch:update.policy_epoch, source_revision:update.source_revision,
+    ...(update.map_source ? {map_source:update.map_source} : {})};
   if (!places.length) {
     state.placeWorkspaceMap = null;
   }

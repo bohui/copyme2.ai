@@ -43,10 +43,13 @@ EXTRACTION_REJECTION_REASONS = {
     'temporal_estimate_range': 'TEMPORAL_ESTIMATE_RANGE',
     'Unsupported life stage': 'LIFE_STAGE',
     'Canonical event revision conflict': 'EVENT_REVISION',
+    'Drafts for the same event disagree': 'DRAFT_CONFLICT',
     'Ambiguous identity must remain unresolved': 'AMBIGUOUS_IDENTITY',
     'A new event has no expected revision': 'NEW_EVENT_REVISION',
     'Unresolved candidates must be canonical scoped identities': 'CANDIDATE_SCOPE',
     'Chronology requires a canonical scoped target': 'CHRONOLOGY_SCOPE',
+    'Chronology requires a scoped draft target': 'CHRONOLOGY_SCOPE',
+    'Draft identities must be unique': 'CHRONOLOGY_SCOPE',
     'Explicit correction must cite the current original statement': 'CORRECTION_SCOPE',
     'Correction requires timeline placement fields': 'CORRECTION_SCOPE',
     'Correction requires explicit correction wording': 'CORRECTION_WORDING',
@@ -244,14 +247,17 @@ def lane_contract(phase, locale, *, batch=False, two_lane=False, fence=None, ret
                 'using the original source spelling without adding an administrative suffix.')
         identities=sorted({event['id'] for event in fence.events})
         event=schema['$defs']['EventProposal']['properties']
-        event['id']={'type':'null'}
+        drafts = 'DraftEventRelation' in schema['$defs']
+        event['id'] = {'type':['string','null'],'pattern':r'^draft-[1-9][0-9]{0,2}$'} if drafts else {'type':'null'}
         event['existing_id']={'type':['string','null'],'enum':[None,*identities]}
         event['life_stage']={'type':['string','null'],'enum':[None,'unplaced',*LIFE_STAGES]}
         for field in ('person_ids','candidate_ids','relations'):
             for option in event[field]['anyOf']:
                 if option.get('type')=='array':
-                    if field=='person_ids' or not identities:option['maxItems']=0
+                    if field=='person_ids' or not identities and (field!='relations' or not drafts):option['maxItems']=0
                     elif field=='candidate_ids':option['items']['enum']=identities
+                    elif field=='relations' and drafts and not identities:
+                        option['items'] = {'$ref': '#/$defs/DraftEventRelation'}
         if identities:schema['$defs']['EventRelation']['properties']['event_id']['enum']=identities
     if phase == 'draft' and fence is not None:
         references = [ref for event in fence.batch['events'] for ref in event['source_refs']] if fence.batch is not None else [

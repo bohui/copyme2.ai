@@ -79,6 +79,116 @@ def test_resolved_language_reaches_background_skills_and_map_cards(sql,tmp_path,
         assert replay.returncode==0,replay.stdout+replay.stderr
 
 
+def test_event_group_publishes_order_and_revises_a_city_period(sql,tmp_path,monkeypatch):
+    from test_conversation_attribution import episode, reference
+
+    monkeypatch.setenv('MEMORY_SPARK_DISABLE_PRIVDROP','1')
+    monkeypatch.setenv('MEMORY_SPARK_TASK_DB',str(tmp_path / 'tasks.sqlite'))
+    monkeypatch.delenv('MEMORY_SPARK_HISTORICAL_NEWS',raising=False)
+    porto = 'I began living in Porto in 1999.'
+    hobart = 'After that I settled in Hobart.'
+    first = f'{porto} {hobart}'
+    departure = 'I left Porto in 2010.'
+    detail = 'That was the period when I worked at the library.'
+    extraction_calls = []
+
+    class TimelineConnection(ControlledSkillConnection):
+        source_choices = ('memoir-author-timeline',)
+
+        async def turn(self, thread_id, prompt, **options):
+            source_work = json.loads(prompt)['task'].get('source_work')
+            if source_work:
+                assert 'memoir-place-journey' not in source_work['available_skills']
+            return await super().turn(thread_id, prompt, **options)
+
+    def respond(body):
+        schema = body['text']['format']['schema']
+        assert 'place_journeys' not in schema['properties']
+        assert 'DraftEventRelation' in schema['$defs']
+        packet = json.loads(body['input'])['payload']
+        text = packet['sources'][0]['text']
+        extraction_calls.append(text)
+
+        def period(quote, city, country, draft_id, years):
+            ref = reference(packet, quote)
+            return {**episode(packet, quote, title=city), 'kind':'period', 'id':draft_id,
+                'location':{'place':city,'hierarchy':['Earth',country,city],'granularity':'city'},
+                'location_basis':[ref], 'locationConfidenceScore':1.0,
+                'temporal_estimate':dict(year_start=years[0], year_end=years[1], confidence=.45,
+                    rationale='A provisional residence span around the narrated move.', basis=[reference(packet, first)])}
+
+        if text == first:
+            earlier = period(porto, 'Porto', 'Portugal', 'draft-1', (1999, 2016))
+            earlier['temporal'] = dict(expression='1999', precision='year', year_start=1999,
+                basis=[reference(packet, porto)])
+            earlier['relations'] = [dict(kind='before', draft_id='draft-2', source_refs=[reference(packet, first)])]
+            later = period(hobart, 'Hobart', 'Australia', 'draft-2', (1998, 2020))
+            output = [later, earlier, {**later, 'id':'draft-3'}]
+        else:
+            assert text == f'{departure} {detail}'
+            saved = next(event for event in packet['events'] if event['title'] == 'Porto')
+            assert saved['temporal_estimate']['year_end'] == 2016
+            update = {**episode(packet, departure, title='Porto', existing=saved), 'kind':'period',
+                'temporal':dict(expression='2010', precision='year', year_end=2010, basis=[reference(packet, departure)])}
+            additional = {**episode(packet, detail, title='Porto', existing=saved), 'kind':'period',
+                'temporal_estimate':None, 'location':None, 'location_basis':[], 'locationConfidenceScore':0.0,
+                'yearConfidenceScore':0.0, 'relations':[]}
+            output = [update, additional]
+        return {**empty_document(body), 'events':output}
+
+    install_document_provider(monkeypatch, respond)
+    monkeypatch.setattr('apps.api.codex_worker_service.CodexConnection',TimelineConnection)
+    conversation = Conversation(sql,tmp_path / 'conversation',monkeypatch,empty)
+    native = CodexWorker(home_root=tmp_path / 'worker', command=['controlled'],
+        base_url='http://synthetic.invalid', api_key='synthetic')
+    app = FastAPI()
+
+    @app.post('/internal/codex/turn')
+    async def turn(payload:WorkerTurnInput):
+        return await native.turn(payload)
+
+    worker = MemoryEventWorker(Broker(sql), worker_url='http://controlled.invalid', worker_secret='synthetic',
+        worker_transport=httpx.ASGITransport(app=app))
+
+    def publish(text, end):
+        conversation.say(text)
+        conversation.deliver_receipts()
+        sql('update public.user_memoir_background_agent set available_at=clock_timestamp();')
+        run, = service(sql,'pending_memoir_background_agents')
+        result = asyncio.run(worker.execute_background_agent(run))
+        assert result['status'] == 'finished', result
+        project = conversation.project
+        feed = conversation.client.get('/v1/story/map-events', params={'project_id':project}).json()
+        assert feed['map_source'] == 'published_events'
+        assert sorted(event['title'] for event in feed['events']) == ['Hobart','Porto']
+        by_title = {event['title']:event for event in feed['events']}
+        earlier, later = by_title['Porto'], by_title['Hobart']
+        locations = {}
+        orders = {}
+        for event in feed['events']:
+            path = f'/v1/story/map-events/{project}/{event["id"]}'
+            locations[event['id']] = conversation.client.get(f'{path}/places').json()
+            orders[event['id']] = conversation.client.get(f'{path}/order').json()
+        assert orders[earlier['id']]['relations'] == [{'kind':'before','event_id':later['id']}]
+        replay = subprocess.run(['node',str(Path(__file__).parent/'js/helpers/replay-event-group.mjs')],
+            input=json.dumps(dict(project=project,feed=feed,locations=locations,orders=orders,end=end)),
+            text=True,capture_output=True,timeout=10)
+        assert replay.returncode == 0, replay.stdout+replay.stderr
+        return earlier
+
+    with conversation.client:
+        original = publish(first, 'About 2016')
+        revised = publish(f'{departure} {detail}', '2010')
+        assert (revised['id'], revised['revision']) == (original['id'], original['revision'] + 1)
+        assert (revised['temporal']['year_start'], revised['temporal']['year_end']) == (1999, 2010)
+        assert sql("""select count(*) from public.user_memory_event_source s join public.user_memory_event e
+            on (s.user_id,s.project_id,s.event_id)=(e.user_id,e.project_id,e.id)
+            where e.data->>'title'='Porto' and s.stage_progress_role='primary';""").stdout.strip() == '3'
+        assert sql("""select count(*) from public.user_background_skill_work
+            where skill='memoir-event-group' and execution='deterministic' and status='saved';""").stdout.strip() == '2'
+        assert extraction_calls == [first,f'{departure} {detail}']
+
+
 @pytest.mark.parametrize('profile_first',[False,True])
 def test_foreground_keeps_replying_while_background_finishes_then_batches_queued_narrations(sql,tmp_path,monkeypatch,profile_first):
     from test_conversation_reply import proposal
@@ -300,12 +410,12 @@ def test_failed_extraction_retry_preserves_the_saved_source_skills(sql,tmp_path,
 @pytest.mark.parametrize('choices,text,phases',[
     ((), 'Hello.', []),
     (('memoir-author-timeline',), 'I repaired bicycles in our garden.', ['events']),
-    (('memoir-place-journey',), 'I lived in Hobart.', ['events']),
     (('memoir-memory-context',), 'I was born in 1960.', ['profile_patch']),
-    (('memoir-memory-context','memoir-place-journey'), 'My name is Avery. I lived in Hobart.', ['profile_patch','events']),
+    (('memoir-memory-context','memoir-author-timeline'), 'My name is Avery. I lived in Hobart.', ['profile_patch','events']),
 ])
 def test_lane_b_selects_each_source_skill_or_none_independently_of_lane_a_and_rounds(
         sql,tmp_path,monkeypatch,choices,text,phases):
+    from test_conversation_attribution import episode, reference
     monkeypatch.setenv('MEMORY_SPARK_DISABLE_PRIVDROP','1')
     monkeypatch.setenv('MEMORY_SPARK_TASK_DB',str(tmp_path / 'tasks.sqlite'))
     monkeypatch.delenv('MEMORY_SPARK_HISTORICAL_NEWS',raising=False)
@@ -322,14 +432,17 @@ def test_lane_b_selects_each_source_skill_or_none_independently_of_lane_a_and_ro
         output=empty_document(body)
         if phase=='profile_patch':
             source=task['payload']['source']
-            named='memoir-place-journey' in choices
+            named='memoir-author-timeline' in choices
             quote='My name is Avery.' if named else source['text']
             output['profile_patch']=[{'field':'name' if named else 'birth_year','value':'Avery' if named else 1960,'source_refs':[{
                 'source_id':source['id'],'version':source['version'],'quote':quote,
                 'char_start':0,'char_end':len(quote)}]}]
-        elif 'memoir-place-journey' in choices:
-            output['place_journeys']=[{'place':'Hobart','hierarchy':['Earth','Australia','Hobart'],
-                'granularity':'city','latitude':None,'longitude':None}]
+        elif 'Hobart' in text:
+            packet=task['payload']
+            ref=reference(packet, 'I lived in Hobart.')
+            output['events']=[{**episode(packet, ref['quote'], title='Living in Hobart'), 'kind':'period',
+                'location':{'place':'Hobart','hierarchy':['Earth','Australia','Hobart'],'granularity':'city'},
+                'location_basis':[ref], 'locationConfidenceScore':1.0}]
         return output
     install_document_provider(monkeypatch, respond)
     monkeypatch.setattr('apps.api.codex_worker_service.CodexConnection',ChoosingConnection)
@@ -364,18 +477,16 @@ def test_lane_b_selects_each_source_skill_or_none_independently_of_lane_a_and_ro
         assert all(meta['trace_name']=='memoir-atlas' for meta in nested_metadata)
         assert [meta['generation_name'] for meta in nested_metadata]==[
             'memoir-memory-context.profile' if phase=='profile_patch' else
-            'memoir-author-timeline.extract' if 'memoir-author-timeline' in choices else 'memoir-place-journey.extract'
+            'memoir-author-timeline.extract'
             for phase in phases]
         assert sql('select bool_and(processing_status=\'succeeded\') from public.user_narrator_source;').stdout.strip() == 't'
         if choices == ('memoir-memory-context',):
             assert sql('select profile->>\'birth_year\' from public.user_profile;').stdout.strip() == '1960'
             assert sql('select max(ordinal) from public.user_completed_round;').stdout.strip() == '2'
-        if 'memoir-place-journey' in choices:
+        if choices == ('memoir-memory-context','memoir-author-timeline'):
             assert sql('select journeys->0->>\'place\' from public.user_lifetime_place_journey;').stdout.strip() == 'Hobart'
-            assert sql("select distinct skill from public.user_background_skill_work where phase='extract' and model_invoked;").stdout.strip() == 'memoir-place-journey'
-        if 'memoir-memory-context' in choices and 'memoir-place-journey' in choices:
             assert sql('select profile->>\'name\' from public.user_profile;').stdout.strip() == 'Avery'
-        if choices == ('memoir-author-timeline',):
+        if 'memoir-author-timeline' in choices:
             assert sql("select distinct skill from public.user_background_skill_work where phase='extract' and model_invoked;").stdout.strip() == 'memoir-author-timeline'
         assert saved['conversation_saved']
 

@@ -64,12 +64,12 @@ def validate_attribution(raw, page, events):
                 raise ValueError('Place association requires its accepted event proposal')
             original = raw['events'][item['event_index']]
             def identity(event):
-                return (event.get('existing_id'), event['kind'], event['title'],
+                return (event.get('id'), event.get('existing_id'), event['kind'], event['title'],
                     [(r['source_id'], r['version'], r['quote']) for r in event['source_refs']])
             matches = [index for index, event in enumerate(events) if identity(event) == identity(original)]
             if not matches:
                 continue  # A privacy-withheld proposal cannot create a place claim.
-            if len(matches) != 1:
+            if any(events[index] != events[matches[0]] for index in matches[1:]):
                 raise ValueError('Place association requires one unambiguous event proposal')
             item['event_index'] = matches[0]
             score = events[matches[0]].get('locationConfidenceScore')

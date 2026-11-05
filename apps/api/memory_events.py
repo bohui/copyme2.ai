@@ -67,6 +67,13 @@ class EventRelation(BaseModel):
     source_refs: list[EvidenceRef] = Field(min_length=1, max_length=100)
 
 
+class DraftEventRelation(BaseModel):
+    model_config = ConfigDict(extra='forbid')
+    kind: Literal['before', 'after']
+    draft_id: str = Field(pattern=r'^draft-[1-9][0-9]{0,2}$')
+    source_refs: list[EvidenceRef] = Field(min_length=1, max_length=100)
+
+
 class EventProposal(BaseModel):
     model_config = ConfigDict(extra='forbid')
     id: str | None = Field(default=None, max_length=128)
@@ -94,7 +101,7 @@ class EventProposal(BaseModel):
     include_in_print: bool | None = None
     attribution: str | None = Field(default=None, max_length=200)
     candidate_ids: list[str] | None = Field(default=None, max_length=100)
-    relations: list[EventRelation] | None = Field(default=None, max_length=100)
+    relations: list[EventRelation | DraftEventRelation] | None = Field(default=None, max_length=100)
     correction: EvidenceRef | None = Field(default=None, description=(
         'Only for a current explicit correction using correct, actually, year was, I meant, should be, '
         '更正, 纠正, 应该, 其实 or 不是. Quote the complete current original. '
@@ -253,13 +260,16 @@ def _source_ref_is_vetoed(ref: EvidenceRef, original: dict) -> bool:
     return False
 
 
-def validate_extraction(raw, sources, saved_events):
+def validate_extraction(raw, sources, saved_events, *, allow_draft_relations=False):
     result = ExtractionResult.model_validate(raw)
     originals = {}
     for source in sources:
         if source.get('status', 'active') == 'active':
             originals.setdefault((source['id'], source['version']), []).append(source)
     events = {e['id']: e for e in saved_events}
+    draft_ids = [event.id for event in result.events if event.id]
+    if allow_draft_relations and len(draft_ids) != len(set(draft_ids)):
+        raise ValueError('Draft identities must be unique')
     updates = []
     for event in result.events:
         if event.life_stage is not None and event.life_stage not in (*LIFE_STAGES, 'unplaced'):
@@ -275,7 +285,10 @@ def validate_extraction(raw, sources, saved_events):
         if event.candidate_ids and not set(event.candidate_ids).issubset(events):
             raise ValueError('Unresolved candidates must be canonical scoped identities')
         for relation in event.relations or []:
-            if relation.event_id not in events:
+            if isinstance(relation, DraftEventRelation):
+                if not allow_draft_relations or relation.draft_id not in draft_ids or relation.draft_id == event.id:
+                    raise ValueError('Chronology requires a scoped draft target')
+            elif relation.event_id not in events:
                 raise ValueError('Chronology requires a canonical scoped target')
         if event.location:
             normalized = validate_event_location(event.location.model_dump())
@@ -357,8 +370,13 @@ def validate_extraction(raw, sources, saved_events):
     return updates
 
 
-def extraction_schema():
+def extraction_schema(*, allow_draft_relations=False):
     schema = ExtractionResult.model_json_schema()
+    if not allow_draft_relations:
+        relation_array = next(option for option in schema['$defs']['EventProposal']['properties']['relations']['anyOf']
+                              if option.get('type') == 'array')
+        relation_array['items'] = {'$ref': '#/$defs/EventRelation'}
+        schema['$defs'].pop('DraftEventRelation')
     def strict(value):
         if isinstance(value, dict):
             value.pop('default', None)

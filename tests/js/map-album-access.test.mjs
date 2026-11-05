@@ -17,7 +17,7 @@ function albums(entries) {
       photoSearchPeriod:entry=>entry.period || ''},
     workspacePictureItems:entry=>entry.pictures,placeMapTarget:entry=>entry,
     photoRequestKey:()=>'',translateWith:key=>key,currentUiLocale:()=> 'en-AU',
-    workspacePlaceGroups:groupPlaces,placeWorkspaceSelection:()=>entries.at(-1),
+    workspacePlaceGroups:groupPlaces,placeWorkspaceSelection:()=>entries.at(-1),publishedMap:()=>false,
     mapPhotoAlbum:key=>{const entry=entries.find(item=>placeHistoryKey(item)===key);return entry&&{key,place:entry.place,pictures:entry.pictures};},
   });
   const helper=source.match(/function mapPhotoAlbumsForScene\([^]*?\n\}/);

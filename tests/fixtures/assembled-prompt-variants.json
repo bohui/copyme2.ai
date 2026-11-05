@@ -14,7 +14,7 @@
         "conflicts": false,
         "output_language": "Australian English"
       },
-      "sha256": "2b4dc13366ae596214a6c885fa9347c2f438bc83298be96641169f5894624fbb"
+      "sha256": "0fe93d04522fc4e7e3cbeea7a55733c011084996b10e5ebf6f398db900f1e562"
     },
     {
       "name": "memoir/skills/memory-context/profile",
@@ -29,7 +29,7 @@
         "conflicts": true,
         "output_language": "Australian English"
       },
-      "sha256": "41742bf20ddd447d57526efe99128d9fdac01ca0317d03cb203de56093a448ed"
+      "sha256": "3d29fe85b156024d69d2af9ece2b61b6b172712ade15513825439f7f8d691681"
     },
     {
       "name": "memoir/skills/memory-context/profile",
@@ -44,7 +44,7 @@
         "conflicts": false,
         "output_language": "Simplified Chinese"
       },
-      "sha256": "6f1efc87b24e665bea3a4c52ea81273e2815792c6574a9a9e6b5d2c22098420c"
+      "sha256": "0dbe427740952a5874b2eacf22f4e2c4e6db8d59219a1be18cf6e1df153ac45a"
     },
     {
       "name": "memoir/skills/memory-context/profile",
@@ -59,7 +59,7 @@
         "conflicts": true,
         "output_language": "Simplified Chinese"
       },
-      "sha256": "a27f5b438a0c0b571d42419e609d7a1f651f00a5289c3455fe4c83a7e53a60be"
+      "sha256": "34e8a3372200b32a3b78c4a342153fa0eab75a5acc482ac16747318603ee9465"
     },
     {
       "name": "memoir/skills/memory-context/summary",
@@ -494,7 +494,7 @@
         "conflicts": false,
         "output_language": "Australian English"
       },
-      "sha256": "02befab6732b0bffb93e4e37fbd9df197d1110cdd1de9df31cbf704e8eb180da"
+      "sha256": "5f958c4c6d2b6050bac3d88036f0a70bcf194cc2196370c7485033674d2a59da"
     },
     {
       "name": "memoir/skills/author-timeline/extract",
@@ -509,7 +509,7 @@
         "conflicts": false,
         "output_language": "Australian English"
       },
-      "sha256": "32d070a418d9e38c4c5227fa30a63772ca55fd54e3ab4c0fc660ab52253b6884"
+      "sha256": "2ffae4771f287752c24d70b17fa7b1eea26fbff256b4610c29e6ec0f3d1bee2b"
     },
     {
       "name": "memoir/skills/author-timeline/extract",
@@ -524,7 +524,7 @@
         "conflicts": false,
         "output_language": "Australian English"
       },
-      "sha256": "fda2490779db9919ae45dff551864a1e96b3a61501c2935cf27aacea19141477"
+      "sha256": "4ba78fc4200f1a07422b36cf16c38e88158ed332fa2af6b103b06ed4d3746f4e"
     },
     {
       "name": "memoir/skills/author-timeline/extract",
@@ -539,7 +539,7 @@
         "conflicts": false,
         "output_language": "Australian English"
       },
-      "sha256": "de38bf9dde1c305da6aade211e4c1abde870c16bb44c68338a5e507fab73a72a"
+      "sha256": "bc56710ed14ff8bde8c57adcfdb1fc6827e734d7a323effad0fd24b0b590539b"
     },
     {
       "name": "memoir/skills/author-timeline/extract",
@@ -554,7 +554,7 @@
         "conflicts": false,
         "output_language": "Australian English"
       },
-      "sha256": "6d6293fd3a07fb8c83f31497725f9c63848d5df83a0409394bce87ae5971321c"
+      "sha256": "eb24ccc6bee3ad2f1e09d1d74bf978a07e7bbde200c4de78a2b38b827f53fb46"
     },
     {
       "name": "memoir/skills/author-timeline/extract",
@@ -569,7 +569,7 @@
         "conflicts": false,
         "output_language": "Australian English"
       },
-      "sha256": "05b7883cbb454206985832e3b51bbd044197697a759876abce594221d21eee7a"
+      "sha256": "65e8dc3fcf789951fdeef6f3b9fff153e34a9ed1bd98a6053030f35174d44720"
     },
     {
       "name": "memoir/skills/author-timeline/extract",
@@ -584,7 +584,7 @@
         "conflicts": false,
         "output_language": "Australian English"
       },
-      "sha256": "f87557723c0dac4ce76f06425a586ae6b19f561649717709304562ee81f0990d"
+      "sha256": "b91634b259e46cd07a2deaac6fab8da222b1fc5175f8a8c5db4da293b4b8b497"
     },
     {
       "name": "memoir/skills/author-timeline/extract",
@@ -599,7 +599,7 @@
         "conflicts": false,
         "output_language": "Australian English"
       },
-      "sha256": "ff52e6ce7d67f5b68933bbca460e626b88c0fefe7bf80db02fba73879ed42b47"
+      "sha256": "025151b859bdcee340b9f2fd29c8b786743fba9f1e3a6d6b04824c8b71a2b8bb"
     },
     {
       "name": "memoir/skills/author-timeline/extract",
@@ -614,7 +614,7 @@
         "conflicts": true,
         "output_language": "Australian English"
       },
-      "sha256": "daff6a216cff076e5919138563157a434ef6e50b80734fd36b48cefce781dcbe"
+      "sha256": "c920cd65a5089b5e78341eeed2708f9ce24fbf25a3dd92cae327c132fcb6a56f"
     },
     {
       "name": "memoir/skills/author-timeline/extract",
@@ -629,7 +629,7 @@
         "conflicts": true,
         "output_language": "Australian English"
       },
-      "sha256": "6fc4fe9be709e8b80ce67d58be3e7fd7778815646416bc32f6b0f5cb2628c7ad"
+      "sha256": "84e03af63571d2991fea121ef07f0eecf5dd72bb39dd550d0e62291cfd264283"
     },
     {
       "name": "memoir/skills/author-timeline/extract",
@@ -644,7 +644,7 @@
         "conflicts": true,
         "output_language": "Australian English"
       },
-      "sha256": "8ce1ac3529f1c9cefb817d50e02c84ab24a46bfcbae38ab7575fac93d603b1d9"
+      "sha256": "e20f85665b2d284a82ceaf382fdd08f86882c16a9e9b62932576e4c5e332df72"
     },
     {
       "name": "memoir/skills/author-timeline/extract",
@@ -659,7 +659,7 @@
         "conflicts": true,
         "output_language": "Australian English"
       },
-      "sha256": "141aa32bff96e9dccf8897b55b572127f5e5324162d089a13ce95407a4204cdf"
+      "sha256": "7660cc24f1767c006220ae5e4948c35beab47a2fb88197de2ac39a7f171df498"
     },
     {
       "name": "memoir/skills/author-timeline/extract",
@@ -674,7 +674,7 @@
         "conflicts": true,
         "output_language": "Australian English"
       },
-      "sha256": "2a9e64d00d2f7271c32011653b4c0461cab6bb314088ab14a4e9fc520ac080fe"
+      "sha256": "833b0207fe708c9ba3bb58c08838f5fcfa49fdca34ce0352657b7ac62cba6141"
     },
     {
       "name": "memoir/skills/author-timeline/extract",
@@ -689,7 +689,7 @@
         "conflicts": true,
         "output_language": "Australian English"
       },
-      "sha256": "34fd3afc4f1b801a480eca9c9eee38ee3758e69854f2af5d1e54a9890a7fc0b6"
+      "sha256": "c294a27120787dfded1fa04e5ab29ee9a1504690e6923354178fb1e7c4196678"
     },
     {
       "name": "memoir/skills/author-timeline/extract",
@@ -704,7 +704,7 @@
         "conflicts": true,
         "output_language": "Australian English"
       },
-      "sha256": "dc95f0a19e9c1870d0687ed7655520efeb4a05b19e071d01bccbdb790a7a4f7e"
+      "sha256": "ec81df24bb26c89e81548c81dfb722a87dc78ca6984ef0650d23a59834a39c0d"
     },
     {
       "name": "memoir/skills/author-timeline/extract",
@@ -719,7 +719,7 @@
         "conflicts": true,
         "output_language": "Australian English"
       },
-      "sha256": "6d6f3fb2417bfc1c452362f0c9f56d8e958f0662aa7bb6ef3e7e746e8c4b9ecc"
+      "sha256": "9cfc09a5ca844b518b664a61b5a044fe4f4e4ab26a8874d82b568fa5ff48dc07"
     },
     {
       "name": "memoir/skills/author-timeline/extract",
@@ -734,7 +734,7 @@
         "conflicts": false,
         "output_language": "Simplified Chinese"
       },
-      "sha256": "5f89d8c5430c2db4cf8c308e3e1584e09705c6112cca74aade6916c20048365d"
+      "sha256": "3d12d7c7c9fab3a98b6cc290353047903b22c1aab09c0731598b70ec289c4f79"
     },
     {
       "name": "memoir/skills/author-timeline/extract",
@@ -749,7 +749,7 @@
         "conflicts": false,
         "output_language": "Simplified Chinese"
       },
-      "sha256": "d87baeca7c0d0b9778ab1b77f053dd7c8aa5e2d92d0ac34d4470e499b88c4dbe"
+      "sha256": "01d517b28209ced62cb047b74d72028ad35b4b5de7e0f29812c99499f4ebf7dc"
     },
     {
       "name": "memoir/skills/author-timeline/extract",
@@ -764,7 +764,7 @@
         "conflicts": false,
         "output_language": "Simplified Chinese"
       },
-      "sha256": "199ee69f977ef2eddbee83850430a98842b52d95f69de86775117231e732a25f"
+      "sha256": "fbd43129c54b785421ca48698da155add1a3185c191d2a4b4933bd70d932f96a"
     },
     {
       "name": "memoir/skills/author-timeline/extract",
@@ -779,7 +779,7 @@
         "conflicts": false,
         "output_language": "Simplified Chinese"
       },
-      "sha256": "890681dd0ce1930c3e5998bc54a60b668f34e7e6b62b3fa41a83884c53656a6c"
+      "sha256": "f94bbec24ba5be402748afbae4b79025d920b2ec1f0513042c596cae89b8f870"
     },
     {
       "name": "memoir/skills/author-timeline/extract",
@@ -794,7 +794,7 @@
         "conflicts": false,
         "output_language": "Simplified Chinese"
       },
-      "sha256": "aa1494e3425851d3da15cfbc4a02fea1af1b0dc85d1a73a29639c892b82180ed"
+      "sha256": "3fb94877f46a74815941fb355ccc932d9633b51d652b0ab40830154812607352"
     },
     {
       "name": "memoir/skills/author-timeline/extract",
@@ -809,7 +809,7 @@
         "conflicts": false,
         "output_language": "Simplified Chinese"
       },
-      "sha256": "a97e3d81d4f8e4399661424e1f546351dc899cc7ca45b1e9cae1cd04e3b58d6b"
+      "sha256": "cecbd0256f0c930312621dc789c146b2ba790d16992b9f8f3e12707f26a46acd"
     },
     {
       "name": "memoir/skills/author-timeline/extract",
@@ -824,7 +824,7 @@
         "conflicts": false,
         "output_language": "Simplified Chinese"
       },
-      "sha256": "dd01a8ba53bdbc74325eb550141edf807a1e4616507d2fdf32ca546802696810"
+      "sha256": "f7873ec86f33d295c7cb4713da2f806013146bb99b23fbfe863b81d8b8a31d53"
     },
     {
       "name": "memoir/skills/author-timeline/extract",
@@ -839,7 +839,7 @@
         "conflicts": false,
         "output_language": "Simplified Chinese"
       },
-      "sha256": "62a262f1c28987bdceba2da072f0c5edb5841db7d109b734d52e9f1b2e126534"
+      "sha256": "633c064ba73b5dafd7e3be9436528cd2728b0662942a2b450665f4f9010ce4f9"
     },
     {
       "name": "memoir/skills/author-timeline/extract",
@@ -854,7 +854,7 @@
         "conflicts": true,
         "output_language": "Simplified Chinese"
       },
-      "sha256": "d7fd66898151d4dbd29f49ab37b4268db05ada8a991564898698479c95d10cdc"
+      "sha256": "511e9feecee89d9e55e56b24f1fab32fd2d715b417f1a7ddb2672e54829fe1e0"
     },
     {
       "name": "memoir/skills/author-timeline/extract",
@@ -869,7 +869,7 @@
         "conflicts": true,
         "output_language": "Simplified Chinese"
       },
-      "sha256": "9069bdef96f879e46b35f785eea69fe4b70fec81ace9a82e515779d13b30a8e9"
+      "sha256": "59e3e838d9ebf5b08cfe0daab43f1477050b93e32f8e9cccdcc06891f4ee7796"
     },
     {
       "name": "memoir/skills/author-timeline/extract",
@@ -884,7 +884,7 @@
         "conflicts": true,
         "output_language": "Simplified Chinese"
       },
-      "sha256": "a5f555f56165c6f08bfe5afddd37a705587498bc1ad2d9fe95ac5c030e093aa8"
+      "sha256": "6c07328befe53d82d4c36ee988bf6df180ab31db552b73fccc4dd47e7b63d958"
     },
     {
       "name": "memoir/skills/author-timeline/extract",
@@ -899,7 +899,7 @@
         "conflicts": true,
         "output_language": "Simplified Chinese"
       },
-      "sha256": "d43c277cb565dbbb870ef02637de4d06f2dab99da3555db82b63f9bd132ee124"
+      "sha256": "cfe88e0b4c3cc6a649c6ceb26bdec183ab885eb5c19fa282bcef8f40f10939a6"
     },
     {
       "name": "memoir/skills/author-timeline/extract",
@@ -914,7 +914,7 @@
         "conflicts": true,
         "output_language": "Simplified Chinese"
       },
-      "sha256": "36d35c3a7842400bd3f28b36685d387f2aadc5170668fc4b5312639820ef1ec0"
+      "sha256": "6737ba4015e73c8d04d4c18b09f22e9ad43ba87854d7c29108a7c6d2b522d409"
     },
     {
       "name": "memoir/skills/author-timeline/extract",
@@ -929,7 +929,7 @@
         "conflicts": true,
         "output_language": "Simplified Chinese"
       },
-      "sha256": "0586b67d8e2a0253450d40ad2750cddadc8b1e82b28fb3d27951227f7c8d7aed"
+      "sha256": "515dcf14f61c5aa9ed150324237b6874452cdbdd32565f92a891f145d6acd882"
     },
     {
       "name": "memoir/skills/author-timeline/extract",
@@ -944,7 +944,7 @@
         "conflicts": true,
         "output_language": "Simplified Chinese"
       },
-      "sha256": "ed4318d54fdfdc6dfb2a6c765dc7318daa272ccb4d2d9b216c22f953faea99cf"
+      "sha256": "764dcfb5db8bc61d85b19de8b8d6a7fbbacd6098d1096a2547bbc0177fa7c81f"
     },
     {
       "name": "memoir/skills/author-timeline/extract",
@@ -959,7 +959,7 @@
         "conflicts": true,
         "output_language": "Simplified Chinese"
       },
-      "sha256": "c052017f4a404a3091d52463778877c491d6a3784532c9026c7e401f700bc8f4"
+      "sha256": "6e13ad4a08e6d9b27989c5ccc75b1f292ca57b16d8bd6ecb627ebf2339ed8acc"
     },
     {
       "name": "memoir/skills/place-journey/extract",

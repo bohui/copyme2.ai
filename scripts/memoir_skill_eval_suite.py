@@ -56,7 +56,9 @@ def inventory():
     owners = {'memoir-' + name.split('/')[2] for name in PROMPT_PATHS if name.startswith('memoir/skills/')}
     # Retain stable case IDs while evaluating Mira as an agent. Atlas supplies
     # saved context; interviewing decisions belong to Mira.
-    actual = set(SKILLS) | owners
+    # Event Group is covered at the publication interface with deterministic
+    # application regressions. This inventory retains the frozen model probes.
+    actual = {name for name, definition in SKILLS.items() if definition.trigger != 'event_grouping'} | owners
     if any(name.startswith('memoir/agents/mira/') for name in PROMPT_PATHS):
         actual.add('memoir-interviewer')
     if actual != KNOWN:

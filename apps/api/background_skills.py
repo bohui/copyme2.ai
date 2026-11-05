@@ -25,7 +25,9 @@ SKILLS = {item.name: item for item in (
         gates=('canonical_activation','source_policy_fence','B_skill_selection'),recovery='durable_lane'),
     Skill('memoir-family-tree', None, 'model', 'relationship_evidence', 'unwired',
         gates=('family_entitlement','relationship_evidence','integration_required')),
-    Skill('memoir-place-groups', 'grouping', 'deterministic', 'place_change',
+    Skill('memoir-event-group', 'grouping', 'deterministic', 'event_grouping',
+        gates=('canonical_activation','source_policy_fence','event_revision'),recovery='durable_lane'),
+    Skill('memoir-place-groups', None, 'deterministic', 'place_change', 'deprecated',
         gates=('owned_project','public_places','request_deduplication'),recovery='request'),
     Skill('memoir-story-game', 'game', 'model', 'game_button', modes=('shape',),
         gates=('current_delivered_A_shape','explicit_button','composer_chapters','canonical_timeline','adaptation_consent',
@@ -37,7 +39,7 @@ SKILLS = {item.name: item for item in (
         gates=('SQL_due_milestone','extraction_complete_snapshot','composition_opt_in','canonical_publication'),recovery='durable_lane'),
     Skill('memoir-memory-context', 'timeline', 'model', 'accepted_source',
         gates=('B_skill_selection','manual_field_exclusions','automatic_profile_enabled','remaining_targets','source_policy_fence'),recovery='durable_lane'),
-    Skill('memoir-place-journey', 'timeline', 'model', 'place_evidence',
+    Skill('memoir-place-journey', None, 'model', 'place_evidence', 'deprecated',
         gates=('B_skill_selection','source_grounded_geography','canonical_publication'),recovery='durable_lane'),
     Skill('memoir-place-photo-research', 'photos', 'provider', 'place_selection',
         gates=('owned_project','public_query','cursor_scope','cache','bounded_photo_capacity','optional_model_flag'),recovery='process_local_job_public_cache'),
@@ -102,6 +104,9 @@ def admit_lane(fence, phase):
         if phase == 'profile' and (not fence.profile_context or fence.profile_context.get('work_mode') != 'extract'
                 or not fence.profile_context.get('targets')):
             raise SkillUnavailable('manual_or_no_targets')
+        # Pages admitted before the cutover still carry the old pinned selection.
+        if name == 'memoir-place-journey' and name in fence.two_lane.selected_skills:
+            return SKILLS[name]
     else:
         if fence.skill != 'composer' or phase not in {'prepare','draft','review'}:
             raise SkillUnavailable('phase_required')
@@ -166,14 +171,14 @@ async def group_places(owner,project_id,places,*,client_turn_id=None,language=No
     if language not in (None,'en-AU','zh-CN'):
         from fastapi import HTTPException
         raise HTTPException(422,'Unsupported place display language')
-    work = ServiceWork('memoir-place-groups','place_change',owner,project_id,places,client_turn_id=client_turn_id)
+    work = ServiceWork('memoir-event-group','event_grouping',owner,project_id,places,client_turn_id=client_turn_id)
     await work.update('running')
     try:
         result = await asyncio.to_thread(resolve_place_groups,places,language=language)
     except BaseException:
         await work.update('failed')
         raise
-    return {**result,'skill_progress':await work.update('completed')}
+    return {**result,'skills':[work.skill.name],'skill_progress':await work.update('completed')}
 
 
 async def photo_step(owner,project_id,result,*,client_turn_id=None):

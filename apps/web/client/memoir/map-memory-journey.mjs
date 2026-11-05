@@ -51,6 +51,13 @@ function estimatedAge(event, profile) {
   return start !== null && end >= start && end <= 130 ? {start,end,approximate:true,estimated:true} : null;
 }
 
+function estimatedPeriodEndYear(event, profile) {
+  if (event.kind !== "period") return null;
+  const estimate = event.temporal_estimate;
+  const endAge = number(estimate?.age_end), birth = number(profile.birth_year);
+  return number(estimate?.year_end) ?? (endAge !== null && birth ? birth + endAge : null);
+}
+
 export function eventAge(event, profile = {}) {
   if (event.timing_conflict) return {start:null, end:null};
   const timing = event.temporal || {};
@@ -73,7 +80,8 @@ export function eventAge(event, profile = {}) {
   }
   const birth = number(profile.birth_year);
   const start = number(timing.year_start) ?? Number(expression.match(/\b([12]\d{3})\b/)?.[1] || 0);
-  const end = number(timing.year_end) ?? start;
+  const estimatedEnd = estimatedPeriodEndYear(event, profile);
+  const end = number(timing.year_end) ?? (estimatedEnd >= start ? estimatedEnd : start);
   if (birth && start >= birth && end >= start && !event.timing_conflict) {
     return {start:start - birth, end:end - birth, approximate:true};
   }
@@ -93,14 +101,20 @@ export function memoryEventTiming(event, profile = {}, index = 0) {
   const statedYear = number(event.temporal?.year_start) ?? (stated ? new Date(stated.start).getUTCFullYear() : null);
   const year = event.timing_conflict ? null : statedYear ?? number(estimate?.year_start)
     ?? (age.start !== null && number(profile.birth_year) ? profile.birth_year + age.start : null);
-  const yearEnd = statedYear !== null ? number(event.temporal?.year_end) ?? statedYear : number(estimate?.year_end)
+  const estimatedEnd = estimatedPeriodEndYear(event, profile);
+  const approximateYearEnd = !event.timing_conflict && statedYear !== null && number(event.temporal?.year_end) === null
+    && estimatedEnd > statedYear;
+  const yearEnd = statedYear !== null
+    ? number(event.temporal?.year_end) ?? (approximateYearEnd ? estimatedEnd : statedYear) : number(estimate?.year_end)
     ?? (year !== null && age.start !== null ? year + age.end - age.start : year);
   const inferred = Boolean(estimate && (statedYear === null || age.estimated));
-  const calendar = stated || (inferred && year !== null ? {start:Date.UTC(year,0,1),end:Date.UTC(yearEnd,11,31)} : null);
+  const calendar = approximateYearEnd && stated ? {...stated,end:Date.UTC(yearEnd,11,31)}
+    : stated || (inferred && year !== null ? {start:Date.UTC(year,0,1),end:Date.UTC(yearEnd,11,31)} : null);
   const lifeStage = stages.indexOf(event.life_stage);
   const stage = lifeStage < 0 && !event.timing_conflict && !stated && (age.start === null || age.estimated) && event.temporal_anchor === "present"
     ? stages.length : lifeStage;
   return {age, year, yearEnd, calendar, stage, index, inferred, approximateYear:statedYear === null && year !== null,
+    approximateYearEnd,
     uncertain:Number.isFinite(event.yearConfidenceScore) && event.yearConfidenceScore < .5,
     dated:!event.timing_conflict && (age.start !== null || year !== null || Boolean(calendar))};
 }
@@ -255,26 +269,27 @@ export function mapTrailWindow(from, to, width, height) {
 
 export function cityEventCards(nodes) {
   const cities = new Map();
-  for (const node of nodes) {
+  for (const node of [...nodes].sort((a,b) => a.index - b.index)) {
     if (!cities.has(node.groupKey)) cities.set(node.groupKey, {key:`city:${node.groupKey}`, groupKey:node.groupKey,
       city:node.city, latitude:node.cityLatitude, longitude:node.cityLongitude, nodes:[]});
     const members = cities.get(node.groupKey).nodes;
     if (!members.some(member => member.event.id === node.event.id)) members.push(node);
   }
   return [...cities.values()].map(city => {
-    city.nodes.sort(chronological);
     const ages = city.nodes.map(node => node.age).filter(age => age.start !== null);
     return {...city, age:{start:ages.length ? Math.min(...ages.map(age => age.start)) : null,
       end:ages.length ? Math.max(...ages.map(age => age.end)) : null, approximate:ages.some(age => age.approximate)},
       count:new Set(city.nodes.map(node => node.event.id)).size};
-  }).sort((a,b)=>chronological(a.nodes[0],b.nodes[0]));
+  });
 }
 
 function memoryEventTimingText(node, t) {
   if (node.nodes) {
     const endpoint = (event, end = false) => {
       const year = end ? event.yearEnd : event.year, age = end ? event.age.end : event.age.start;
-      return memoryEventTimingText({...event,year,yearEnd:year,age:{...event.age,start:age,end:age}},t);
+      return memoryEventTimingText({...event,year,yearEnd:year,
+        approximateYear:event.approximateYear || (end && event.approximateYearEnd),
+        age:{...event.age,start:age,end:age}},t);
     };
     const years = node.nodes.filter(item => item.year !== null && item.yearEnd !== null);
     const members = years.length ? years : node.nodes.filter(item => item.age.start !== null);
@@ -287,7 +302,8 @@ function memoryEventTimingText(node, t) {
     return start === "?" && end === "?" ? "?" : t("mapEventCityRange",{start,end});
   }
   const temporal = node.event.temporal;
-  const years = `${node.year}${node.yearEnd > node.year ? `–${node.yearEnd}` : ""}`;
+  const endYear = node.approximateYearEnd ? t("mapEventYearApproximate",{year:node.yearEnd}) : node.yearEnd;
+  const years = `${node.year}${node.yearEnd > node.year ? `–${endYear}` : ""}`;
   const year = node.event.timing_conflict ? "?"
     : node.year !== null ? node.approximateYear ? t("mapEventYearApproximate",{year:years}) : years
     : temporal?.precision !== "unknown" && temporal?.expression && temporal.precision !== "age"

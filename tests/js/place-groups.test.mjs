@@ -103,7 +103,7 @@ test('background checks prioritise each new mention and ignore superseded correc
   const context = vm.createContext({
     state: {project: {id: 'p'}, placeJourney: district},
     profile: () => ({memory_places: [city, district]}), mergePlaces, placeHistoryKey, groupPlaces,
-    placeGroupRecords: new Map(), placeGroupRequests: new Map(), placeGroupLatest: new Map(),
+    placeGroupRecords: new Map(), placeGroupRequests: new Map(), placeGroupLatest: new Map(), publishedMap:()=>false,
     setTimeout: () => {}, currentUiLocale: () => 'en-AU', translate: key => key, render: () => {renders++;},
     api: (url, options) => new Promise(resolve => calls.push({url, body: JSON.parse(options.body), resolve})),
   });
@@ -140,7 +140,7 @@ test(`city grouping reports its actual ${failed?'failed':'completed'} skill call
   });
   for(const name of ['publicPlaceFields','resolvePlaceGroups']) vm.runInContext(extract(name),context);
   context.resolvePlaceGroups(city,{onProgress:step=>steps.push(step)});
-  assert.equal(steps[0].skill,'memoir-place-groups');
+  assert.equal(steps[0].skill,'memoir-event-group');
   assert.equal(steps[0].status,'running');
   finish();
   await new Promise(resolve=>setImmediate(resolve));

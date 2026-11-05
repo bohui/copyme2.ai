@@ -5,12 +5,12 @@
     "version": 1,
     "sha256": "70203c3a8c9c5beed54a512b888feaac2dc426be1c9f6b5a53273117125cda42",
     "use": "runtime",
-    "scenario": "After saved originals, Atlas chooses and reads admitted skills; canonical commits remain host-owned. Background admission retains batch working context through ordinary foreground replies and waits for pending privacy review without repeating completed model calls.",
+    "scenario": "Atlas selects Timeline for memoir events and geography, Profile for writable personal facts, or an empty selection. Event Group runs as part of timeline publication. The host retains batch state through foreground replies and policy review.",
     "consumers": [
       {
         "path": "apps/api/memoir_background_agent.py",
         "symbol": "run_background_agent",
-        "line": 273
+        "line": 275
       }
     ],
     "targets": [
@@ -60,7 +60,8 @@
       "tests/test_automatic_prompt_evaluation.py",
       "tests/test_memoir_background_agent_workflow.py::test_foreground_keeps_replying_while_background_finishes_then_batches_queued_narrations",
       "tests/test_memoir_background_agent_workflow.py::test_finished_background_output_waits_for_foreground_policy_without_another_model_call",
-      "tests/test_background_profile_postgres.py"
+      "tests/test_background_profile_postgres.py",
+      "tests/test_memoir_background_agent_workflow.py::test_event_group_publishes_order_and_revises_a_city_period"
     ],
     "gaps": [
       "No scored experiment items verified for the current pin"
@@ -729,7 +730,7 @@
       {
         "path": "scripts/memoir_skill_eval_suite.py",
         "symbol": "judge_definition",
-        "line": 88
+        "line": 90
       },
       {
         "path": "scripts/memoir_judge_calibration.py",
@@ -886,7 +887,7 @@
       {
         "path": "scripts/memoir_skill_eval_suite.py",
         "symbol": "judge_definition",
-        "line": 88
+        "line": 90
       },
       {
         "path": "scripts/memoir_judge_calibration.py",
@@ -1220,7 +1221,7 @@
       {
         "path": "scripts/memoir_skill_eval_suite.py",
         "symbol": "judge_definition",
-        "line": 88
+        "line": 90
       },
       {
         "path": "scripts/memoir_judge_calibration.py",
@@ -1273,7 +1274,7 @@
       {
         "path": "scripts/memoir_skill_eval_suite.py",
         "symbol": "judge_definition",
-        "line": 88
+        "line": 90
       },
       {
         "path": "scripts/memoir_judge_calibration.py",
@@ -1326,7 +1327,7 @@
       {
         "path": "scripts/memoir_skill_eval_suite.py",
         "symbol": "judge_definition",
-        "line": 88
+        "line": 90
       },
       {
         "path": "scripts/memoir_judge_calibration.py",
@@ -1379,7 +1380,7 @@
       {
         "path": "scripts/memoir_skill_eval_suite.py",
         "symbol": "judge_definition",
-        "line": 88
+        "line": 90
       },
       {
         "path": "scripts/memoir_judge_calibration.py",
@@ -1432,7 +1433,7 @@
       {
         "path": "scripts/memoir_skill_eval_suite.py",
         "symbol": "judge_definition",
-        "line": 88
+        "line": 90
       },
       {
         "path": "scripts/memoir_judge_calibration.py",
@@ -1485,7 +1486,7 @@
       {
         "path": "scripts/memoir_skill_eval_suite.py",
         "symbol": "judge_definition",
-        "line": 88
+        "line": 90
       },
       {
         "path": "scripts/memoir_judge_calibration.py",
@@ -1538,7 +1539,7 @@
       {
         "path": "scripts/memoir_skill_eval_suite.py",
         "symbol": "judge_definition",
-        "line": 88
+        "line": 90
       },
       {
         "path": "scripts/memoir_judge_calibration.py",
@@ -1591,7 +1592,7 @@
       {
         "path": "scripts/memoir_skill_eval_suite.py",
         "symbol": "judge_definition",
-        "line": 88
+        "line": 90
       },
       {
         "path": "scripts/memoir_judge_calibration.py",
@@ -1748,7 +1749,7 @@
       {
         "path": "scripts/memoir_skill_eval_suite.py",
         "symbol": "judge_definition",
-        "line": 88
+        "line": 90
       },
       {
         "path": "scripts/memoir_judge_calibration.py",
@@ -2166,7 +2167,7 @@
       {
         "path": "apps/api/lifetime_memory_lane_engine.py",
         "symbol": "lane_contract",
-        "line": 207
+        "line": 210
       },
       {
         "path": "apps/api/prompt_composition.py",
@@ -2527,7 +2528,7 @@
       {
         "path": "apps/api/lifetime_memory_lane_engine.py",
         "symbol": "lane_contract",
-        "line": 207
+        "line": 210
       },
       {
         "path": "apps/api/prompt_composition.py",
@@ -2897,7 +2898,7 @@
       {
         "path": "apps/api/lifetime_memory_lane_engine.py",
         "symbol": "lane_contract",
-        "line": 207
+        "line": 210
       },
       {
         "path": "apps/api/prompt_composition.py",
@@ -3373,7 +3374,7 @@
       {
         "path": "apps/api/lifetime_memory_lane_engine.py",
         "symbol": "lane_contract",
-        "line": 207
+        "line": 210
       },
       {
         "path": "apps/api/prompt_composition.py",
@@ -4004,7 +4005,7 @@
       {
         "path": "apps/api/memory_events.py",
         "symbol": "extraction_instructions",
-        "line": 390
+        "line": 408
       },
       {
         "path": "apps/api/two_lane_memory.py",
@@ -4216,7 +4217,7 @@
       {
         "path": "apps/api/memory_events.py",
         "symbol": "extraction_instructions",
-        "line": 390
+        "line": 408
       },
       {
         "path": "apps/api/two_lane_memory.py",
@@ -4414,7 +4415,8 @@
       "tests/test_prompt_publication.py",
       "tests/test_memoir_live_skills.py::test_overlapping_chronology_case_rejects_the_reported_missing_or_reversed_relation",
       "tests/test_timeline_reported_places.py::test_map_city_chronology_preserves_skill_relations_across_paginated_api",
-      "tests/js/map-memory-journey.test.mjs"
+      "tests/js/map-memory-journey.test.mjs",
+      "tests/test_memoir_background_agent_workflow.py::test_event_group_publishes_order_and_revises_a_city_period"
     ],
     "gaps": [
       "No scored experiment items verified for the current pin"
@@ -4431,7 +4433,7 @@
       {
         "path": "apps/api/memory_events.py",
         "symbol": "extraction_instructions",
-        "line": 390
+        "line": 408
       },
       {
         "path": "apps/api/two_lane_memory.py",
@@ -4643,7 +4645,7 @@
       {
         "path": "apps/api/memory_events.py",
         "symbol": "extraction_instructions",
-        "line": 390
+        "line": 408
       },
       {
         "path": "apps/api/two_lane_memory.py",
@@ -4855,7 +4857,7 @@
       {
         "path": "apps/api/memory_events.py",
         "symbol": "extraction_instructions",
-        "line": 390
+        "line": 408
       },
       {
         "path": "apps/api/two_lane_memory.py",
@@ -5062,12 +5064,12 @@
     "version": 3,
     "sha256": "0195ecefccc597a1790a8f0ff47b3820670b15669a4c95e853aa5022e536cb91",
     "use": "conditional",
-    "scenario": "Timeline source extraction, exact attribution, continuity and optional place hints; window contract bounds source pages. Preserve sourced narrated order across overlapping period estimates and revise consecutive residence spans from provisional study/work durations.",
+    "scenario": "Draft event identity, supported timing and place, and original evidence in a bounded timeline request. Preserve order between new drafts and canonical events. Event Group merges compatible revisions before publishing the map events. Legacy admitted requests can still include place hints.",
     "consumers": [
       {
         "path": "apps/api/memory_events.py",
         "symbol": "extraction_instructions",
-        "line": 390
+        "line": 408
       },
       {
         "path": "apps/api/two_lane_memory.py",
@@ -5261,7 +5263,8 @@
       "tests/test_prompt_usage_link.py",
       "tests/test_memoir_live_skills.py::test_overlapping_chronology_case_rejects_the_reported_missing_or_reversed_relation",
       "tests/test_timeline_reported_places.py::test_map_city_chronology_preserves_skill_relations_across_paginated_api",
-      "tests/js/map-memory-journey.test.mjs"
+      "tests/js/map-memory-journey.test.mjs",
+      "tests/test_memoir_background_agent_workflow.py::test_event_group_publishes_order_and_revises_a_city_period"
     ],
     "gaps": [
       "Requires scenario/branch-specific execution evidence",
@@ -5279,7 +5282,7 @@
       {
         "path": "apps/api/memory_events.py",
         "symbol": "extraction_instructions",
-        "line": 390
+        "line": 408
       },
       {
         "path": "apps/api/two_lane_memory.py",
@@ -5477,7 +5480,8 @@
       "tests/test_prompt_publication.py",
       "tests/test_memoir_live_skills.py::test_overlapping_chronology_case_rejects_the_reported_missing_or_reversed_relation",
       "tests/test_timeline_reported_places.py::test_map_city_chronology_preserves_skill_relations_across_paginated_api",
-      "tests/js/map-memory-journey.test.mjs"
+      "tests/js/map-memory-journey.test.mjs",
+      "tests/test_memoir_background_agent_workflow.py::test_event_group_publishes_order_and_revises_a_city_period"
     ],
     "gaps": [
       "No scored experiment items verified for the current pin"
@@ -5494,7 +5498,7 @@
       {
         "path": "apps/api/memory_events.py",
         "symbol": "extraction_instructions",
-        "line": 390
+        "line": 408
       },
       {
         "path": "apps/api/two_lane_memory.py",
@@ -5505,9 +5509,20 @@
         "path": "apps/api/prompt_composition.py",
         "symbol": "expanded_prompt",
         "line": 58
+      },
+      {
+        "path": "apps/api/memoir_skill_agent.py",
+        "symbol": "skill_document",
+        "line": 35
+      },
+      {
+        "path": "apps/api/memoir_skill_agent.py",
+        "symbol": "skill_metadata",
+        "line": 22
       }
     ],
     "targets": [
+      "memoir/agents/atlas/skill-selection",
       "memoir/skills/author-timeline/extract",
       "memoir/skills/place-journey/extract",
       "memoir/workflows/source-to-private-draft"
@@ -5529,6 +5544,9 @@
       "trajectory (requires code/reference or manual grading)"
     ],
     "hosted_rule_ids": [
+      "cmw1gxog300ny1z028ciq4o7v",
+      "cmw1gxogr00o61z02goxb7196",
+      "cmw1gxnlh00jj1z02tahxb82k",
       "cmw1gxorh00pi1z02gv53pn1h",
       "cmw1gxosj00pq1z028cgxafa1",
       "cmw1gxotn00py1z0279y1br4o",
@@ -5545,6 +5563,22 @@
       "cmw1gxnx400l31z02dl5sz9py"
     ],
     "datasets": [
+      {
+        "name": "memoir/agents/atlas/skill-selection/golden/campaign-068f68a58ef3",
+        "id": "cmw0mxvhl001p1z02md3xby14",
+        "items": 14,
+        "experiments": 0,
+        "scored_items": 0,
+        "source": "live snapshot"
+      },
+      {
+        "name": "memoir/agents/atlas/skill-selection/golden/campaign-a5c15039ad35",
+        "id": "cmw0mso8i000i1z029068jddt",
+        "items": 1,
+        "experiments": 0,
+        "scored_items": 0,
+        "source": "live snapshot"
+      },
       {
         "name": "memoir/skills/author-timeline/extract/golden/contracts-campaign-0114d47bf1df",
         "id": "cmw1gu7ws00bc1z02zjj4ib17",
@@ -5695,7 +5729,8 @@
       "tests/test_background_profile_postgres.py",
       "tests/test_memoir_live_skills.py::test_overlapping_chronology_case_rejects_the_reported_missing_or_reversed_relation",
       "tests/test_timeline_reported_places.py::test_map_city_chronology_preserves_skill_relations_across_paginated_api",
-      "tests/js/map-memory-journey.test.mjs"
+      "tests/js/map-memory-journey.test.mjs",
+      "tests/test_memoir_background_agent_workflow.py::test_event_group_publishes_order_and_revises_a_city_period"
     ],
     "gaps": [
       "No scored experiment items verified for the current pin"
@@ -5712,7 +5747,7 @@
       {
         "path": "apps/api/memory_events.py",
         "symbol": "extraction_instructions",
-        "line": 390
+        "line": 408
       },
       {
         "path": "apps/api/two_lane_memory.py",
@@ -5919,12 +5954,12 @@
     "version": null,
     "sha256": "ee95f381fcad58de15535bf81640f61f6ba10e98fcd695d5ccb6947e554e83b3",
     "use": "component",
-    "scenario": "Local source expanded into an assembled operation template; tracked by source hash without a separate Langfuse prompt. Source-window contract is sent as model input in every extraction page.",
+    "scenario": "Bounded extraction input instructs the model to cite current and authorized prior originals and use local draft identifiers for same-response ordering.",
     "consumers": [
       {
         "path": "apps/api/lifetime_memory_lane_engine.py",
         "symbol": "lane_extraction_packet",
-        "line": 406
+        "line": 412
       },
       {
         "path": "apps/api/prompt_composition.py",
@@ -6113,7 +6148,8 @@
       "tests/test_memory_context_transport.py",
       "tests/test_prompt_composition.py",
       "tests/test_assembled_prompts.py",
-      "tests/test_prompt_publication.py"
+      "tests/test_prompt_publication.py",
+      "tests/test_memoir_background_agent_workflow.py::test_event_group_publishes_order_and_revises_a_city_period"
     ],
     "gaps": [
       "No scored experiment items verified for the current pin"
@@ -6135,7 +6171,7 @@
       {
         "path": "apps/api/lifetime_memory_lane_engine.py",
         "symbol": "lane_contract",
-        "line": 207
+        "line": 210
       },
       {
         "path": "apps/api/prompt_composition.py",
@@ -6285,7 +6321,7 @@
       {
         "path": "apps/api/lifetime_memory_lane_engine.py",
         "symbol": "lane_contract",
-        "line": 207
+        "line": 210
       },
       {
         "path": "apps/api/prompt_composition.py",
@@ -6433,7 +6469,7 @@
       {
         "path": "apps/api/lifetime_memory_lane_engine.py",
         "symbol": "lane_contract",
-        "line": 207
+        "line": 210
       },
       {
         "path": "apps/api/prompt_composition.py",
@@ -6582,7 +6618,7 @@
       {
         "path": "apps/api/lifetime_memory_lane_engine.py",
         "symbol": "lane_contract",
-        "line": 207
+        "line": 210
       },
       {
         "path": "apps/api/prompt_composition.py",
@@ -6731,7 +6767,7 @@
       {
         "path": "apps/api/lifetime_memory_lane_engine.py",
         "symbol": "lane_contract",
-        "line": 207
+        "line": 210
       },
       {
         "path": "apps/api/prompt_composition.py",
@@ -6880,7 +6916,7 @@
       {
         "path": "apps/api/lifetime_memory_lane_engine.py",
         "symbol": "lane_contract",
-        "line": 207
+        "line": 210
       }
     ],
     "targets": [
@@ -8003,7 +8039,7 @@
       {
         "path": "apps/api/lifetime_memory_lane_engine.py",
         "symbol": "lane_contract",
-        "line": 207
+        "line": 210
       }
     ],
     "targets": [
@@ -8148,7 +8184,7 @@
       {
         "path": "apps/api/lifetime_memory_lane_engine.py",
         "symbol": "lane_contract",
-        "line": 207
+        "line": 210
       }
     ],
     "targets": [
@@ -8293,7 +8329,7 @@
       {
         "path": "apps/api/lifetime_memory_lane_engine.py",
         "symbol": "lane_contract",
-        "line": 207
+        "line": 210
       },
       {
         "path": "apps/api/prompt_composition.py",
@@ -8442,7 +8478,7 @@
       {
         "path": "apps/api/lifetime_memory_lane_engine.py",
         "symbol": "lane_contract",
-        "line": 207
+        "line": 210
       },
       {
         "path": "apps/api/prompt_composition.py",
@@ -8588,7 +8624,7 @@
       {
         "path": "scripts/memoir_skill_eval_suite.py",
         "symbol": "packet",
-        "line": 167
+        "line": 169
       }
     ],
     "targets": [
@@ -9063,9 +9099,20 @@
         "path": "apps/api/prompt_composition.py",
         "symbol": "expanded_prompt",
         "line": 58
+      },
+      {
+        "path": "apps/api/memoir_skill_agent.py",
+        "symbol": "skill_document",
+        "line": 35
+      },
+      {
+        "path": "apps/api/memoir_skill_agent.py",
+        "symbol": "skill_metadata",
+        "line": 22
       }
     ],
     "targets": [
+      "memoir/agents/atlas/skill-selection",
       "memoir/skills/memory-context/profile"
     ],
     "evaluators": [
@@ -9084,6 +9131,9 @@
       "memoir/evaluators/shared/safety"
     ],
     "hosted_rule_ids": [
+      "cmw1gxog300ny1z028ciq4o7v",
+      "cmw1gxogr00o61z02goxb7196",
+      "cmw1gxnlh00jj1z02tahxb82k",
       "cmw1gxpd400t21z02nzr502wk",
       "cmw1gxpey00ta1z02ayfpg1n6",
       "cmw1gxpga00ti1z02nl91aavg",
@@ -9092,6 +9142,22 @@
       "cmw1gxnvo00kw1z02voy5xihn"
     ],
     "datasets": [
+      {
+        "name": "memoir/agents/atlas/skill-selection/golden/campaign-068f68a58ef3",
+        "id": "cmw0mxvhl001p1z02md3xby14",
+        "items": 14,
+        "experiments": 0,
+        "scored_items": 0,
+        "source": "live snapshot"
+      },
+      {
+        "name": "memoir/agents/atlas/skill-selection/golden/campaign-a5c15039ad35",
+        "id": "cmw0mso8i000i1z029068jddt",
+        "items": 1,
+        "experiments": 0,
+        "scored_items": 0,
+        "source": "live snapshot"
+      },
       {
         "name": "memoir/skills/memory-context/profile/golden/contracts-campaign-0114d47bf1df",
         "id": "cmw1gucp800ct1z02dj82o3kg",
@@ -9162,7 +9228,8 @@
       "tests/test_automatic_prompt_evaluation.py",
       "tests/test_memory_context_transport.py",
       "tests/test_assembled_prompts.py",
-      "tests/test_prompt_publication.py"
+      "tests/test_prompt_publication.py",
+      "tests/test_memoir_background_agent_workflow.py::test_event_group_publishes_order_and_revises_a_city_period"
     ],
     "gaps": [
       "No scored experiment items verified for the current pin"
@@ -9332,7 +9399,8 @@
       "tests/test_memoir_background_agent_workflow.py::test_foreground_keeps_replying_while_background_finishes_then_batches_queued_narrations",
       "tests/test_memoir_background_agent_workflow.py::test_finished_background_output_waits_for_foreground_policy_without_another_model_call",
       "tests/test_background_profile_postgres.py",
-      "tests/test_prompt_usage_link.py"
+      "tests/test_prompt_usage_link.py",
+      "tests/test_memoir_background_agent_workflow.py::test_event_group_publishes_order_and_revises_a_city_period"
     ],
     "gaps": [
       "No scored experiment items verified for the current pin"
@@ -9793,7 +9861,7 @@
     "version": null,
     "sha256": "a7e45041686e0be511db8fcfc6fdba4eb4c1970d90ac102901c751fd1abc0379",
     "use": "component",
-    "scenario": "Local source expanded into an assembled operation template; tracked by source hash without a separate Langfuse prompt. General place skill guide available to Atlas for selection; fixed extraction preloads the JSON two-lane contract instead of the chat-marker guide.",
+    "scenario": "Retained local instruction for legacy place-journey compatibility and historical campaign reproduction.",
     "consumers": [
       {
         "path": "apps/api/memoir_skill_agent.py",

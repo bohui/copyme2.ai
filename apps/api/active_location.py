@@ -7,7 +7,7 @@ from .memory_events import _memory_age_number
 from .stage_readiness import LIFE_STAGES
 
 
-def chronological_places(places, events, links, profile):
+def chronological_event_indices(events, profile):
     def timing(event):
         stated = event.get('temporal') or {}
         estimate = event.get('temporal_estimate') or {}
@@ -43,9 +43,35 @@ def chronological_places(places, events, links, profile):
             left, right = ac is None and ast is None, bc is None and bst is None
         return (left > right) - (left < right) or a[0] - b[0]
 
-    ordered = sorted(enumerate(events), key=cmp_to_key(compare))
+    ordered = [index for index, _ in sorted(enumerate(events), key=cmp_to_key(compare))]
+    identities = {event.get('existing_id') or event.get('id'): index for index, event in enumerate(events)}
+    dependencies = {index: set() for index in ordered}
+    for index, event in enumerate(events):
+        if event.get('timing_conflict'):
+            continue
+        for relation in event.get('relations') or []:
+            target = identities.get(relation['event_id'])
+            if target is None or target == index or events[target].get('timing_conflict'):
+                continue
+            if relation['kind'] == 'before':
+                dependencies[target].add(index)
+            else:
+                dependencies[index].add(target)
+    remaining, result = set(ordered), []
+    while remaining:
+        next_index = next((index for index in ordered if index in remaining
+                           and not (dependencies[index] & remaining)), None)
+        if next_index is None:
+            return ordered
+        remaining.remove(next_index)
+        result.append(next_index)
+    return result
+
+
+def chronological_places(places, events, links, profile):
     ranks = {}
-    for rank, (index, event) in enumerate(ordered):
+    for rank, index in enumerate(chronological_event_indices(events, profile)):
+        event = events[index]
         locations = [link['place'] for link in links if link['event_index'] == index]
         if event.get('location'):
             locations.append(event['location'])

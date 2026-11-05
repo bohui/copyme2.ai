@@ -118,6 +118,7 @@ map.dispose();
 scene.child=null;
 state.placeJourney=destination;
 const refreshed=workspace();
+refreshed.mapMemoryEvents.sync(null);
 assert.match(refreshed.workspaceMediaOverview(),/data-cesium-latitude="0"/,
   'Refresh opens the whole journey regardless of the previous camera selection');
 const beforeArrival=frames.length;

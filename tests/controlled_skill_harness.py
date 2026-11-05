@@ -42,7 +42,7 @@ class ControlledSkillConnection:
     selected = []
     execute_optional = False
     only_optional = False
-    source_choices = ('memoir-author-timeline', 'memoir-place-journey', 'memoir-memory-context')
+    source_choices = ('memoir-author-timeline', 'memoir-memory-context')
 
     def __init__(self, command, home, **options):
         self.options = options

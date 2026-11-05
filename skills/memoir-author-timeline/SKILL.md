@@ -12,10 +12,11 @@ a completed round requires a saved successful reply. Technical replay adds no
 source or round. An empty extraction is successful processing.
 
 The host supplies [the shared contract](references/contract.md) and the required
-phase instructions with this skill. Apply them and return only JSON matching
-the supplied output schema to the private worker. Do not emit a conversational
-reply, Family-document timeline marker, or direct database write. The application
-validates proposals and atomically commits them to PostgreSQL.
+phase instructions with this skill. Return private draft events in the supplied
+JSON schema. Include a start and end estimate and a location candidate when
+supported by the originals. Leave unsupported bounds or geography unknown and
+retain the evidence and confidence for every proposed placement. Event Group
+reconciles the validated drafts with published events before the host commits.
 
 Read saved canonical events and original context before reconciliation. One
 input may support zero, one or several events, and an event may collect several
@@ -24,7 +25,9 @@ inputs, including late details about a much older memory. Use `existing_id` and
 titles, dates and places do not establish identity. Keep recurring experiences
 separate. Ambiguous matches retain scoped `candidate_ids` and unresolved status;
 conflicting accounts retain attribution and uncertainty rather than a winner.
-Propose new or changed events; use unchanged saved facts as context. An
+Propose new or changed events; use unchanged saved facts as context. If multiple
+passages update the same canonical event, combine their evidence in one draft
+and reconcile the changed time bounds or location against the saved placement. An
 acknowledgement with no new personal evidence returns an empty event list.
 
 Read conversation_history (the preceding twenty conversation rounds, oldest
@@ -129,7 +132,9 @@ with optional Unicode code-point span and attribution. Assistant questions,
 summaries and earlier prose are not testimony. Source language is independent
 of memoir locale. Preserve explicitly narrated order in sourced before/after
 relations even when temporal_estimate intervals overlap or share a boundary.
-Use a supplied canonical event ID as the relation target and cite the contiguous
+Use a supplied canonical event ID for a published target. When the schema
+supports draft targets, label each related draft with a unique ID such as
+`draft-1` and use `draft_id` for a target in this same output. Cite the contiguous
 original passage establishing the sequence. Put the relation on the appropriate
 new or updated event and retain supported order on later updates.
 Unknown transition dates stay uncertain, and capture order alone supplies no

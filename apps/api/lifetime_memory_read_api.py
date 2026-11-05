@@ -80,7 +80,7 @@ def collection_page(storage, project_id, *, kind, cursor=None, limit=8, event_id
     page = storage.lifetime_rpc('read_lifetime_collection_page', p_project_id=project_id,
         p_kind=kind, p_after=str(cursor) if cursor else None, p_limit=limit, p_event_id=event_id)
     if kind == 'events':
-        page = {**page, 'events': [{**{key:value for key,value in event.items()
+        page = {**page, 'map_source': 'published_events', 'events': [{**{key:value for key,value in event.items()
             if key not in {'primary_source_refs','primary_evidence_complete'}},
             **({'temporal_anchor':'present'} if _present_residence(event) else {})}
                                  for event in page.get('events', [])]}

@@ -2998,7 +2998,8 @@ CREATE FUNCTION public.apply_user_memory_events_before_photos(p_project_id text,
 declare owner_id uuid:=auth.uid(); item jsonb; saved public.user_narrator_source%rowtype; updated integer;
   proposal jsonb; ref jsonb; relation jsonb; evidence public.user_narrator_source%rowtype;
   current_event public.user_memory_event%rowtype; event_id text; event_data jsonb; event_refs jsonb; event_stage text; next_change bigint;
-  contextual_city boolean;
+  contextual_city boolean; publication_ids text[]; proposal_index integer:=0; target_index integer; relations jsonb;
+  previous_timing jsonb; new_timing jsonb; timing_changed boolean; start_year integer; end_year integer;
 begin
   if owner_id is null then raise exception 'authenticated user required' using errcode='42501'; end if;
   if pg_catalog.jsonb_typeof(p_sources) is distinct from 'array' or pg_catalog.jsonb_array_length(p_sources) not between 1 and 1000 or
@@ -3019,7 +3020,10 @@ begin
     and processing_status<>'succeeded' and id in(select (value->>'id')::uuid from pg_catalog.jsonb_array_elements(p_sources))) then
     return public.read_user_memory_events(p_project_id);
   end if;
+  select array_agg(coalesce(value->>'existing_id',pg_catalog.gen_random_uuid()::text) order by ordinal)
+    into publication_ids from jsonb_array_elements(p_events) with ordinality draft(value,ordinal);
   for proposal in select value from pg_catalog.jsonb_array_elements(p_events) loop
+    proposal_index:=proposal_index+1;
     if pg_catalog.jsonb_typeof(proposal) is distinct from 'object' or
        exists(select 1 from pg_catalog.jsonb_object_keys(proposal) k where k not in
          ('id','existing_id','expected_revision','kind','title','life_stage','temporal','temporal_estimate','stage_evidence','source_refs','uncertainty','person_ids','visibility','include_in_print','attribution','candidate_ids','relations','correction',
@@ -3059,14 +3063,27 @@ begin
           pg_catalog.jsonb_array_elements(coalesce(f.document->'people','[]')) person
           where f.user_id=owner_id and f.project_id=p_project_id and person->>'id'=person_id)) then
       raise exception 'person identity unavailable in this project' using errcode='42501'; end if;
+    relations:='[]'::jsonb;
     for relation in select value from pg_catalog.jsonb_array_elements(coalesce(proposal->'relations','[]')) loop
       if relation->>'kind' is null or relation->>'kind' not in ('before','after') or
-         pg_catalog.jsonb_typeof(relation->'source_refs') is distinct from 'array' or pg_catalog.jsonb_array_length(relation->'source_refs')=0 or
-         not exists(select 1 from public.user_memory_event where user_id=owner_id and project_id=p_project_id and id=relation->>'event_id') then
+         pg_catalog.jsonb_typeof(relation->'source_refs') is distinct from 'array' or pg_catalog.jsonb_array_length(relation->'source_refs')=0 then
         raise exception 'chronology target unavailable in this project' using errcode='42501'; end if;
+      if relation ? 'draft_index' then
+        if relation ? 'event_id' or jsonb_typeof(relation->'draft_index') is distinct from 'number'
+          or relation->>'draft_index' !~ '^[0-9]{1,2}$' then
+          raise exception 'bounded draft chronology target required' using errcode='22023';end if;
+        target_index:=(relation->>'draft_index')::integer+1;
+        if target_index>cardinality(publication_ids) or publication_ids[target_index]=publication_ids[proposal_index]
+          or (p_events->(target_index-1)) ? 'existing_id'
+          or coalesce(jsonb_array_length((p_events->(target_index-1))->'candidate_ids'),0)>0 then
+          raise exception 'draft chronology target unavailable' using errcode='42501';end if;
+        relation:=(relation-'draft_index')||jsonb_build_object('event_id',publication_ids[target_index]);
+      elsif not exists(select 1 from public.user_memory_event where user_id=owner_id and project_id=p_project_id and id=relation->>'event_id') then
+        raise exception 'chronology target unavailable in this project' using errcode='42501';end if;
       for ref in select value from pg_catalog.jsonb_array_elements(relation->'source_refs') loop
         perform public.validate_memory_evidence(owner_id,p_project_id,ref);
       end loop;
+      relations:=relations||jsonb_build_array(relation);
     end loop;
     if proposal ? 'existing_id' then
       select * into current_event from public.user_memory_event
@@ -3079,7 +3096,18 @@ begin
         raise exception 'event kind cannot change' using errcode='22023';
       end if;
       event_id:=current_event.id;
-    else event_id:=pg_catalog.gen_random_uuid()::text;
+    else event_id:=publication_ids[proposal_index];
+    end if;
+    if proposal ? 'relations' then
+      -- Adding an edge retains previously supported order with other events.
+      for relation in select value from jsonb_array_elements(coalesce(current_event.data->'relations','[]')) loop
+        if not relations @> jsonb_build_array(relation) and
+          not (proposal ? 'correction' and exists(select 1 from jsonb_array_elements(relations) incoming
+            where incoming->>'event_id'=relation->>'event_id' and incoming->>'kind'<>relation->>'kind')) then
+          relations:=relations||jsonb_build_array(relation);
+        end if;
+      end loop;
+      proposal:=jsonb_set(proposal,'{relations}',relations);
     end if;
     if proposal ? 'correction' then
       ref:=proposal->'correction';
@@ -3102,13 +3130,33 @@ begin
     if event_stage not in ('baby','childhood','adolescence','young_adulthood','midlife','later_life','unplaced') then
       raise exception 'invalid life stage' using errcode='22023';
     end if;
+    previous_timing:=current_event.data->'temporal';
+    new_timing:=proposal->'temporal';
+    timing_changed:=previous_timing->>'year_start' is not null and new_timing->>'year_start' is not null
+      and (previous_timing->>'year_start' is distinct from new_timing->>'year_start'
+           or previous_timing->>'year_end' is distinct from new_timing->>'year_end');
+    if current_event.kind='period' and new_timing->>'precision' not in ('age','unknown')
+      and previous_timing->>'precision' not in ('age','unknown')
+      and not (coalesce(current_event.data->'user_overrides','{}') ? 'temporal')
+      and (new_timing->>'year_start' is not null or new_timing->>'year_end' is not null) then
+      -- Known endpoints from the same period can be supplemented by later testimony.
+      start_year:=coalesce(new_timing->>'year_start',previous_timing->>'year_start')::integer;
+      end_year:=coalesce(new_timing->>'year_end',previous_timing->>'year_end')::integer;
+      timing_changed:=coalesce(previous_timing->>'year_start'<>new_timing->>'year_start',false)
+        or coalesce(previous_timing->>'year_end'<>new_timing->>'year_end',false)
+        or coalesce(start_year>end_year,false);
+      if not timing_changed and not coalesce((current_event.data->>'timing_conflict')::boolean,false)
+        and ((new_timing->>'year_start' is null and start_year is not null)
+             or (new_timing->>'year_end' is null and end_year is not null)) then
+        new_timing:=new_timing||jsonb_build_object('year_start',start_year,'year_end',end_year,'basis',(
+          select jsonb_agg(distinct b) from jsonb_array_elements((previous_timing->'basis')||(new_timing->'basis')) b));
+        proposal:=jsonb_set(proposal,'{temporal}',new_timing);
+      end if;
+    end if;
     event_data:=(coalesce(current_event.data,'{"temporal":{"expression":"unknown","precision":"unknown"},"visibility":"private","include_in_print":false}'::jsonb)-'reconciliation_source_ids') ||
       (proposal - array['id','existing_id','expected_revision','source_refs','kind','life_stage']);
     if proposal ? 'temporal' and not (coalesce(current_event.data->'user_overrides','{}') ? 'temporal') and
-       (coalesce((current_event.data->>'timing_conflict')::boolean,false) or
-        (current_event.data->'temporal'->>'year_start' is not null and proposal->'temporal'->>'year_start' is not null and
-         (current_event.data->'temporal'->>'year_start' is distinct from proposal->'temporal'->>'year_start' or
-          current_event.data->'temporal'->>'year_end' is distinct from proposal->'temporal'->>'year_end'))) then
+       (coalesce((current_event.data->>'timing_conflict')::boolean,false) or timing_changed) then
       -- Replaying the unresolved summary or an existing attributed account
       -- does not add evidence. Keep the unresolved placement; new basis refs
       -- (including the same year from another narrator) still append an account.
@@ -4490,7 +4538,11 @@ begin
    if page->'two_lane'->>'work_mode'='reply_only' then
      perform public.background_skill_receipt(page,'extract','memoir-author-timeline','model','skipped','reply_only');
    end if;
-   if page->>'skill'='timeline' and page ? 'two_lane' and jsonb_array_length(coalesce(p_result->'place_journeys','[]'))>0
+   if page->>'skill'='timeline' and page->'two_lane'->'selected_skills' ? 'memoir-author-timeline'
+     and not(page->'two_lane'->'selected_skills' ? 'memoir-place-journey') then
+     perform public.background_skill_receipt(page,'group','memoir-event-group','deterministic',
+       case when jsonb_array_length(p_result->'events')>0 then 'saved' else 'skipped' end);
+   elsif page->>'skill'='timeline' and page ? 'two_lane' and jsonb_array_length(coalesce(p_result->'place_journeys','[]'))>0
      and (not(page->'two_lane' ? 'selected_skills') or page->'two_lane'->'selected_skills' ? 'memoir-author-timeline') then
      perform public.background_skill_receipt(page,'place','memoir-place-journey','embedded','saved');
    end if;
@@ -7068,6 +7120,9 @@ CREATE FUNCTION public.lifetime_attribution_event_context(p_owner uuid, p_projec
    'attribution',e.data->'attribution','uncertainty',e.data->'uncertainty',
    'temporal',jsonb_build_object('expression',e.data->'temporal'->'expression','precision',e.data->'temporal'->'precision',
      'year_start',e.data->'temporal'->'year_start','year_end',e.data->'temporal'->'year_end'),
+   'temporal_estimate',(e.data->'temporal_estimate')-'basis','location',e.data->'location',
+   'locationConfidenceScore',e.data->'locationConfidenceScore','yearConfidenceScore',e.data->'yearConfidenceScore',
+   'timing_conflict',coalesce(e.data->'timing_conflict','false'::jsonb),
    'places',coalesce((select jsonb_agg(to_jsonb(p)-array['user_id','project_id','event_id']) from
      (select * from public.lifetime_event_place_rows(p_owner,p_project,p_event) where not(role=any(conflicts.roles))
        order by source_id,char_start,role,place_key limit 2) p),'[]'),
@@ -10036,8 +10091,8 @@ begin
        and source_id=source.id and source_version=source.version),0));
    if core>=length(source.text) then core:=0;end if;
    lo:=greatest(core-256,0);hi:=least(core+2048,length(source.text));
-   -- Indexed, bounded candidate pools. Preserve the current interview identity
-   -- even when it is older than the recent tail; no full-event history sort.
+   -- Include scoped testimony matches from older events when the recent tail
+   -- cannot represent the full timeline. The host still requires identity evidence.
    with active as (
      select e.id,0 priority from public.user_interview_plan p join public.user_memory_event e
        on e.user_id=p.user_id and e.project_id=p.project_id and e.id=p.plan->>'active_event_id'
@@ -10047,11 +10102,17 @@ begin
        on e.user_id=r.user_id and e.project_id=r.project_id and e.id=r.event_id
      where r.user_id=snap.user_id and r.project_id=snap.project_id and r.source_id=source.id
        and e.status<>'withdrawn' and e.change_sequence<=snap.event_high_water order by r.event_id limit 8
-   ), recent as (
-     select id,2 priority from public.user_memory_event where user_id=snap.user_id and project_id=snap.project_id
+   ), recent as materialized (
+     select id,3 priority from public.user_memory_event where user_id=snap.user_id and project_id=snap.project_id
        and status<>'withdrawn' and change_sequence<=snap.event_high_water order by change_sequence desc,id desc limit 8
+   ), related as (
+     select distinct e.id,2 priority from public.retrieve_lifetime_guidance_events(
+       snap.user_id,snap.project_id,source.id,source.version) hit join public.user_memory_event e
+       on e.user_id=snap.user_id and e.project_id=snap.project_id and e.id=hit.event_id
+     where (select count(*) from recent)=8 and e.change_sequence<=snap.event_high_water
    ), selected as (
-     select id,min(priority) priority from (select * from active union all select * from same_source union all select * from recent) pool group by id
+     select id,min(priority) priority from (select * from active union all select * from same_source
+       union all select * from related union all select * from recent) pool group by id
    )
    select coalesce(jsonb_agg(item order by priority,change_sequence desc,id),'[]') into candidates from (
      select e.id,e.change_sequence,c.priority,jsonb_build_object('id',e.id,'revision',e.revision,'kind',e.kind,
@@ -11509,7 +11570,7 @@ CREATE FUNCTION public.record_background_service_work(p_user_id uuid, p_project_
     AS $memoir$
 declare source public.user_narrator_source%rowtype; result jsonb;
 begin
- if p_step->>'skill' not in ('memoir-place-groups','memoir-place-photo-research','memoir-historical-news-research')
+ if p_step->>'skill' not in ('memoir-place-groups','memoir-event-group','memoir-place-photo-research','memoir-historical-news-research')
    or p_step->>'status' not in ('running','completed','saved','failed','cached')
    or p_step->>'execution' not in ('deterministic','provider','cache')
    or p_step->>'id' !~ '^[a-f0-9]{64}$' then raise exception 'invalid service receipt' using errcode='22023';end if;
@@ -16667,7 +16728,7 @@ declare a public.user_memoir_background_agent%rowtype; source public.user_narrat
  authority public.user_lifetime_profile_authority%rowtype; source_work jsonb; targets jsonb; reference jsonb;
  lanes jsonb; originals jsonb:='[]'; original jsonb; dialogue jsonb; remaining_sources bigint;
  core integer; lo integer; hi integer;
- names jsonb:='["memoir-author-timeline","memoir-place-journey"]';
+ names jsonb:='["memoir-author-timeline"]';
 begin
  perform public.lock_memoir_background_agent(p_fence);
  select * into a from public.user_memoir_background_agent where id=(p_fence->>'id')::uuid;
