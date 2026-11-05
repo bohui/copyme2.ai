@@ -223,6 +223,31 @@ def timeline_chronology_case(locale, variant='study'):
         scope='Narrated order and provisional degree/work duration estimates; exact transition dates stay unknown')
 
 
+def timeline_reconciliation_case(locale):
+    from apps.api.lifetime_memory_lane_engine import lane_contract, lane_prompt_name
+    from apps.api.model_request import instruction_manifest
+    departure, visit, residence, old_visit = (
+        ('2010年我结束了在台北的定居。', '2010年我第一次去台北的动物园。',
+         '我1999年开始在台北定居，直到离开台湾。', '我2005年去台北拜访表妹。')
+        if locale == 'zh-CN' else
+        ('I ended my residence in Porto in 2010.', 'I first went to Porto Zoo in 2010.',
+         'I began living in Porto in 1999 and stayed until I left Portugal.', 'In 2005 I visited my cousin in Porto.'))
+    city, country = ('台北','台湾') if locale == 'zh-CN' else ('Porto','Portugal')
+    location = dict(place=city, hierarchy=['Earth',country,city], granularity='city')
+    original = dict(id='synthetic-reconciliation-source',version=1,status='active',text=f'{departure} {visit}')
+    drafts = [dict(kind=kind,title=quote,location=location,source_refs=[
+        dict(source_id=original['id'],version=1,quote=quote)]) for kind,quote in [('period',departure),('event',visit)]]
+    published = [dict(id='saved-residence',revision=2,kind='period',title=residence,description=residence,
+        location=location,start_year=1999,end_year=2012),dict(id='saved-visit',revision=1,kind='event',
+        title=old_visit,description=old_visit,location=location,start_year=2005,end_year=2005)]
+    instructions,schema = lane_contract('reconcile',locale)
+    return dict(id='timeline-reconcile-'+locale,skill='memoir-author-timeline',instructions=instructions,schema=schema,
+        input=dict(drafts=drafts,published_events=published,message_id='synthetic-reconciliation-message'),
+        original=original,validator='reconciliation',expected=['saved-residence',None],
+        prompt_manifest=instruction_manifest(instructions,schema,primary_name=lane_prompt_name('reconcile')),
+        scope='Select a published residence for new placement evidence and create a separate recollection')
+
+
 def cases():
     rows = profile_cases()
     for locale in ('en-AU', 'zh-CN'):
@@ -234,6 +259,7 @@ def cases():
                  original=original, validator='extraction'),
         ])
         rows.extend(timeline_chronology_case(locale, variant) for variant in ('study','work'))
+        rows.append(timeline_reconciliation_case(locale))
     rows.append(dict(id='family-explicit-mother', skill='memoir-family-tree', schema=None,
         instructions=skill_prompt('memoir-family-tree'),
         input={'fixture_scope': 'isolated contract test; no entitlement or persistence claim',
@@ -323,6 +349,13 @@ def validate_case(case, value):
                 for bound in ('start', 'end')]
             if actual != ages:
                 raise ValueError('narrated_period_estimate')
+    elif kind == 'reconciliation':
+        from apps.api.timeline_reconciliation import assign_event_identities
+        data = case['input']
+        assigned = assign_event_identities(value,data['drafts'],data['published_events'],case['original'])
+        if ([event.get('existing_id') for event in assigned] != case['expected']
+                or any(event.get('candidate_ids') or event.get('correction') for event in assigned)):
+            raise ValueError('incorrect_timeline_identity')
     elif kind == 'family':
         _, tree = extract_family_tree_context(value)
         if not tree or not any(p['name'] == 'Mei' and p.get('family_title') == 'mother'

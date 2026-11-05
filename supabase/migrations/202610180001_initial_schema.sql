@@ -853,6 +853,7 @@ CREATE TABLE public.user_lifetime_lane_output (
     phase text NOT NULL,
     digest text NOT NULL,
     input_digest text NOT NULL,
+    event_scope jsonb,
     CONSTRAINT user_lifetime_lane_output_digest_check CHECK ((digest ~ '^[0-9a-f]{64}$'::text)),
     CONSTRAINT user_lifetime_lane_output_input_digest_check CHECK ((input_digest ~ '^[0-9a-f]{64}$'::text)),
     CONSTRAINT user_lifetime_lane_output_phase_check CHECK ((phase = ANY (ARRAY['extract'::text, 'prepare'::text, 'index'::text, 'draft'::text, 'review'::text])))
@@ -4540,8 +4541,12 @@ begin
    end if;
    if page->>'skill'='timeline' and page->'two_lane'->'selected_skills' ? 'memoir-author-timeline'
      and not(page->'two_lane'->'selected_skills' ? 'memoir-place-journey') then
-     perform public.background_skill_receipt(page,'group','memoir-event-group','deterministic',
-       case when jsonb_array_length(p_result->'events')>0 then 'saved' else 'skipped' end);
+     if jsonb_array_length(p_result->'events')=0 then
+       perform public.background_skill_receipt(page,'reconcile','memoir-author-timeline','model','skipped','no_drafts');
+     elsif not exists(select 1 from public.user_background_skill_work where lane_id=p_lane_id
+        and id=public.background_skill_id(page,'reconcile') and status='saved') then
+       perform public.background_skill_receipt(page,'reconcile','memoir-author-timeline','model','saved','invocation_receipt_unavailable');
+     end if;
    elsif page->>'skill'='timeline' and page ? 'two_lane' and jsonb_array_length(coalesce(p_result->'place_journeys','[]'))>0
      and (not(page->'two_lane' ? 'selected_skills') or page->'two_lane'->'selected_skills' ? 'memoir-author-timeline') then
      perform public.background_skill_receipt(page,'place','memoir-place-journey','embedded','saved');
@@ -4752,7 +4757,7 @@ CREATE FUNCTION public.commit_lifetime_memoir_lane_page_before_rework(p_lane_id 
 declare snap public.user_lifetime_lane_snapshot%rowtype; lane public.user_memoir_lane%rowtype;
  page jsonb; ref jsonb; section jsonb; item jsonb; result_hash text; new_root text; disposition text;
  prior public.user_lifetime_lane_page_receipt%rowtype; protected public.user_lifetime_memoir_section%rowtype; protected_safe boolean; manuscript_locked boolean:=false; source_id uuid; event_id text; current_source_version bigint;
- previous_setting text; previous_owner text;
+ previous_setting text; previous_owner text; reconciling boolean;
 begin
  snap:=public.lock_lifetime_memoir_lane(p_lane_id,p_token);
  select * into lane from public.user_memoir_lane where id=p_lane_id;
@@ -4770,14 +4775,26 @@ begin
  if (page->>'complete')::boolean then raise exception 'snapshot completion requires root commit';end if;
  source_id:=(page->'source'->>'id')::uuid;current_source_version:=(page->'source'->>'version')::bigint;
  if lane.skill='timeline' then
+   reconciling:=coalesce(page->'two_lane'->'selected_skills' ? 'memoir-author-timeline'
+     and not(page->'two_lane'->'selected_skills' ? 'memoir-place-journey'),false);
    if jsonb_typeof(p_result->'events') is distinct from 'array' or jsonb_array_length(p_result->'events')>100 then
      raise exception 'bounded event proposals required';end if;
+   if reconciling and jsonb_array_length(p_result->'events')>0
+     and not exists(select 1 from public.user_lifetime_lane_output o where o.snapshot_id=snap.id
+       and o.page_number=p_page_number and o.input_digest=page->>'input_digest'
+       and o.phase='extract' and o.event_scope is not null) then
+     raise exception 'timeline publication requires same-page reconciliation input' using errcode='PT409';end if;
    for item in select value from jsonb_array_elements(p_result->'events') loop
      if exists(select 1 from jsonb_array_elements(item->'source_refs') primary_ref
          where primary_ref->>'source_id'<>source_id::text or primary_ref->>'version'<>current_source_version::text) then
        raise exception 'primary testimony requires current source' using errcode='22023';end if;
-     if item ? 'existing_id' and not exists(select 1 from jsonb_array_elements(page->'events') e
-       where e->>'id'=item->>'existing_id' and e->>'revision'=item->>'expected_revision') then
+     if item ? 'existing_id' and not exists(
+       select 1 from jsonb_array_elements(page->'events') e
+         where not reconciling and e->>'id'=item->>'existing_id' and e->>'revision'=item->>'expected_revision'
+       union all
+       select 1 from public.user_lifetime_lane_output o cross join lateral jsonb_array_elements(o.event_scope) e
+         where o.snapshot_id=snap.id and o.page_number=p_page_number and o.input_digest=page->>'input_digest'
+           and o.phase='extract' and e->>'id'=item->>'existing_id' and e->>'revision'=item->>'expected_revision') then
        raise exception 'canonical event identity outside current page';end if;
    end loop;
    for ref in select value from jsonb_path_query(p_result->'events','$.** ? (exists(@.source_id) && exists(@.version))') value loop
@@ -8168,7 +8185,12 @@ CREATE FUNCTION public.memory_event_record_before_photos(e public.user_memory_ev
       from public.user_memory_event_source s join public.user_narrator_source n
         on n.user_id=s.user_id and n.project_id=s.project_id and n.id=s.source_id
       where s.user_id=e.user_id and s.project_id=e.project_id and s.event_id=e.id
-        and n.status='active' and n.version=s.source_version),'[]'::jsonb))
+        and n.status='active' and n.version=s.source_version),'[]'::jsonb),
+    'message_ids',coalesce((select jsonb_agg(link.client_turn_id order by link.sequence) from (
+      select distinct n.client_turn_id,n.sequence from public.user_memory_event_source s
+      join public.user_narrator_source n on n.user_id=s.user_id and n.project_id=s.project_id and n.id=s.source_id
+        and n.status='active' and n.version=s.source_version
+      where s.user_id=e.user_id and s.project_id=e.project_id and s.event_id=e.id) link),'[]'::jsonb))
 $$;
 
 CREATE FUNCTION public.merge_memoir_context(a jsonb, b jsonb, guest_wins boolean DEFAULT false) RETURNS jsonb
@@ -11571,7 +11593,7 @@ CREATE FUNCTION public.record_background_service_work(p_user_id uuid, p_project_
     AS $memoir$
 declare source public.user_narrator_source%rowtype; result jsonb;
 begin
- if p_step->>'skill' not in ('memoir-place-groups','memoir-event-group','memoir-place-photo-research','memoir-historical-news-research')
+ if p_step->>'skill' not in ('memoir-place-groups','memoir-place-photo-research','memoir-historical-news-research')
    or p_step->>'status' not in ('running','completed','saved','failed','cached')
    or p_step->>'execution' not in ('deterministic','provider','cache')
    or p_step->>'id' !~ '^[a-f0-9]{64}$' then raise exception 'invalid service receipt' using errcode='22023';end if;
@@ -11596,7 +11618,81 @@ begin
  return result;
 end $memoir$;
 
-CREATE FUNCTION public.record_lifetime_lane_output(p_lane_id uuid, p_token uuid, p_page_number bigint, p_phase text, p_digest text, p_page_digest text) RETURNS boolean
+CREATE FUNCTION public.read_lifetime_timeline_candidates(p_lane_id uuid,p_token uuid,p_page_digest text,p_hints jsonb) RETURNS jsonb
+    LANGUAGE plpgsql SECURITY DEFINER
+    SET search_path TO ''
+    AS $$
+declare page jsonb; owner uuid; project text; high_water bigint; candidates jsonb;
+begin
+ page:=public.read_lifetime_memoir_lane_page(p_lane_id,p_token);
+ if page->>'page_digest' is distinct from p_page_digest or page->>'skill'<>'timeline'
+   or page->'two_lane'->>'work_mode' is distinct from 'extract'
+   or not coalesce(page->'two_lane'->'selected_skills' ? 'memoir-author-timeline',false)
+   or page->'two_lane'->'selected_skills' ? 'memoir-place-journey' then
+   raise exception 'stale timeline reconciliation page' using errcode='PT409';end if;
+ if jsonb_typeof(p_hints) is distinct from 'array' or jsonb_array_length(p_hints) not between 1 and 100
+   or octet_length(p_hints::text)>65536 then
+   raise exception 'bounded timeline draft placements required' using errcode='22023';end if;
+ owner:=(page->>'user_id')::uuid;project:=page->>'project_id';high_water:=(page->>'event_high_water')::bigint;
+ with published as materialized (
+   select e.id,e.revision,e.kind,e.change_sequence,e.data,
+     coalesce(e.data->'temporal'->>'year_start',e.data->'temporal_estimate'->>'year_start')::integer start_year,
+     coalesce(e.data->'temporal'->>'year_end',e.data->'temporal_estimate'->>'year_end')::integer end_year
+   from public.user_memory_event e where e.user_id=owner and e.project_id=project
+     and e.status='active' and e.change_sequence<=high_water
+ ), nearby as (
+   select hit.id,0 priority from jsonb_to_recordset(p_hints) h(kind text,location jsonb,start_year integer,end_year integer)
+   cross join lateral (
+     select e.id from published e cross join lateral (
+       select coalesce(h.location->'hierarchy'=e.data->'location'->'hierarchy',false) same_place,
+         case when not coalesce((e.data->>'timing_conflict')::boolean,false)
+           and coalesce(h.start_year,h.end_year) is not null and coalesce(e.start_year,e.end_year) is not null
+           then greatest(coalesce(h.start_year,h.end_year)-coalesce(e.end_year,e.start_year),
+             coalesce(e.start_year,e.end_year)-coalesce(h.end_year,h.start_year),0) end gap
+     ) score where e.kind=h.kind and (score.same_place or score.gap<=5)
+     order by score.same_place desc,score.gap nulls last,e.change_sequence desc,e.id limit 3
+   ) hit
+ ), pool as (
+   select id,min(priority) priority from (select * from nearby
+     union all select e->>'id',1 from jsonb_array_elements(page->'events') e) ranked group by id
+ ), selected as (
+   select e.*,p.priority from pool p join published e using(id)
+   order by p.priority,e.change_sequence desc,e.id limit 16
+ )
+ select coalesce(jsonb_agg(jsonb_build_object(
+   'id',e.id,'revision',e.revision,'kind',e.kind,'status','active','title',left(e.data->>'title',300),
+   'description',description.text,
+   'location',coalesce(nullif(e.data->'location','null'::jsonb),(
+      select p.place from public.lifetime_event_place_rows(owner,project,e.id) p
+      where p.role='setting' and not('setting'=any(public.lifetime_event_place_conflicts(owner,project,e.id)))
+      order by p.source_id,p.char_start,p.place_key limit 1)),
+   'start_year',case when not coalesce((e.data->>'timing_conflict')::boolean,false) then e.start_year end,
+   'end_year',case when not coalesce((e.data->>'timing_conflict')::boolean,false) then e.end_year end,
+   'temporal',case when jsonb_typeof(e.data->'temporal')='object' then (e.data->'temporal')-'basis' end,
+   'temporal_estimate',case when jsonb_typeof(e.data->'temporal_estimate')='object'
+     then (e.data->'temporal_estimate')-array['basis','rationale'] end,
+   'timing_conflict',coalesce(e.data->'timing_conflict','false'::jsonb))
+   order by e.priority,e.change_sequence desc,e.id),'[]') into candidates
+ from selected e cross join lateral (
+   select string_agg(snippet,E'\n' order by sequence,offset_start) text from (
+     select left(s.evidence->>'quote',320) snippet,n.sequence,coalesce((s.evidence->>'char_start')::integer,0) offset_start
+     from public.user_memory_event_source s join public.user_narrator_source n
+       on n.user_id=s.user_id and n.project_id=s.project_id and n.id=s.source_id
+       and n.version=s.source_version and n.status='active'
+     where s.user_id=owner and s.project_id=project and s.event_id=e.id
+       and s.stage_progress_role in ('primary','legacy_primary')
+       and not exists(select 1 from public.user_memory_attribution_window w
+         where w.user_id=s.user_id and w.project_id=s.project_id and w.source_id=s.source_id
+           and w.source_version=s.source_version and w.disposition in ('withheld','non_story')
+           and w.char_start<coalesce((s.evidence->>'char_end')::integer,length(n.text))
+           and w.char_end>coalesce((s.evidence->>'char_start')::integer,0))
+     order by n.sequence desc,s.evidence_hash limit 2
+   ) snippets
+ ) description;
+ return candidates;
+end $$;
+
+CREATE FUNCTION public.record_lifetime_lane_output(p_lane_id uuid, p_token uuid, p_page_number bigint, p_phase text, p_digest text, p_page_digest text, p_event_scope jsonb DEFAULT NULL) RETURNS boolean
     LANGUAGE plpgsql SECURITY DEFINER
     SET search_path TO 'public', 'auth'
     AS $$
@@ -11605,9 +11701,18 @@ begin
  page:=public.read_lifetime_memoir_lane_page(p_lane_id,p_token);
  if (page->>'page_number')::bigint is distinct from p_page_number or p_page_digest is distinct from page->>'page_digest' then
    raise exception 'stale derived lane output input' using errcode='PT409';end if;
- insert into public.user_lifetime_lane_output(snapshot_id,page_number,phase,digest,input_digest)
+ if p_event_scope is not null then
+   if p_phase<>'extract' or page->>'skill'<>'timeline' or jsonb_typeof(p_event_scope) is distinct from 'array'
+     or jsonb_array_length(p_event_scope)>16 or octet_length(p_event_scope::text)>8192
+     or exists(select 1 from jsonb_array_elements(p_event_scope) candidate where not exists(
+       select 1 from public.user_memory_event e where e.user_id=(page->>'user_id')::uuid
+       and e.project_id=page->>'project_id' and e.id=candidate->>'id' and e.revision::text=candidate->>'revision'
+       and e.status='active' and e.change_sequence<=(page->>'event_high_water')::bigint)) then
+     raise exception 'unavailable reconciliation candidates' using errcode='PT409';end if;
+ end if;
+ insert into public.user_lifetime_lane_output(snapshot_id,page_number,phase,digest,input_digest,event_scope)
  values((page->>'snapshot_id')::uuid,p_page_number,p_phase,p_digest,
-   (page->>'input_digest')) on conflict do nothing;
+   (page->>'input_digest'),p_event_scope) on conflict do nothing;
  return true;
 end $$;
 
@@ -11636,7 +11741,7 @@ CREATE FUNCTION public.record_lifetime_skill_phase_before_place_progress(p_fence
     AS $$
 declare page jsonb; source public.user_narrator_source%rowtype; skill text; first_source bigint;last_source bigint;
 begin
- if p_phase not in ('extract','profile','summarize','prepare','draft','review','index','guidance') or p_status not in ('running','completed','failed')
+ if p_phase not in ('extract','reconcile','profile','summarize','prepare','draft','review','index','guidance') or p_status not in ('running','completed','failed')
    or p_invocation_id is null then raise exception 'bounded skill phase required' using errcode='22023';end if;
  perform public.lock_lifetime_memoir_lane_publication(p_fence);
  if p_phase='profile' then
@@ -11648,10 +11753,10 @@ begin
    skill:=case when page->>'skill'='composer' then 'memoir-composer' when page->>'skill'='guidance' then 'memoir-interview-guidance' else 'memoir-author-timeline' end;
    if p_phase='extract' and page->'two_lane' ? 'selected_skills'
      and not(page->'two_lane'->'selected_skills' ? 'memoir-author-timeline') then skill:='memoir-place-journey';end if;
-   if (page->>'skill'='timeline' and p_phase not in ('extract','summarize'))
+   if (page->>'skill'='timeline' and p_phase not in ('extract','reconcile','summarize'))
      or (page->>'skill'='composer' and p_phase not in ('prepare','draft','review','index','guidance')) then
      raise exception 'skill phase mismatch' using errcode='42501';end if;
-   if p_phase='extract' and page->'two_lane'->>'work_mode'<>'extract' then raise exception 'timeline model not admitted' using errcode='42501';end if;
+   if p_phase in ('extract','reconcile') and page->'two_lane'->>'work_mode'<>'extract' then raise exception 'timeline model not admitted' using errcode='42501';end if;
  end if;
  if page->>'page_digest' is distinct from p_fence->>'page_digest' then raise exception 'skill page changed' using errcode='40001';end if;
  first_source:=coalesce((page->'source'->>'sequence')::bigint,0);last_source:=first_source;
@@ -14639,7 +14744,8 @@ revoke all on function public.read_workspace_memory_focus(text, jsonb) from publ
 revoke all on function public.reconcile_interview_photo_links(uuid, text) from public,anon,authenticated,service_role;
 revoke all on function public.reconcile_lifetime_source_continuity() from public,anon,authenticated,service_role;
 revoke all on function public.record_background_service_work(uuid, text, jsonb) from public,anon,authenticated,service_role;
-revoke all on function public.record_lifetime_lane_output(uuid, uuid, bigint, text, text, text) from public,anon,authenticated,service_role;
+revoke all on function public.read_lifetime_timeline_candidates(uuid,uuid,text,jsonb) from public,anon,authenticated,service_role;
+revoke all on function public.record_lifetime_lane_output(uuid, uuid, bigint, text, text, text, jsonb) from public,anon,authenticated,service_role;
 revoke all on function public.record_lifetime_skill_phase(jsonb, text, text, uuid) from public,anon,authenticated,service_role;
 revoke all on function public.record_lifetime_skill_phase_before_place_progress(jsonb, text, text, uuid) from public,anon,authenticated,service_role;
 revoke all on function public.record_lifetime_source_position() from public,anon,authenticated,service_role;
@@ -14976,7 +15082,8 @@ grant EXECUTE on function public.read_workspace_memory_focus(text, jsonb) to ser
 grant EXECUTE on function public.reconcile_interview_photo_links(uuid, text) to service_role;
 grant EXECUTE on function public.reconcile_lifetime_source_continuity() to service_role;
 grant EXECUTE on function public.record_background_service_work(uuid, text, jsonb) to service_role;
-grant EXECUTE on function public.record_lifetime_lane_output(uuid, uuid, bigint, text, text, text) to service_role;
+grant EXECUTE on function public.read_lifetime_timeline_candidates(uuid,uuid,text,jsonb) to service_role;
+grant EXECUTE on function public.record_lifetime_lane_output(uuid, uuid, bigint, text, text, text, jsonb) to service_role;
 grant EXECUTE on function public.record_lifetime_skill_phase(jsonb, text, text, uuid) to service_role;
 grant EXECUTE on function public.record_lifetime_source_position() to service_role;
 grant EXECUTE on function public.record_memory_event_change() to service_role;

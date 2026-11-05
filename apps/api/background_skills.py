@@ -25,9 +25,7 @@ SKILLS = {item.name: item for item in (
         gates=('canonical_activation','source_policy_fence','B_skill_selection'),recovery='durable_lane'),
     Skill('memoir-family-tree', None, 'model', 'relationship_evidence', 'unwired',
         gates=('family_entitlement','relationship_evidence','integration_required')),
-    Skill('memoir-event-group', 'grouping', 'deterministic', 'event_grouping',
-        gates=('canonical_activation','source_policy_fence','event_revision'),recovery='durable_lane'),
-    Skill('memoir-place-groups', None, 'deterministic', 'place_change', 'deprecated',
+    Skill('memoir-place-groups', 'grouping', 'deterministic', 'place_change', 'deprecated',
         gates=('owned_project','public_places','request_deduplication'),recovery='request'),
     Skill('memoir-story-game', 'game', 'model', 'game_button', modes=('shape',),
         gates=('current_delivered_A_shape','explicit_button','composer_chapters','canonical_timeline','adaptation_consent',
@@ -48,7 +46,7 @@ SKILLS = {item.name: item for item in (
 
 def execution_map():
     from .recall import private_draft_cadence
-    return [{**asdict(item), 'lane':'B' if item.runner or item.status in {'unwired','unavailable'} else None,
+    return [{**asdict(item), 'lane':'B' if item.status != 'deprecated' and (item.runner or item.status in {'unwired','unavailable'}) else None,
         'mode_independent':item.name != 'memoir-story-game',
         'cadence':{'every_completed_rounds':private_draft_cadence()} if item.name=='memoir-composer' else None,
         'compatibility':'flag_off_place_in_A' if item.name == 'memoir-place-journey' else None}
@@ -93,14 +91,18 @@ def admit(name, trigger):
 def admit_lane(fence, phase):
     """Admit only canonical bounded phases, not a catalog-selected model call."""
     if fence.skill == 'timeline':
-        if phase not in {'extract','summarize','profile'}:
+        if phase not in {'extract','reconcile','summarize','profile'}:
             raise SkillUnavailable('phase_required')
         name = 'memoir-memory-context' if phase == 'profile' else 'memoir-author-timeline'
         if (phase == 'extract' and fence.two_lane is not None and fence.two_lane.selected_skills is not None
                 and 'memoir-author-timeline' not in fence.two_lane.selected_skills):
             name = 'memoir-place-journey'
-        if phase == 'extract' and fence.two_lane is not None and fence.two_lane.work_mode != 'extract':
+        if phase in {'extract','reconcile'} and fence.two_lane is not None and fence.two_lane.work_mode != 'extract':
             raise SkillUnavailable('reply_only')
+        if phase == 'reconcile':
+            from .timeline_reconciliation import uses_reconciliation
+            if not fence.two_lane or not uses_reconciliation(fence.two_lane.selected_skills):
+                raise SkillUnavailable('timeline_reconciliation_not_selected')
         if phase == 'profile' and (not fence.profile_context or fence.profile_context.get('work_mode') != 'extract'
                 or not fence.profile_context.get('targets')):
             raise SkillUnavailable('manual_or_no_targets')
@@ -144,7 +146,8 @@ async def _record(function, arguments, *, owner=None):
 class ServiceWork:
     """Request/claim-scoped progress, not durable resumption for optional jobs."""
     def __init__(self, name, trigger, owner, project_id, reference, *, client_turn_id=None, research_job_id=None):
-        self.skill = admit(name,trigger)
+        # Existing clients can still resolve public geography through the compatibility route.
+        self.skill = SKILLS[name] if (name,trigger) == ('memoir-place-groups','place_change') else admit(name,trigger)
         self.owner,self.project_id = owner,project_id
         self.client_turn_id = str(client_turn_id) if client_turn_id else None
         self.research_job_id = research_job_id
@@ -171,14 +174,14 @@ async def group_places(owner,project_id,places,*,client_turn_id=None,language=No
     if language not in (None,'en-AU','zh-CN'):
         from fastapi import HTTPException
         raise HTTPException(422,'Unsupported place display language')
-    work = ServiceWork('memoir-event-group','event_grouping',owner,project_id,places,client_turn_id=client_turn_id)
+    work = ServiceWork('memoir-place-groups','place_change',owner,project_id,places,client_turn_id=client_turn_id)
     await work.update('running')
     try:
         result = await asyncio.to_thread(resolve_place_groups,places,language=language)
     except BaseException:
         await work.update('failed')
         raise
-    return {**result,'skills':[work.skill.name],'skill_progress':await work.update('completed')}
+    return {**result,'skill_progress':await work.update('completed')}
 
 
 async def photo_step(owner,project_id,result,*,client_turn_id=None):

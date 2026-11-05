@@ -204,12 +204,14 @@ def lane_prompt_name(phase, *, timeline=True):
         return 'memoir/skills/memory-context/' + ('summary' if phase == 'summarize' else phase)
     if phase == 'extract':
         return 'memoir/skills/' + ('author-timeline' if timeline else 'place-journey') + '/extract'
+    if phase == 'reconcile':
+        return 'memoir/skills/author-timeline/reconcile'
     return 'memoir/skills/composer/' + phase
 
 
 def lane_contract(phase, locale, *, batch=False, two_lane=False, fence=None, retry_reason=None):
     """Use server code, never client-supplied instructions or output schemas."""
-    if phase not in {'extract', 'summarize', 'profile', 'prepare', 'draft', 'review'}:
+    if phase not in {'extract', 'reconcile', 'summarize', 'profile', 'prepare', 'draft', 'review'}:
         raise ValueError('Unsupported lane phase')
     if phase == 'profile':
         from .background_profile import profile_contract
@@ -217,6 +219,9 @@ def lane_contract(phase, locale, *, batch=False, two_lane=False, fence=None, ret
     elif phase == 'summarize':
         from .lifetime_memory_summary import summary_contract
         instructions, schema = summary_contract(fence,retry_reason=retry_reason)
+    elif phase == 'reconcile':
+        from .timeline_reconciliation import ReconciliationResult
+        schema = ReconciliationResult.model_json_schema()
     elif phase == 'extract':
         if two_lane:
             from .two_lane_memory import extraction_contract
@@ -249,14 +254,17 @@ def lane_contract(phase, locale, *, batch=False, two_lane=False, fence=None, ret
         event=schema['$defs']['EventProposal']['properties']
         drafts = 'DraftEventRelation' in schema['$defs']
         event['id'] = {'type':['string','null'],'pattern':r'^draft-[1-9][0-9]{0,2}$'} if drafts else {'type':'null'}
-        event['existing_id']={'type':['string','null'],'enum':[None,*identities]}
+        event['existing_id']={'type':'null'} if drafts else {'type':['string','null'],'enum':[None,*identities]}
+        if drafts:
+            for field in ('expected_revision','correction'):
+                event[field] = {'type':'null'}
         event['life_stage']={'type':['string','null'],'enum':[None,'unplaced',*LIFE_STAGES]}
         for field in ('person_ids','candidate_ids','relations'):
             for option in event[field]['anyOf']:
                 if option.get('type')=='array':
-                    if field=='person_ids' or not identities and (field!='relations' or not drafts):option['maxItems']=0
+                    if field=='person_ids' or field=='candidate_ids' and drafts or not identities and (field!='relations' or not drafts):option['maxItems']=0
                     elif field=='candidate_ids':option['items']['enum']=identities
-                    elif field=='relations' and drafts and not identities:
+                    elif field=='relations' and drafts:
                         option['items'] = {'$ref': '#/$defs/DraftEventRelation'}
         if identities:schema['$defs']['EventRelation']['properties']['event_id']['enum']=identities
     if phase == 'draft' and fence is not None:
@@ -290,15 +298,15 @@ class BoundedLaneInput(Contract):
     fence: LaneFence
     budget: ContextBudget
     prompt_version: Literal['lifetime-lane-v1'] = 'lifetime-lane-v1'
-    phase: Literal['extract', 'summarize', 'profile', 'prepare', 'draft', 'review']
+    phase: Literal['extract', 'reconcile', 'summarize', 'profile', 'prepare', 'draft', 'review']
     packet: str = Field(min_length=1, max_length=10_000_000)
 
     @model_validator(mode='after')
     def validate_transport(self):
-        if self.phase not in {'timeline': {'extract','summarize','profile'},
+        if self.phase not in {'timeline': {'extract','reconcile','summarize','profile'},
                                'composer': {'prepare','draft','review'}}[self.fence.skill]:
             raise ValueError('Bounded lane phase does not match skill')
-        maximum_input = 98304 if self.phase in {'prepare', 'draft', 'review'} or self.phase == 'extract' and self.fence.timeline_context else 65536
+        maximum_input = 98304 if self.phase in {'prepare', 'draft', 'review', 'reconcile'} or self.phase == 'extract' and self.fence.timeline_context else 65536
         if (self.budget.context_window > 131072 or self.budget.input_budget > maximum_input
                 or self.budget.framing_headroom < 2048):
             raise ValueError('Bounded lane budget exceeds the reviewed transport limits')
@@ -345,6 +353,8 @@ def _lane_context(fence, preferences):
 
 def lane_artifact_digest(phase, value):
     """Bind derived prose, allowing only the host's deterministic metadata pins."""
+    if phase == 'extract':
+        return hashlib.sha256(serialize_packet(value).encode('utf-8')).hexdigest()
     from .memoir_preview import normalize_composer_refs, normalize_canonical_actions, normalize_canonical_event_dispositions
     value = normalize_composer_refs(deepcopy(_object(value) if isinstance(value,str) else value))
     if not isinstance(value,dict):
@@ -360,6 +370,9 @@ def lane_artifact_digest(phase, value):
 def _required_artifacts(phase, payload):
     if not isinstance(payload, dict):
         raise ValueError('A bounded lane payload must be an object')
+    if phase == 'reconcile':
+        packet = {key:value for key,value in payload.items() if key != 'retry_reason'}
+        return [LaneArtifact(phase='extract', digest=lane_artifact_digest('extract', packet))]
     request = payload.get('request', {})
     if not isinstance(request, dict) or not isinstance(request.get('context', {}), dict):
         raise ValueError('Invalid canonical lane context')
@@ -537,6 +550,19 @@ def _validate_phase_packet(fence,phase,payload):
             or type(source.get('char_start')) is not int or source['char_start']<0
             or source.get('char_end')!=source['char_start']+len(source['text'])):
         raise ValueError('Invalid canonical source window')
+    if phase == 'reconcile':
+        from .memory_events import ExtractionResult
+        from .timeline_reconciliation import uses_reconciliation
+        if (not fence.two_lane or fence.two_lane.work_mode != 'extract'
+                or not uses_reconciliation(fence.two_lane.selected_skills)
+                or set(payload)-{'drafts','published_events','message_id','retry_reason'}
+                or not isinstance(payload.get('published_events'),list) or len(payload['published_events']) > 16
+                or not isinstance(payload.get('drafts'),list) or not payload['drafts']
+                or payload.get('retry_reason') not in (None,'INVALID_RECONCILIATION')
+                or fence.prior_outputs != _required_artifacts(phase,payload)):
+            raise ValueError('Reconciliation requires its exact same-page draft and candidate proof')
+        ExtractionResult.model_validate({'events':payload['drafts']})
+        return
     if phase=='extract':
         from .timeline_context import context_sources
         context = fence.timeline_context
@@ -783,7 +809,7 @@ async def send_bounded_lane_request(*, worker_url, worker_secret, bounded_lane,
     publisher = _publisher(bounded,publisher)
     payload = {'user_id':str(bounded.fence.user_id), 'project_id':bounded.fence.project_id,
         'agent_role':('memory_context' if bounded.phase == 'profile' else
-            'author_timeline' if bounded.phase in {'extract','summarize'} else 'composer'),
+            'author_timeline' if bounded.phase in {'extract','reconcile','summarize'} else 'composer'),
         'model':bounded.budget.model, 'language':bounded.fence.locale,
         'bounded_lane':bounded.model_dump(mode='json')}
     if bounded.phase in {'prepare','draft','review'}:
@@ -832,7 +858,7 @@ async def run_bounded_lane(*, command, home_root, base_url, api_key, model,
     bounded = _validated(bounded_lane,model)
     await validate_lane_payload(bounded)
     role = ('memory_context' if bounded.phase == 'profile' else
-        'author_timeline' if bounded.phase in {'extract','summarize'} else 'composer')
+        'author_timeline' if bounded.phase in {'extract','reconcile','summarize'} else 'composer')
     skill_name = {'memory_context': 'memoir-memory-context',
         'author_timeline': 'memoir-author-timeline', 'composer': 'memoir-composer'}[role]
     if (bounded.phase == 'extract' and bounded.fence.two_lane

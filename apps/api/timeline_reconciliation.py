@@ -1,6 +1,9 @@
-"""Reconcile validated timeline drafts before canonical publication."""
+"""The second Timeline phase chooses event identities. The host owns publication."""
 import json
 from copy import deepcopy
+from typing import Literal
+
+from pydantic import BaseModel, ConfigDict, Field
 
 from .active_location import chronological_event_indices
 from .memory_events import ExtractionResult, _memory_birth_year
@@ -10,6 +13,82 @@ from .place_journey import grounded_place_journeys, validate_place_journey
 
 EVIDENCE_LISTS = frozenset({'source_refs', 'stage_evidence', 'location_basis', 'relations'})
 DRAFT_CONFLICT = 'Drafts for the same event disagree'
+
+
+def uses_reconciliation(selected):
+    return selected is not None and 'memoir-author-timeline' in selected and 'memoir-place-journey' not in selected
+
+
+class PublishedOrder(BaseModel):
+    model_config = ConfigDict(extra='forbid', strict=True)
+    kind: Literal['before', 'after']
+    event_id: str = Field(min_length=1, max_length=128)
+    evidence_index: int = Field(ge=0, le=99)
+
+
+class DraftDecision(BaseModel):
+    model_config = ConfigDict(extra='forbid', strict=True)
+    draft_index: int = Field(ge=0, le=99)
+    action: Literal['create', 'update', 'unresolved']
+    event_id: str | None = Field(max_length=128)
+    candidate_ids: list[str] = Field(max_length=16)
+    correction: bool
+    order: list[PublishedOrder] = Field(max_length=16)
+
+
+class ReconciliationResult(BaseModel):
+    model_config = ConfigDict(extra='forbid', strict=True)
+    decisions: list[DraftDecision] = Field(min_length=1, max_length=100)
+
+
+def placement_hints(drafts, birth_year):
+    def year(timing, estimate, endpoint):
+        stated = timing.get('year_'+endpoint)
+        inferred = estimate.get('year_'+endpoint)
+        age = estimate.get('age_'+endpoint)
+        return stated or inferred or (birth_year+age if birth_year is not None and age is not None else None)
+    hints = []
+    for draft in drafts:
+        timing, estimate = draft.get('temporal') or {}, draft.get('temporal_estimate') or {}
+        hint = dict(kind=draft['kind'], location=draft.get('location'),
+            start_year=year(timing,estimate,'start'), end_year=year(timing,estimate,'end'))
+        if hint not in hints:
+            hints.append(hint)
+    return hints
+
+
+def assign_event_identities(raw, drafts, candidates, original):
+    """Apply a complete decision set without accepting model-written evidence."""
+    result = ReconciliationResult.model_validate(raw)
+    by_index = {item.draft_index:item for item in result.decisions}
+    if len(by_index) != len(result.decisions) or set(by_index) != set(range(len(drafts))):
+        raise ValueError('Each draft requires exactly one reconciliation decision')
+    published = {event['id']:event for event in candidates}
+    proposals = deepcopy(drafts)
+    for index, draft in enumerate(proposals):
+        decision = by_index[index]
+        possible = decision.candidate_ids
+        saved = published.get(decision.event_id)
+        if decision.action == 'update':
+            if not saved or draft['kind'] != saved['kind'] or possible:
+                raise ValueError('Update requires a compatible published event')
+            draft.update(existing_id=saved['id'], expected_revision=saved['revision'], title=saved['title'] or draft['title'])
+            if decision.correction:
+                draft['correction'] = dict(source_id=original['id'], version=original['version'],
+                    quote=original['text'], char_start=0, char_end=len(original['text']))
+        elif (decision.event_id or decision.correction or
+              bool(possible) != (decision.action == 'unresolved') or
+              any(event_id not in published or published[event_id]['kind'] != draft['kind'] for event_id in possible)):
+            raise ValueError('Create or unresolved decision has an invalid published target')
+        elif possible:
+            draft['candidate_ids'] = list(dict.fromkeys(possible))
+        for order in decision.order:
+            if (order.event_id not in published or order.event_id == decision.event_id
+                    or order.evidence_index >= len(draft['source_refs']) or possible):
+                raise ValueError('Published order requires its scoped target and draft evidence')
+            draft.setdefault('relations', []).append(dict(kind=order.kind, event_id=order.event_id,
+                source_refs=[draft['source_refs'][order.evidence_index]]))
+    return proposals
 
 
 def _append_distinct(target, values):
@@ -90,7 +169,10 @@ def group_event_drafts(drafts, links, published, profile):
     positions = {index: position for position, index in enumerate(order)}
     event_places = []
     for link in links:
-        item = {**link, 'event_index': positions[draft_indexes[link['event_index']]]}
+        index = draft_indexes[link['event_index']]
+        if events[index].get('candidate_ids'):
+            continue
+        item = {**link, 'event_index': positions[index]}
         _append_distinct(event_places, [item])
     grouped = [events[index] for index in order]
     ExtractionResult.model_validate({'events': grouped})

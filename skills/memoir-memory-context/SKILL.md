@@ -89,7 +89,7 @@ The output contains only these personal-profile proposals. Language, consent,
 access, entitlements, payments, completed rounds, strategy/phase, receipts, caches,
 and processing/manual-authority metadata remain application-owned. Lane A owns
 replies and questions. The timeline drafts event identity, stages, timing,
-chronology and location. Event Group publishes the events used by the map.
+chronology and location. The timeline publishes the events used by the map.
 Emit no interview text, legacy profile markers, event/stage classifications, coordinates,
 or place-journey records. Finish once every proposed value has valid original
 evidence and every unsupported, unchanged, or protected field is omitted.

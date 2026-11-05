@@ -300,9 +300,8 @@ async def native_search(provider, skill):
 
 def manifest():
     from apps.api.background_skills import SKILLS
-    excluded = {name for name, definition in SKILLS.items()
-                if definition.status == 'legacy' or definition.trigger == 'event_grouping'}
-    skills = sorted(p.parent.name for p in (ROOT / 'skills').glob('*/SKILL.md') if p.parent.name not in excluded)
+    retired = {name for name, definition in SKILLS.items() if definition.status == 'legacy'}
+    skills = sorted(p.parent.name for p in (ROOT / 'skills').glob('*/SKILL.md') if p.parent.name not in retired)
     return dict(skills=skills, scope='isolated live LLM skill contracts; no application persistence or end-to-end certification',
                 synthetic=True, concurrency=1, transport_retries=0,
                 skill_sha256={s: hashlib.sha256((ROOT / 'skills' / s / 'SKILL.md').read_bytes()).hexdigest() for s in skills})

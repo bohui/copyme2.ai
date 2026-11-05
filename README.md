@@ -414,8 +414,10 @@ Its fields are name, birth details and an explicit avatar artwork hint. Childhoo
 settings belong to timeline extraction.
 Mira produces her reply in Lane A without a skill-selection handoff. The host records
 the source choice in the durable lane snapshot. Each new window gets its own choice.
-The host runs [Event Group](skills/memoir-event-group/SKILL.md) after validating
-timeline drafts and publishes their revisions in the same transaction.
+Author Timeline first extracts private drafts. Its reconciliation step compares
+them with nearby published events and proposes which identities to update or
+create. The host validates both steps and publishes the event revisions and
+original message links in the same transaction.
 The storyteller can send corrections or further parts while Mira is replying.
 Each input keeps its own turn ID and original source. The browser queues inputs
 in order and interrupts Mira after the preceding source is acknowledged, then
@@ -875,7 +877,7 @@ Manual Google Web OAuth and Supabase Google sign-in setup is documented in [`gcp
 ### Published events on the memoir map
 
 Timeline extraction produces private drafts with supported locations, estimated
-time bounds, and evidence for ordering. Event Group reconciles drafts with
+time bounds, and evidence for ordering. Timeline reconciliation selects
 published event identities and revisions. The map reads active published
 events, groups their locations by city, and uses each city's earliest event
 start and latest event end for its card. Sourced before and after relations

@@ -40,11 +40,13 @@ def test_resolved_language_reaches_background_skills_and_map_cards(sql,tmp_path,
             return await super().turn(thread_id,prompt,**options)
     def respond(body):
         task=json.loads(body['input'])
-        phase='profile' if 'profile_patch' in body['text']['format']['schema']['properties'] else 'extract'
+        fields=body['text']['format']['schema']['properties']
+        phase='profile' if 'profile_patch' in fields else 'reconcile' if 'decisions' in fields else 'extract'
         phases.append(phase)
         assert task['lane_context']['preferences']['language']==locale
         language='Simplified Chinese' if locale=='zh-CN' else 'Australian English'
-        assert f'Write in {language}; preserve original quoted source language.' in body['instructions']
+        if phase != 'reconcile':
+            assert f'Write in {language}; preserve original quoted source language.' in body['instructions']
         output=empty_document(body)
         if phase=='extract':
             packet=task['payload']
@@ -67,7 +69,7 @@ def test_resolved_language_reaches_background_skills_and_map_cards(sql,tmp_path,
         run,=service(sql,'pending_memoir_background_agents')
         result=asyncio.run(worker.execute_background_agent(run))
         assert result['status']=='finished',result
-        assert phases==['profile','extract']
+        assert phases==['profile','extract','reconcile']
         profile=conversation.client.get('/v1/agent/profile').json()
         assert profile['preferred_language']==locale
         response=conversation.client.get('/v1/story/map-events',params={'project_id':conversation.project})
@@ -79,8 +81,10 @@ def test_resolved_language_reaches_background_skills_and_map_cards(sql,tmp_path,
         assert replay.returncode==0,replay.stdout+replay.stderr
 
 
-def test_event_group_publishes_order_and_revises_a_city_period(sql,tmp_path,monkeypatch):
+def test_timeline_reconciles_and_revises_a_city_period(sql,tmp_path,monkeypatch):
+    from uuid import uuid4
     from test_conversation_attribution import episode, reference
+    from test_shared_memory_events_postgres import literal, rpc
 
     monkeypatch.setenv('MEMORY_SPARK_DISABLE_PRIVDROP','1')
     monkeypatch.setenv('MEMORY_SPARK_TASK_DB',str(tmp_path / 'tasks.sqlite'))
@@ -91,6 +95,8 @@ def test_event_group_publishes_order_and_revises_a_city_period(sql,tmp_path,monk
     departure = 'I left Porto in 2010.'
     detail = 'That was the period when I worked at the library.'
     extraction_calls = []
+    reconciliation_calls = []
+    message_ids = []
 
     class TimelineConnection(ControlledSkillConnection):
         source_choices = ('memoir-author-timeline',)
@@ -103,9 +109,29 @@ def test_event_group_publishes_order_and_revises_a_city_period(sql,tmp_path,monk
 
     def respond(body):
         schema = body['text']['format']['schema']
+        packet = json.loads(body['input'])['payload']
+        if 'decisions' in schema['properties']:
+            reconciliation_calls.append(packet)
+            assert packet['message_id'] == message_ids[-1]
+            assert all('existing_id' not in draft for draft in packet['drafts'])
+            output = empty_document(body)
+            if len(message_ids) == 1:
+                assert packet['published_events'] == []
+                assert sql('select count(*) from public.user_memory_event;').stdout.strip() == '0'
+            else:
+                saved = next(event for event in packet['published_events'] if event['title'] == 'Porto')
+                assert (saved['start_year'],saved['end_year']) == (1999,2016)
+                assert saved['description'] == porto
+                assert saved['location']['place'] == 'Porto'
+                target = saved['id']
+                if 'retry_reason' not in packet:
+                    target = 'event-outside-reconciliation-scope'
+                for decision in output['decisions']:
+                    decision.update(action='update',event_id=target)
+            return output
         assert 'place_journeys' not in schema['properties']
         assert 'DraftEventRelation' in schema['$defs']
-        packet = json.loads(body['input'])['payload']
+        assert schema['$defs']['EventProposal']['properties']['existing_id'] == {'type':'null'}
         text = packet['sources'][0]['text']
         extraction_calls.append(text)
 
@@ -126,11 +152,9 @@ def test_event_group_publishes_order_and_revises_a_city_period(sql,tmp_path,monk
             output = [later, earlier, {**later, 'id':'draft-3'}]
         else:
             assert text == f'{departure} {detail}'
-            saved = next(event for event in packet['events'] if event['title'] == 'Porto')
-            assert saved['temporal_estimate']['year_end'] == 2016
-            update = {**episode(packet, departure, title='Porto', existing=saved), 'kind':'period',
+            update = {**episode(packet, departure, title='Porto'), 'kind':'period',
                 'temporal':dict(expression='2010', precision='year', year_end=2010, basis=[reference(packet, departure)])}
-            additional = {**episode(packet, detail, title='Porto', existing=saved), 'kind':'period',
+            additional = {**episode(packet, detail, title='Porto'), 'kind':'period',
                 'temporal_estimate':None, 'location':None, 'location_basis':[], 'locationConfidenceScore':0.0,
                 'yearConfidenceScore':0.0, 'relations':[]}
             output = [update, additional]
@@ -151,7 +175,8 @@ def test_event_group_publishes_order_and_revises_a_city_period(sql,tmp_path,monk
         worker_transport=httpx.ASGITransport(app=app))
 
     def publish(text, end):
-        conversation.say(text)
+        message_ids.append(str(uuid4()))
+        conversation.say(text, turn=message_ids[-1])
         conversation.deliver_receipts()
         sql('update public.user_memoir_background_agent set available_at=clock_timestamp();')
         run, = service(sql,'pending_memoir_background_agents')
@@ -185,8 +210,13 @@ def test_event_group_publishes_order_and_revises_a_city_period(sql,tmp_path,monk
             on (s.user_id,s.project_id,s.event_id)=(e.user_id,e.project_id,e.id)
             where e.data->>'title'='Porto' and s.stage_progress_role='primary';""").stdout.strip() == '3'
         assert sql("""select count(*) from public.user_background_skill_work
-            where skill='memoir-event-group' and execution='deterministic' and status='saved';""").stdout.strip() == '2'
+            where skill='memoir-author-timeline' and phase='reconcile' and execution='model'
+              and status='saved';""").stdout.strip() == '2'
+        record = next(event for event in rpc(sql,'read_user_memory_events',literal(conversation.project))['events']
+                      if event['id'] == revised['id'])
+        assert record['message_ids'] == message_ids
         assert extraction_calls == [first,f'{departure} {detail}']
+        assert len(reconciliation_calls) == 3 and reconciliation_calls[-1]['retry_reason'] == 'INVALID_RECONCILIATION'
 
 
 @pytest.mark.parametrize('profile_first',[False,True])
@@ -411,7 +441,7 @@ def test_failed_extraction_retry_preserves_the_saved_source_skills(sql,tmp_path,
     ((), 'Hello.', []),
     (('memoir-author-timeline',), 'I repaired bicycles in our garden.', ['events']),
     (('memoir-memory-context',), 'I was born in 1960.', ['profile_patch']),
-    (('memoir-memory-context','memoir-author-timeline'), 'My name is Avery. I lived in Hobart.', ['profile_patch','events']),
+    (('memoir-memory-context','memoir-author-timeline'), 'My name is Avery. I lived in Hobart.', ['profile_patch','events','decisions']),
 ])
 def test_lane_b_selects_each_source_skill_or_none_independently_of_lane_a_and_rounds(
         sql,tmp_path,monkeypatch,choices,text,phases):
@@ -426,7 +456,7 @@ def test_lane_b_selects_each_source_skill_or_none_independently_of_lane_a_and_ro
     def respond(body):
         task=json.loads(body['input'])
         fields=body['text']['format']['schema']['properties']
-        phase='profile_patch' if 'profile_patch' in fields else 'events'
+        phase='profile_patch' if 'profile_patch' in fields else 'decisions' if 'decisions' in fields else 'events'
         nested.append(phase)
         nested_metadata.append(body['metadata'])
         output=empty_document(body)
@@ -437,7 +467,7 @@ def test_lane_b_selects_each_source_skill_or_none_independently_of_lane_a_and_ro
             output['profile_patch']=[{'field':'name' if named else 'birth_year','value':'Avery' if named else 1960,'source_refs':[{
                 'source_id':source['id'],'version':source['version'],'quote':quote,
                 'char_start':0,'char_end':len(quote)}]}]
-        elif 'Hobart' in text:
+        elif phase == 'events' and 'Hobart' in text:
             packet=task['payload']
             ref=reference(packet, 'I lived in Hobart.')
             output['events']=[{**episode(packet, ref['quote'], title='Living in Hobart'), 'kind':'period',
@@ -477,7 +507,7 @@ def test_lane_b_selects_each_source_skill_or_none_independently_of_lane_a_and_ro
         assert all(meta['trace_name']=='memoir-atlas' for meta in nested_metadata)
         assert [meta['generation_name'] for meta in nested_metadata]==[
             'memoir-memory-context.profile' if phase=='profile_patch' else
-            'memoir-author-timeline.extract'
+            'memoir-author-timeline.reconcile' if phase=='decisions' else 'memoir-author-timeline.extract'
             for phase in phases]
         assert sql('select bool_and(processing_status=\'succeeded\') from public.user_narrator_source;').stdout.strip() == 't'
         if choices == ('memoir-memory-context',):

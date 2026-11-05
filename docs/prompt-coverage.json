@@ -5,7 +5,7 @@
     "version": 2,
     "sha256": "73fea50d746085fcab1502aafbf44c26b2f8e8d31df4db8e0cca6793fd44354d",
     "use": "runtime",
-    "scenario": "Atlas selects Timeline for memoir events and geography, Profile for writable personal facts, or an empty selection. Event Group runs during timeline publication.",
+    "scenario": "Atlas selects Timeline for memoir events and geography, Profile for writable personal facts, or an empty selection. Timeline runs extraction and reconciliation for nonempty drafts.",
     "consumers": [
       {
         "path": "apps/api/memoir_background_agent.py",
@@ -62,7 +62,7 @@
       "tests/test_memoir_background_agent_workflow.py::test_finished_background_output_waits_for_foreground_policy_without_another_model_call",
       "tests/test_background_profile_postgres.py",
       "tests/test_memoir_background_agent_workflow.py::test_lane_b_selects_each_source_skill_or_none_independently_of_lane_a_and_rounds",
-      "tests/test_memoir_background_agent_workflow.py::test_event_group_publishes_order_and_revises_a_city_period"
+      "tests/test_memoir_background_agent_workflow.py::test_timeline_reconciles_and_revises_a_city_period"
     ],
     "gaps": [
       "No scored experiment items verified for the current pin"
@@ -731,7 +731,7 @@
       {
         "path": "scripts/memoir_skill_eval_suite.py",
         "symbol": "judge_definition",
-        "line": 90
+        "line": 88
       },
       {
         "path": "scripts/memoir_judge_calibration.py",
@@ -888,7 +888,7 @@
       {
         "path": "scripts/memoir_skill_eval_suite.py",
         "symbol": "judge_definition",
-        "line": 90
+        "line": 88
       },
       {
         "path": "scripts/memoir_judge_calibration.py",
@@ -1222,7 +1222,7 @@
       {
         "path": "scripts/memoir_skill_eval_suite.py",
         "symbol": "judge_definition",
-        "line": 90
+        "line": 88
       },
       {
         "path": "scripts/memoir_judge_calibration.py",
@@ -1275,7 +1275,7 @@
       {
         "path": "scripts/memoir_skill_eval_suite.py",
         "symbol": "judge_definition",
-        "line": 90
+        "line": 88
       },
       {
         "path": "scripts/memoir_judge_calibration.py",
@@ -1328,7 +1328,7 @@
       {
         "path": "scripts/memoir_skill_eval_suite.py",
         "symbol": "judge_definition",
-        "line": 90
+        "line": 88
       },
       {
         "path": "scripts/memoir_judge_calibration.py",
@@ -1381,7 +1381,7 @@
       {
         "path": "scripts/memoir_skill_eval_suite.py",
         "symbol": "judge_definition",
-        "line": 90
+        "line": 88
       },
       {
         "path": "scripts/memoir_judge_calibration.py",
@@ -1434,7 +1434,7 @@
       {
         "path": "scripts/memoir_skill_eval_suite.py",
         "symbol": "judge_definition",
-        "line": 90
+        "line": 88
       },
       {
         "path": "scripts/memoir_judge_calibration.py",
@@ -1487,7 +1487,7 @@
       {
         "path": "scripts/memoir_skill_eval_suite.py",
         "symbol": "judge_definition",
-        "line": 90
+        "line": 88
       },
       {
         "path": "scripts/memoir_judge_calibration.py",
@@ -1540,7 +1540,7 @@
       {
         "path": "scripts/memoir_skill_eval_suite.py",
         "symbol": "judge_definition",
-        "line": 90
+        "line": 88
       },
       {
         "path": "scripts/memoir_judge_calibration.py",
@@ -1593,7 +1593,7 @@
       {
         "path": "scripts/memoir_skill_eval_suite.py",
         "symbol": "judge_definition",
-        "line": 90
+        "line": 88
       },
       {
         "path": "scripts/memoir_judge_calibration.py",
@@ -1750,7 +1750,7 @@
       {
         "path": "scripts/memoir_skill_eval_suite.py",
         "symbol": "judge_definition",
-        "line": 90
+        "line": 88
       },
       {
         "path": "scripts/memoir_judge_calibration.py",
@@ -1902,7 +1902,7 @@
       {
         "path": "scripts/memoir_live_skill_cases.py",
         "symbol": "cases",
-        "line": 226
+        "line": 251
       },
       {
         "path": "scripts/memoir_live_skill_cases.py",
@@ -1940,7 +1940,7 @@
       {
         "path": "scripts/memoir_live_skill_cases.py",
         "symbol": "cases",
-        "line": 226
+        "line": 251
       },
       {
         "path": "scripts/memoir_live_skill_cases.py",
@@ -1978,7 +1978,7 @@
       {
         "path": "scripts/memoir_live_skill_cases.py",
         "symbol": "cases",
-        "line": 226
+        "line": 251
       },
       {
         "path": "scripts/memoir_live_skill_cases.py",
@@ -2016,7 +2016,7 @@
       {
         "path": "scripts/memoir_live_skill_cases.py",
         "symbol": "cases",
-        "line": 226
+        "line": 251
       },
       {
         "path": "scripts/memoir_live_skill_cases.py",
@@ -2054,7 +2054,7 @@
       {
         "path": "scripts/memoir_live_skill_cases.py",
         "symbol": "cases",
-        "line": 226
+        "line": 251
       },
       {
         "path": "scripts/memoir_live_skill_cases.py",
@@ -2092,7 +2092,7 @@
       {
         "path": "scripts/memoir_live_skill_cases.py",
         "symbol": "cases",
-        "line": 226
+        "line": 251
       },
       {
         "path": "scripts/memoir_live_skill_cases.py",
@@ -2130,7 +2130,7 @@
       {
         "path": "scripts/memoir_live_skill_cases.py",
         "symbol": "cases",
-        "line": 226
+        "line": 251
       },
       {
         "path": "scripts/memoir_live_skill_cases.py",
@@ -2542,7 +2542,7 @@
     "version": 4,
     "sha256": "ddb0fb2d3f908f45fa118c06dcff04ae44c1c8966669e60c9056096a25d883d1",
     "use": "conditional",
-    "scenario": "Draft supported timing, geography and chronology in the bounded source window. Resolve same-response and saved event relations through deterministic publication. Already-admitted legacy requests can include place hints.",
+    "scenario": "Draft original timing, geography and same-response chronology in a bounded source window. Canonical identity choices are deferred to reconciliation. Already-admitted legacy requests retain their identity and place contracts.",
     "consumers": [
       {
         "path": "apps/api/memory_events.py",
@@ -2739,13 +2739,52 @@
       "tests/test_assembled_prompts.py",
       "tests/test_prompt_publication.py",
       "tests/test_prompt_usage_link.py",
-      "tests/test_memoir_background_agent_workflow.py::test_event_group_publishes_order_and_revises_a_city_period",
+      "tests/test_memoir_background_agent_workflow.py::test_timeline_reconciles_and_revises_a_city_period",
       "tests/test_timeline_reported_places.py::test_map_city_chronology_preserves_skill_relations_across_paginated_api",
       "tests/js/map-memory-journey.test.mjs"
     ],
     "gaps": [
       "Requires scenario/branch-specific execution evidence",
       "No scored experiment items verified for the current pin"
+    ]
+  },
+  {
+    "name": "memoir/skills/author-timeline/reconcile",
+    "source": "skills/memoir-author-timeline/prompts/reconcile.md",
+    "version": null,
+    "sha256": "469fd86900933eb0ef50f5dad45de931d8419bb94775034528f827c35e82198f",
+    "use": "runtime",
+    "scenario": "Reconcile nonempty validated drafts with nearby active events under the same Timeline publication fence. Scope create, update, and unresolved decisions before saving message links.",
+    "consumers": [
+      {
+        "path": "apps/api/lifetime_memory_composer.py",
+        "symbol": "_reconcile_timeline",
+        "line": 146
+      },
+      {
+        "path": "apps/api/lifetime_memory_lane_engine.py",
+        "symbol": "lane_contract",
+        "line": 212
+      }
+    ],
+    "targets": [
+      "memoir/skills/author-timeline/reconcile"
+    ],
+    "evaluators": [],
+    "sdk_evaluators": [],
+    "declared_metrics": [
+      "contract (requires code/reference or manual grading)"
+    ],
+    "hosted_rule_ids": [],
+    "datasets": [],
+    "regressions": [
+      "tests/test_memoir_background_agent_workflow.py::test_timeline_reconciles_and_revises_a_city_period",
+      "tests/test_lifetime_memory_lane_engine.py",
+      "tests/test_memoir_live_skills.py"
+    ],
+    "gaps": [
+      "No active hosted dataset",
+      "No active hosted grader verified; use the declared regression/calibration path"
     ]
   },
   {
@@ -2764,7 +2803,7 @@
       {
         "path": "apps/api/lifetime_memory_lane_engine.py",
         "symbol": "lane_contract",
-        "line": 210
+        "line": 212
       }
     ],
     "targets": [
@@ -3461,7 +3500,7 @@
       {
         "path": "apps/api/lifetime_memory_lane_engine.py",
         "symbol": "lane_contract",
-        "line": 210
+        "line": 212
       }
     ],
     "targets": [
@@ -3606,7 +3645,7 @@
       {
         "path": "apps/api/lifetime_memory_lane_engine.py",
         "symbol": "lane_contract",
-        "line": 210
+        "line": 212
       }
     ],
     "targets": [
@@ -3746,7 +3785,7 @@
       {
         "path": "scripts/memoir_skill_eval_suite.py",
         "symbol": "packet",
-        "line": 169
+        "line": 167
       }
     ],
     "targets": [
@@ -5168,7 +5207,7 @@
       {
         "path": "scripts/memoir_live_skill_cases.py",
         "symbol": "cases",
-        "line": 226
+        "line": 251
       }
     ],
     "targets": [

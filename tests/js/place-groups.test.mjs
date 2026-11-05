@@ -140,7 +140,7 @@ test(`city grouping reports its actual ${failed?'failed':'completed'} skill call
   });
   for(const name of ['publicPlaceFields','resolvePlaceGroups']) vm.runInContext(extract(name),context);
   context.resolvePlaceGroups(city,{onProgress:step=>steps.push(step)});
-  assert.equal(steps[0].skill,'memoir-event-group');
+  assert.equal(steps[0].skill,'memoir-place-groups');
   assert.equal(steps[0].status,'running');
   finish();
   await new Promise(resolve=>setImmediate(resolve));

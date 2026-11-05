@@ -566,7 +566,7 @@ export function createPlaceWorkspace({
     const progressTurn = (state.chat || []).findLast(item => item.role === "assistant")?.clientTurnId;
     const report = (status, work = null) => {
       if (!isCurrentProjectScope(scope)) return;
-      const skill = work?.skill || "memoir-event-group";
+      const skill = work?.skill || "memoir-place-groups";
       recordWorkspaceSkillProgress({id:work?.id || `place-groups:${signature}`, replaces_id:work?.id ? `place-groups:${signature}` : null, kind:"skill", skill,
         project_id:projectId, client_turn_id:progressTurn, lane:"B", execution:"deterministic", model_invoked:false,
         label:skill, status,

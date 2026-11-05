@@ -6,8 +6,15 @@ from uuid import uuid4
 import httpx
 
 
+def create_draft_decisions(drafts):
+    return {'decisions':[dict(draft_index=index,action='create',event_id=None,
+        candidate_ids=[],correction=False,order=[]) for index,_ in enumerate(drafts)]}
+
+
 def empty_document(body):
     fields = body['text']['format']['schema']['properties']
+    if 'decisions' in fields:
+        return create_draft_decisions(json.loads(body['input'])['payload']['drafts'])
     return {key: [] for key in ('profile_patch', 'items', 'events', 'place_journeys',
         'continuity_updates', 'event_places', 'passage_dispositions') if key in fields}
 
