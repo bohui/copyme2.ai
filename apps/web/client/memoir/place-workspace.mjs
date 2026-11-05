@@ -1,6 +1,7 @@
 import { $, escapeHtml } from "./dom.mjs";
 import { createMapPhotoAlbums } from "./map-photo-albums.mjs";
 import { createMapMemoryEvents } from "./map-memory-events.mjs";
+import { installMapFlightPreloader } from "./map-flight-preload.mjs";
 import { matchesEventPlace } from "./map-memory-journey.mjs";
 import { currentUiLocale, translate, translateWith } from "../i18n.js";
 import { groupMapFrame, groupPlaces, mapTarget, matchesPlaceStage, mergePlaces, placeHistoryKey, specificPlaceChoices } from "./places.mjs";
@@ -324,8 +325,8 @@ export function createPlaceWorkspace({
 
   function disposeCesiumPlaceJourney() {
     disposeOpeningFlight?.();
-    disposeImagery?.();disposeImagery = null;
     mapMemoryEvents.dispose();
+    disposeImagery?.();disposeImagery = null;
     mapPhotoAlbums.dispose();
     if (!cesiumPlaceJourneyViewer) return;
     try {
@@ -741,9 +742,9 @@ export function createPlaceWorkspace({
 
           if (mapLayerFailed || !currentMap()) return;
           const removeError = layer.errorEvent.addEventListener(showImageryFallback);
-          const requestImage = layer.requestImage.bind(layer);
+          const requestImage = layer.requestImage;
           const wrappedRequestImage = (...args) => {
-            const request = requestImage(...args);
+            const request = requestImage.apply(layer, args);
             // Undefined means Cesium throttled the request; preserve its retry contract.
             if (!request) return request;
             return Promise.resolve(request).then(image => {
@@ -757,7 +758,22 @@ export function createPlaceWorkspace({
             });
           };
           layer.requestImage = wrappedRequestImage;
+          const stopPreloading = installMapFlightPreloader({viewer, cesium, provider:layer,
+            isCurrent:() => currentMap() && !mapLayerFailed,
+            onPreparing:preparing => {
+              if (!currentMap() || mapLayerFailed) return;
+              const scene = container.closest(".place-journey-scene");
+              const fallback = container.parentElement.querySelector(".place-journey-fallback");
+              if (preparing) {
+                scene?.classList.remove("is-cesium-live", "is-cesium-map");
+                fallback?.removeAttribute("aria-hidden");
+              } else {
+                scene?.classList.add("is-cesium-live", "is-cesium-map");
+                fallback?.setAttribute("aria-hidden", "true");
+              }
+            }});
           disposeImagery = () => {
+            stopPreloading();
             removeError();
             if (layer.requestImage === wrappedRequestImage) layer.requestImage = requestImage;
           };

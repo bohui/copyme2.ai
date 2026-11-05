@@ -2322,7 +2322,8 @@ function renderStory() {
     focus?.focus({preventScroll: true});
   } else state.profileMenuScope = null;
   const nextMap = $("[data-cesium-place]");
-  if (previousMap && nextMap && previousMap.dataset.cesiumScope === nextMap.dataset.cesiumScope) {
+  if (previousMap && nextMap && previousMap.dataset.cesiumScope === nextMap.dataset.cesiumScope
+      && previousMap.dataset.cesiumUnavailable === nextMap.dataset.cesiumUnavailable) {
     Object.assign(previousMap.dataset,nextMap.dataset);
     nextMap.closest(".place-journey-scene").replaceWith(previousScene);
     resizeCesiumPlaceJourney();

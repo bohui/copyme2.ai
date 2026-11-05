@@ -48,6 +48,27 @@ function renderedWorkspace(overrides = {}, dependencies = {}) {
   return app.innerHTML;
 }
 
+test('map paints reuse loaded imagery but replace a failed scene and an explicit retry', () => {
+  for (const [before, after, reuse] of [['false','false',true], ['false','true',false], ['true','false',false]]) {
+    let reused=0, disposed=0, initialized=0, resized=0, app;
+    const previousMap={dataset:{cesiumScope:'project-provider-locale',cesiumUnavailable:before}};
+    const previousScene={querySelector:()=>previousMap};
+    const nextScene={replaceWith:value=>{assert.equal(value,previousScene);reused++;}};
+    const nextMap={dataset:{cesiumScope:'project-provider-locale',cesiumUnavailable:after},closest:()=>nextScene};
+    const h=workspaceHarness({}, {
+      $:selector=>({'#app':app,'.place-journey-scene':previousScene,'[data-cesium-place]':nextMap}[selector] || null),
+      disposeCesiumPlaceJourney:()=>disposed++,initCesiumPlaceJourney:()=>initialized++,
+      resizeCesiumPlaceJourney:()=>resized++,photos:{refreshMapPhotos() {}},
+    });
+    app=h.app;
+    h.context.renderStory();
+    assert.equal(reused,reuse ? 1 : 0);
+    assert.equal(resized,reuse ? 1 : 0);
+    assert.equal(disposed,reuse ? 0 : 1);
+    assert.equal(initialized,reuse ? 0 : 1);
+  }
+});
+
 test('an unresolved location stays in the conversation while its lookup is pending', () => {
   for (const preview of [false, true]) {
     const html = renderedWorkspace({placeJourney: {place: '大石庙', preview}, privateDraft: {updating: true}});

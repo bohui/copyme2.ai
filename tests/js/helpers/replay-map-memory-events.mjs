@@ -29,6 +29,18 @@ for (const provider of ['google','geoapify']) for (const group of groups) {
   assert.equal(slow.loads(),1);
   assert.equal(slow.flights.length,0);
   assert.equal(slow.viewer.scene.screenSpaceCameraController.enableInputs,true);
+  const destination={longitude:frame.longitude,latitude:frame.latitude,height:frame.height || 40000};
+  slow.viewer.camera.flyTo({destination,duration:2.8});
+  assert.equal(slow.flights.length,0,'An API-backed location must prepare its zoom before flying');
+  for (let step=0;!slow.flights.length && step<64;step++) {
+    slow.loadedTiles();await new Promise(resolve=>setImmediate(resolve));
+  }
+  assert.equal(slow.flights.length,1,'Prepared API-backed locations use one continuous flight');
+  assert.deepEqual(slow.flights[0].options.destination,destination);
+  assert.ok(slow.views.some(view=>view.destination.height===destination.height));
+  slow.viewer.completeFlight();
+  assert.equal(slow.viewer.scene.screenSpaceCameraController.enableInputs,true);
+  slow.context.disposeCesiumPlaceJourney();
 }
 assert.equal(journey.nodes.length,2,'Both canonical API events need separate map cards');
 if (relative_current_home) {

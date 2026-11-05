@@ -1,6 +1,7 @@
 import vm from 'node:vm';
 import {readMemoirClientSource} from './memoir-source.mjs';
 import {escapeHtml} from '../../../apps/web/client/memoir/dom.mjs';
+import {installMapFlightPreloader} from '../../../apps/web/client/memoir/map-flight-preload.mjs';
 
 const source = readMemoirClientSource();
 const extract = name => source.match(new RegExp(`function ${name}\\([^]*?\\n\\}`))[0];
@@ -29,12 +30,12 @@ export async function harness(provider = 'geoapify', {
   const retry = {addEventListener: (event, listener) => retryHandlers.set(event, listener)};
   const fallback = {innerHTML:'', querySelector:() => retry,
     setAttribute: (key, value) => attributes.set(key, value), removeAttribute: key => attributes.delete(key)};
-  const sceneElement = {classList: {add: name => classes.add(name), remove: (...names) => names.forEach(name => classes.delete(name))}};
+  const sceneElement = {classList: {add: (...names) => names.forEach(name => classes.add(name)), remove: (...names) => names.forEach(name => classes.delete(name))}};
   const container = {isConnected: true, dataset: {placeKey,cesiumLatitude: String(journey.latitude), cesiumLongitude: String(journey.longitude), cesiumPlace: journey.place,cesiumHeight:journey.height ? String(journey.height) : ''},
     closest: () => sceneElement, parentElement: {querySelector: selector => selector === '[data-map-retry]' ? retry : fallback}};
   if (pendingFocus) container.dataset.cesiumPending='true';
   let viewer, imagery, finishSession, loads = 0, renders = 0;
-  const flights=[], timers=new Map(),animatedCities=new Set(animated ? [placeKey] : []);
+  const flights=[], views=[], timers=new Map(),animatedCities=new Set(animated ? [placeKey] : []);
   let timerId=0;
   class Provider {
     errorEvent = new Event();
@@ -50,6 +51,7 @@ export async function harness(provider = 'geoapify', {
     }},
     Credit: class {}, WebMercatorProjection: class {}, Cartesian2: class {},
     Cartesian3: {fromDegrees: (longitude, latitude, height) => ({longitude, latitude, height})},
+    Cartographic: {fromCartesian:value=>value}, Math: {toDegrees:value=>value},
     Color: {fromCssColorString: value => value}, LabelStyle: {}, ScreenSpaceEventType: {}, EasingFunction: {},
     Viewer: class {
       constructor() {
@@ -60,7 +62,8 @@ export async function harness(provider = 'geoapify', {
           morphTo2D: () => { this.scene.mode = 2;this.scene.globe.tilesLoaded=false; }, morphTo3D: () => { this.scene.mode = 3; }};
         this.entities = {add() {},removeAll() {}};
         this.screenSpaceEventHandler = {setInputAction() {}};
-        this.camera = {frustum: {fovy: 1, aspectRatio: 1}, setView:options=>{this.view=options;}, cancelFlight() {},
+        this.camera = {frustum: {fovy: 1, aspectRatio: 1}, positionCartographic:{height:20000000},
+          setView:options=>{this.view=options;views.push(options);this.scene.globe.tilesLoaded=false;}, cancelFlight() {},
           flyTo: options => { flights.push({options,layer:this.imageryLayers.layer});
             this.completeFlight=()=>{this.scene.globe.tilesLoaded=false;options.complete();}; }};
         this.imageryLayers = {
@@ -92,7 +95,7 @@ export async function harness(provider = 'geoapify', {
     setTimeout:callback=>{timers.set(++timerId,callback);return timerId;},clearTimeout:id=>timers.delete(id),
     placeMapRenderKey: () => 'map', unavailablePlaceMaps: new Set(), render() {renders++;context.initCesiumPlaceJourney();},
     composingWorkspaceActive: () => false, freeRecallFinished: () => false,
-    escapeHtml, translate: key => key,
+    escapeHtml, installMapFlightPreloader, translate: key => key,
   });
   for (const name of ['placeMapAvailable','workspaceContentAvailable','workspaceHasContent','workspaceIsVisible']) {
     vm.runInContext(extract(name), context);
@@ -105,7 +108,7 @@ export async function harness(provider = 'geoapify', {
   await tick();
   const frame=()=>viewer.scene.postRender.raiseEvent();
   const loadedTiles=()=>{viewer.scene.globe.tilesLoaded=true;frame();frame();};
-  return {viewer, imagery, container, classes, attributes, resolveImage, rejectImage, context, fallback,flights,frame,loadedTiles,timers,
+  return {viewer, imagery, container, classes, attributes, resolveImage, rejectImage, context, fallback,flights,views,frame,loadedTiles,timers,
     finishSession, expireTileWait() { const [id, callback] = [...timers][0]; timers.delete(id); callback(); },
     unavailable:context.unavailablePlaceMaps, retryHandlers, loads:()=>loads, renders:()=>renders,
     restoreProvider:()=>{sessionFailure=false;libraryFailure=false;}};

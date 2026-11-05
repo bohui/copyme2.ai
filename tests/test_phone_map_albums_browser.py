@@ -107,7 +107,7 @@ def album_page(request):
     with sync_playwright() as pw:
         browser = pw.chromium.launch(headless=True)
         context = browser.new_context(viewport={'width':390,'height':844},
-            reduced_motion='no-preference' if mode in ('slow-flight','conversation-focus') else 'reduce', is_mobile=True, has_touch=True)
+            reduced_motion='no-preference' if mode in ('slow-flight','preload-flight','conversation-focus') else 'reduce', is_mobile=True, has_touch=True)
         context.add_cookies([{'name':'copyme2_ui_locale','value':'zh-CN','url':base}, {'name':'copyme2_ui_locale_source','value':'fixed','url':base}])
         def boundary(route):
             if route.request.url.startswith(base) or any(host in route.request.url for host in ('cesium.com/', 'fonts.googleapis.com/', 'fonts.gstatic.com/')):
@@ -115,8 +115,11 @@ def album_page(request):
             else:
                 route.abort()
         context.route('**/*', boundary)
+        script_attempts = 0
         def cesium(route):
-            if mode == 'script-error':
+            nonlocal script_attempts
+            script_attempts += 1
+            if mode == 'script-error' and script_attempts == 1:
                 return route.abort()
             response = route.fetch()
             imagery = '''\nCesium.Google2DImageryProvider.fromUrl=async()=>new Cesium.GridImageryProvider();
@@ -127,11 +130,13 @@ def album_page(request):
             if mode == 'tile-error':
                 imagery += '''Cesium.Google2DImageryProvider.fromUrl=async()=>{const provider=new Cesium.GridImageryProvider();
                   provider.requestImage=()=>Promise.reject(new Error('Synthetic tile rejection'));return provider;};'''
-            if mode == 'slow-flight':
-                imagery += '''window.holdMapTiles=true;window.pendingMapTiles=[];window.mapFlights=[];window.finishedMapFlights=0;
+            if mode in ('slow-flight','preload-flight'):
+                imagery += '''window.holdMapTiles=true;window.pendingMapTiles=[];window.mapFlights=[];window.finishedMapFlights=0;window.flightTileRequests=[];
                   window.releaseMapTiles=()=>{window.holdMapTiles=false;pendingMapTiles.splice(0).forEach(resolve=>resolve());};
                   Cesium.Google2DImageryProvider.fromUrl=async()=>{const provider=new Cesium.GridImageryProvider(),request=provider.requestImage.bind(provider);
-                    provider.requestImage=(...args)=>{const image=request(...args);return window.holdMapTiles
+                    provider.requestImage=(...args)=>{if(window.mapFlights.length)flightTileRequests.push(args.slice(0,3));
+                      const result=request(...args),image=window.preloadBitmaps
+                        ? Promise.resolve(result).then(value=>createImageBitmap(value)) : result;return window.holdMapTiles
                       ? new Promise(resolve=>pendingMapTiles.push(()=>resolve(image))) : image;};return provider;};
                   const ViewerWithFlightTrace=Cesium.Viewer;
                   window.Cesium={...Cesium,Viewer:new Proxy(ViewerWithFlightTrace,{construct(target,args){
@@ -141,6 +146,13 @@ def album_page(request):
                       loaded:viewer.scene.globe.tilesLoaded,layers:viewer.imageryLayers.length});
                       window.holdMapTiles=true;return fly({...options,complete:()=>{window.finishedMapFlights++;options.complete?.();}});};
                     return viewer;}})};'''
+            if mode == 'preload-flight':
+                imagery += '''window.preloadBitmaps=true;window.preparedMapViews=[];const PreloadViewer=Cesium.Viewer;
+                  window.Cesium={...Cesium,Viewer:new Proxy(PreloadViewer,{construct(target,args){
+                    const viewer=Reflect.construct(target,args),setView=viewer.camera.setView.bind(viewer.camera);
+                    viewer.camera.setView=options=>{if(window.preloadingFlight){window.holdMapTiles=true;
+                      if(!window.mapFlights.length)preparedMapViews.push(viewer.scene.mode);}
+                      return setView(options);};return viewer;}})};'''
             if mode == 'conversation-focus':
                 imagery += '''window.mapFlights??=[];window.mapViewerCount??=0;
                   const TracedViewer=Cesium.Viewer;
@@ -241,7 +253,7 @@ def album_page(request):
             assert page.evaluate('mapFlights.length') == 0
         elif mode in ('script-error', 'tile-error', 'missing-key'):
             expect(page.locator('[data-map-retry]')).to_be_visible(timeout=30000)
-        elif mode == 'slow-flight':
+        elif mode in ('slow-flight','preload-flight'):
             page.wait_for_function('window.pendingMapTiles?.length>0',timeout=30000)
         else:
             expect(page.locator('.place-journey-scene.is-cesium-map')).to_be_visible(timeout=30000)
@@ -285,6 +297,39 @@ def test_restored_overview_waits_for_imagery_without_a_city_flight(album_page, w
     assert page.evaluate('__mapViewer.scene.screenSpaceCameraController.enableInputs')
 
 
+@pytest.mark.parametrize('album_page', ['preload-flight'], indirect=True)
+@pytest.mark.parametrize('width', [390, 1440])
+def test_active_map_flight_preloads_all_zoom_views_without_tile_waits(album_page, width):
+    page, _, _ = album_page
+    page.set_viewport_size({'width':width,'height':960})
+    page.evaluate('releaseMapTiles()')
+    expect(page.locator('.place-journey-scene.is-cesium-map')).to_be_visible(timeout=30000)
+    page.wait_for_function('__mapViewer.scene.globe.tilesLoaded')
+    page.evaluate('''() => {window.preparedMapViews=[];window.preloadingFlight=true;
+      __mapViewer.camera.flyTo({destination:Cesium.Cartesian3.fromDegrees(117.93,40.97,12000),duration:2.8});}''')
+    assert page.evaluate('mapFlights.length') == 0
+    assert not page.evaluate('__mapViewer.scene.screenSpaceCameraController.enableInputs')
+    prepared = 0
+    while page.evaluate('mapFlights.length') == 0 and prepared < 64:
+        page.wait_for_function('pendingMapTiles.length>0 || mapFlights.length>0',timeout=25000)
+        if page.evaluate('mapFlights.length'):
+            break
+        page.evaluate('releaseMapTiles()')
+        prepared += 1
+    assert 3 < prepared < 64
+    page.wait_for_function('finishedMapFlights===1',timeout=15000)
+    expect(page.locator('.place-journey-scene.is-cesium-map')).to_be_visible()
+    flights = page.evaluate('mapFlights')
+    assert len(flights) == 1
+    assert all(flight['loaded'] and flight['layers'] == 1 and flight['duration'] == 2.8 for flight in flights)
+    assert page.evaluate('flightTileRequests') == [], 'Flight imagery must already be cached'
+    assert page.evaluate('pendingMapTiles.length') == 0
+    assert page.evaluate('__mapViewer.scene.globe.tilesLoaded')
+    assert page.evaluate('__mapViewer.scene.screenSpaceCameraController.enableInputs')
+    OUTPUT.mkdir(parents=True,exist_ok=True)
+    page.screenshot(path=str(OUTPUT/f'loaded-flight-{width}.png'))
+
+
 
 @pytest.mark.parametrize('album_page', ['conversation-focus'], indirect=True)
 @pytest.mark.parametrize('width', [390, 1440])
@@ -299,7 +344,7 @@ def test_active_location_drives_flights_and_refresh_restores_all_cities(album_pa
         page.locator('#chat-input').fill(f'我想聊在{city}的生活。')
         page.locator('#chat-form button[type="submit"]').click()
         expect(page.locator('#chat-form button[type="submit"]')).to_be_enabled()
-        page.wait_for_function('(count)=>mapFlights.length===count&&!window.mapFlying',arg=flights,timeout=15000)
+        page.wait_for_function('(count)=>mapFlights.length===count&&!window.mapFlying',arg=flights,timeout=45000)
 
     first_viewer=page.evaluate('mapViewerCount')
     reply('承德',1)
@@ -644,6 +689,13 @@ def test_missing_map_stays_hidden_and_failed_map_keeps_retry(album_page,request)
         expect(page.locator('.workspace-media-map')).to_be_visible()
         expect(page.locator('[data-map-retry]')).to_be_visible()
         expect(page.locator('.workspace-media-gallery')).to_have_count(0)
+        if request.node.callspec.params['album_page'] == 'tile-error':
+            page.evaluate('Cesium.Google2DImageryProvider.fromUrl=async()=>new Cesium.GridImageryProvider()')
+        if request.node.callspec.params['album_page'] in ('script-error','tile-error'):
+            page.locator('[data-map-retry]').click()
+            expect(page.locator('.place-journey-scene.is-cesium-map')).to_be_visible(timeout=30000)
+            expect(page.locator('[data-map-retry]')).to_have_count(0)
+            assert page.evaluate('performance.getEntriesByType("navigation").length') == 1
     expect(page.locator('#chat-input')).to_be_enabled()
 
 
