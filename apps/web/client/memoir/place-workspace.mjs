@@ -238,7 +238,13 @@ export function createPlaceWorkspace({
     const matching = state.lifeStage === "all" ? places : places.filter(item => matchesPlaceStage(item, state.lifeStage)
       || nodes.some(node => placeHistoryKey(node.location) === placeHistoryKey(item)));
     const groups = workspacePlaceGroups(matching, publishedMap() ? eventPlaces : []);
-    const pins = groups.flatMap(group => groupMapFrame(group,placeMapTarget(group.city))?.pins || []);
+    const pins = groups.flatMap(group => {
+      const frame = groupMapFrame(group,placeMapTarget(group.city));
+      const memberPins = frame?.pins || [];
+      if (!memberPins.some(pin => pin.isChild)) return memberPins;
+      const {latitude, longitude} = mapTarget(group.city, []) || frame;
+      return [{key:`city-album:${group.key}`,place:group.city.place,latitude,longitude,overviewOnly:true}, ...memberPins];
+    });
     const map = placeJourneyMarkup(current, "workspace", null, pins);
     return `<section class="workspace-media-overview no-gallery" aria-label="${t("placeJourney")}"><div class="workspace-media-map"><div class="workspace-media-header workspace-media-map-header"><button type="button" data-all-places>${t("mapMemoryOverview")}</button>${toggle}</div>${map}</div></section>`;
   }
