@@ -153,7 +153,8 @@ migrate: ## Apply the consolidated Supabase migration using tracked migration hi
 	set +a; \
 	test -n "$${SUPABASE_DB_URL:-}" || { echo "Set SUPABASE_DB_URL in .env."; exit 2; }; \
 	command -v supabase >/dev/null || { echo "Missing Supabase CLI. Install it before running migrations."; exit 1; }; \
-	supabase db push --db-url "$${SUPABASE_DB_URL}" --yes
+	supabase db push --db-url "$${SUPABASE_DB_URL}" --yes && \
+	python3 scripts/setup_atlas_notifications.py
 
 db-reset: ## Reset disposable Supabase, Storage and Memoir Langfuse history; opt out with include-storage=false or include-langfuse=false.
 	@python3 scripts/backend_operation_lock.py -- $(MAKE) --no-print-directory _db-reset
