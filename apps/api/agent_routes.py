@@ -231,7 +231,8 @@ class PlaceJourneyResponse(BaseModel):
 
 
 @router.get('/config')
-def config():
+def config(request: Request):
+    from .local_debug import debug_early_generation
     from .recall import free_recall_rounds,private_draft_cadence
     from .private_draft_stream import draft_updates_enabled
     from .turn_progress import thinking_steps_enabled
@@ -249,6 +250,7 @@ def config():
         'geoapify_browser_api_key': os.getenv('GEOAPIFY_BROWSER_API_KEY') if provider == 'geoapify' else None,
         'show_thinking_steps': show_thinking_steps,
         'show_draft_updates': draft_updates_enabled(),
+        'debug_early_generation': debug_early_generation(request),
         'free_recall_rounds':free_recall_rounds(),
         'private_draft_cadence':private_draft_cadence(),
     }

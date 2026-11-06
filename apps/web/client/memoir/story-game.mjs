@@ -216,7 +216,7 @@ export function rankSceneOptions(options) {
 }
 
 
-export function createStoryGameDialog({ state, storyApi, captureProjectScope, isCurrentProjectScope, translate }) {
+export function createStoryGameDialog({ state, storyApi, captureProjectScope, isCurrentProjectScope, translate, generatePrivateDraft }) {
   let view = null;
   const t = key => translate(`Memoir.game.${key}`);
   const path = active => `/v1/agent/projects/${encodeURIComponent(active.scope.projectId)}`;
@@ -240,19 +240,19 @@ export function createStoryGameDialog({ state, storyApi, captureProjectScope, is
   }
   function sync() {
     if (view && (!isCurrentProjectScope(view.scope)
-        || state.currentInterviewMode?.mode !== "shape")) close();
+        || (!state.debugEarlyGeneration && state.currentInterviewMode?.mode !== "shape"))) close();
   }
   async function refresh(active = view) {
     if (!current()) return close();
     const revision = active.revision;
-    const before = JSON.stringify([active.status?.adaptation, active.status?.eligibility]);
+    const before = JSON.stringify([active.status?.adaptation, active.status?.eligibility, active.status?.composer_ready]);
     const status = await request("/story-game", {}, active);
     if (view !== active || !current() || active.revision !== revision) return;
     active.status = status;
     if (status.adaptation?.status === "stale") active.gameRequest = crypto.randomUUID();
     if (status.formal?.run?.status === "stale") active.formalRequest = crypto.randomUUID();
     const adaptation = view.status.adaptation;
-    const after = JSON.stringify([adaptation, view.status.eligibility]);
+    const after = JSON.stringify([adaptation, status.eligibility, status.composer_ready]);
     if (view.status.eligibility?.available && status.composer_ready !== false && adaptation?.game_id && adaptation.status === "published") {
       if (!view.content || before !== after) {
         const content = await request(`/story-game/${adaptation.game_id}`, {}, active);
@@ -374,7 +374,8 @@ export function createStoryGameDialog({ state, storyApi, captureProjectScope, is
     let markup = `<p role="status">${escapeHtml(t("loading"))}</p>`;
     if (status) {
       if (status.composer_ready === false) {
-        markup = `<p role="status">${escapeHtml(t("composerRequired"))}</p>`;
+        markup = `<p role="status">${escapeHtml(t("composerRequired"))}</p>${state.debugEarlyGeneration
+          ? `<button type="button" data-compose-for-game ${disabled}>${escapeHtml(translate("Memoir.storyFlow.generateMemoir"))}</button>` : ""}`;
       } else if (content?.status === "published") {
         markup = `<a data-game-page-link href="/memoir/game/${encodeURIComponent(view.scope.projectId)}">${escapeHtml(t("openGamePage"))}</a>
           <div data-story-game-player></div><button type="button" class="text-button" data-revoke-game ${disabled}>${escapeHtml(t("revoke"))}</button>`;
@@ -390,6 +391,11 @@ export function createStoryGameDialog({ state, storyApi, captureProjectScope, is
     view.body.innerHTML = `${view.busy ? `<p role="status">${escapeHtml(t("loading"))}</p>` : ""}
       ${view.error ? `<p role="alert">${escapeHtml(view.error)}</p>` : ""}${markup}`;
     view.body.querySelector("[data-game-consent]")?.addEventListener("submit", event => { event.preventDefault(); void action(generate); });
+    view.body.querySelector("[data-compose-for-game]")?.addEventListener("click", () => action(async active => {
+      const status = await generatePrivateDraft({forGame:true});
+      if (status === "error") throw new Error("draft_generation_failed");
+      if (status === "insufficient_context") active.error = translate("Memoir.recall.previewInsufficient");
+    }));
     view.body.querySelector("[data-revoke-game]")?.addEventListener("click", () => action(revoke));
     bindSelection();
     const root = view.body.querySelector("[data-story-game-player]");

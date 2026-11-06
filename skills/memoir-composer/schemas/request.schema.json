@@ -52,6 +52,9 @@
         "private_draft_authorized": {
           "type": "boolean"
         },
+        "private_draft_on_demand": {
+          "type": "boolean"
+        },
         "private_rounds_completed": {
           "type": "integer",
           "minimum": 0

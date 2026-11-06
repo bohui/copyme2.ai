@@ -65,6 +65,7 @@ const state = {
   codexReady: false,
   showThinkingSteps: false,
   showDraftUpdates: false,
+  debugEarlyGeneration: false,
   privateDraftExpanded: false,
   privateDraftThinkingExpanded: false,
   profileIntakePending: true,
@@ -267,13 +268,14 @@ const {
 
 const {
   currentSectionRework, decidePrivateDraftProposal, loadMorePrivateDraft, openSectionRework,
-  privateDraftPreview, privateDraftThinkingStep, refreshPrivateDraft, retryPrivateDraft, selectPrivateDraftLocale, submitSectionRework
+  generatePrivateDraft, privateDraftGenerationButton, privateDraftPreview, privateDraftThinkingStep,
+  refreshPrivateDraft, retryPrivateDraft, selectPrivateDraftLocale, submitSectionRework
 } = createPrivateDraft({
   applyBackgroundSkillProgress, captureProjectScope, freeRecallFinished, isCurrentProjectScope, memoirApiPath, persistChatHistory, profile,
   render, state, storyApi, updateStreamingAssistantMessage
 });
 
-const storyGameDialog = createStoryGameDialog({state,storyApi,captureProjectScope,isCurrentProjectScope,translate});
+const storyGameDialog = createStoryGameDialog({state,storyApi,captureProjectScope,isCurrentProjectScope,translate,generatePrivateDraft});
 
 const {
   addPerson, applyPersistedFamilyContext, closeFamilyPerson, familyWorkspace, initFamilyVisualizations,
@@ -512,10 +514,10 @@ async function ensureAuth() {
 async function loadSupabaseConfig() {
   const response = await fetch(memoirApiPath("/v1/agent/config"));
   const config = await response.json();
-  state.showThinkingSteps = config.show_thinking_steps === true &&
-    ["localhost", "127.0.0.1", "[::1]"].includes(window.location.hostname);
-  state.showDraftUpdates = config.show_draft_updates === true &&
-    ["localhost", "127.0.0.1", "[::1]"].includes(window.location.hostname);
+  const loopback = ["localhost", "127.0.0.1", "[::1]"].includes(window.location.hostname);
+  state.showThinkingSteps = config.show_thinking_steps === true && loopback;
+  state.showDraftUpdates = config.show_draft_updates === true && loopback;
+  state.debugEarlyGeneration = config.debug_early_generation === true && loopback;
   if (config.auth_mode === "test") {
     state.supabase = config;
     return;
@@ -1388,6 +1390,7 @@ async function streamAssistantMessage(text, metadata = {}) {
   const current = () => isCurrentProjectScope(scope);
   if (!current()) return null;
   const { scope: _scope, ...messageMetadata } = metadata;
+  if (messageMetadata.traceMode === "error") messageMetadata.failed = true;
   if (messageMetadata.streamedMessage) {
     const { streamedMessage, ...details } = messageMetadata;
     if (!state.chat.includes(streamedMessage)) return null;
@@ -1444,7 +1447,7 @@ async function refreshFamilyEntitlement() {
     state.recallStatus = entitlement.recall_status || null;
     // Project hydration can finish its draft read before restored allowance is
     // known. Recheck once eligibility arrives, without delaying the interview.
-    if (freeRecallFinished() && !state.showThinkingSteps && !state.showDraftUpdates) void refreshPrivateDraft();
+    if (freeRecallFinished() && !state.showThinkingSteps && !state.showDraftUpdates && !state.debugEarlyGeneration) void refreshPrivateDraft();
     if (freeRecallFinished()) void ensureRecallPreview();
     state.familyFeaturesEnabled = entitlement.family_features_enabled === true
       && features.has("family_tree")
@@ -2436,7 +2439,7 @@ function renderStory() {
 
 function workspaceContentAvailable() {
   return Boolean(composingWorkspaceActive() || freeRecallFinished()
-    || (state.project?.id && placeMapTarget(placeWorkspaceSelection())));
+    || (state.project?.id && (state.debugEarlyGeneration || placeMapTarget(placeWorkspaceSelection()))));
 }
 
 function workspaceHasContent() {
@@ -2519,10 +2522,12 @@ function composingWorkspaceActive() {
 
 function workspaceTabs() {
   const t = (key) => translate(`Memoir.workspace.${key}`);
-  const premium = state.familyFeaturesEnabled ? [["family", t("family")], ["timeline", t("timeline")]] : [];
-  return composingWorkspaceActive() || freeRecallFinished()
-    ? [...premium, ["memoir", t("chapters")]]
-    : [];
+  const chapters = ["memoir", t("chapters")];
+  if (composingWorkspaceActive() || freeRecallFinished()) {
+    const premium = state.familyFeaturesEnabled ? [["family", t("family")], ["timeline", t("timeline")]] : [];
+    return [...premium, chapters];
+  }
+  return state.project?.id && state.debugEarlyGeneration ? [chapters] : [];
 }
 
 function activeWorkspaceTab() {
@@ -2722,7 +2727,7 @@ function memoirWorkspace() {
   let selected = chapters.findIndex((chapter, index) => memoirChapterKey(chapter, index) === state.selectedMemoirChapter);
   if (selected < 0) selected = 0;
   const chapter = chapters[selected];
-  const draftPreview = privateDraftPreview({ inChapters: true }) + storyGameButton();
+  const draftPreview = privateDraftGenerationButton() + privateDraftPreview({ inChapters: true }) + storyGameButton();
   if (!chapter) return `<div class="workspace-scroll"><div class="workspace-intro"><h2>${t("memoir")}</h2></div>${draftPreview || `<div class="workspace-empty"><span>✦</span><p>${t("firstChapterEmpty")}</p></div>`}</div>`;
   state.selectedMemoirChapter = memoirChapterKey(chapter, selected);
   const button = (index, label, disabled = false) => `<button type="button" data-memoir-chapter="${escapeHtml(memoirChapterKey(chapters[index], index))}" ${disabled ? "disabled" : ""}>${label}</button>`;
@@ -2902,31 +2907,60 @@ function recallPackagePrompt() {
 }
 
 function storyGameButton() {
-  return state.currentInterviewMode?.project_id === state.project?.id && state.currentInterviewMode?.mode === "shape"
+  return state.project?.id && (state.debugEarlyGeneration ||
+    state.currentInterviewMode?.project_id === state.project.id && state.currentInterviewMode.mode === "shape")
     ? `<div class="workspace-game"><button type="button" class="button button-secondary" data-story-game>${escapeHtml(translate("Memoir.game.button"))}</button></div>` : "";
+}
+
+function chatInputLimitReached() {
+  const queued = state.conversationInputs?.inputs() || [];
+  if (!queued.length && !state.photoTurns?.pending()) return false;
+  const replyIndex = state.chat.findLastIndex(message => message.role === "assistant" && message.text
+    && !message.streaming && !message.provisional && !message.failed && !message.error);
+  const replyTurnId = state.chat[replyIndex]?.clientTurnId;
+  // A finished reply can appear below inputs that arrived while it was being generated.
+  const answeredIndex = replyTurnId
+    ? state.chat.findLastIndex(message => message.role === "user" && message.clientTurnId === replyTurnId)
+    : -1;
+  const boundary = answeredIndex === -1 ? replyIndex : answeredIndex;
+  const queuedIds = new Set(queued.map(input => input.id));
+  let unanswered = 0;
+  for (const [index, message] of state.chat.entries()) {
+    if (message.role !== "user") continue;
+    queuedIds.delete(message.clientTurnId);
+    if (index > boundary) unanswered += 1;
+  }
+  return unanswered + queuedIds.size >= 8;
 }
 
 function chatComposer() {
   if (state.recallStatus?.payment_required) return "";
-  const game = storyGameButton();
+  const game = state.debugEarlyGeneration ? "" : storyGameButton();
   const focusControls = workspaceMemoryFocusMarkup()+game+`<button type="button" class="text-button" data-action="recording-consent">${escapeHtml(translate('RecordingConsent.title'))}</button>`;
   const t = (key) => escapeHtml(translate(`Memoir.story.${key}`));
-  const button = (action, label, icon, extra = "") => `<button type="button" class="voice-button ${extra}" data-action="${action}" aria-label="${t(label)}" title="${t(label)}">${composerIcon(icon)}</button>`;
+  const atLimit = chatInputLimitReached();
+  const waitNote = atLimit ? `<div class="composer-note" role="status">${t("sendWait")}</div>` : "";
+  const button = (action, label, icon, extra = "", disabled = false) => `<button type="button" class="voice-button ${extra}" data-action="${action}" aria-label="${t(label)}" title="${t(label)}"${disabled ? " disabled" : ""}>${composerIcon(icon)}</button>`;
   if (state.dictationStatus !== "off") {
     const processing = ["starting", "processing"].includes(state.dictationStatus);
-    return `<div class="composer-wrap">${focusControls}<div class="chat-composer dictation-composer">${button("cancel-dictation", "cancelDictation", "close")}<div class="dictation-visual"><div class="dictation-wave ${state.recording ? "is-recording" : ""}" aria-hidden="true">${"<i></i>".repeat(40)}</div><span role="status">${t(processing ? (state.dictationStatus === "starting" ? "connectingMic" : "transcribing") : state.recording ? "dictating" : "dictationStopped")}</span></div>${!processing ? `${state.recording ? button("stop-dictation", "stopDictation", "stop") : ""}${button("accept-dictation", "send", "send", "voice-mode-button")}` : ""}</div><div class="composer-note">${t("dictationNote")}</div></div>`;
+    return `<div class="composer-wrap">${focusControls}<div class="chat-composer dictation-composer">${button("cancel-dictation", "cancelDictation", "close")}<div class="dictation-visual"><div class="dictation-wave ${state.recording ? "is-recording" : ""}" aria-hidden="true">${"<i></i>".repeat(40)}</div><span role="status">${t(processing ? (state.dictationStatus === "starting" ? "connectingMic" : "transcribing") : state.recording ? "dictating" : "dictationStopped")}</span></div>${!processing ? `${state.recording ? button("stop-dictation", "stopDictation", "stop") : ""}${button("accept-dictation", "send", "send", "voice-mode-button", atLimit)}` : ""}</div>${waitNote || `<div class="composer-note">${t("dictationNote")}</div>`}</div>`;
   }
   const status = state.voiceMuted ? "muted" : state.voiceModeStatus;
   const voiceStatus = state.voiceMode ? `<div class="voice-session"><div class="voice-orb ${status}" aria-hidden="true"><div class="voice-orb-water"><i></i><i></i><i></i></div></div><div class="voice-mode-status" role="status"><strong class="voice-mode-title">${t("voiceConversation")}</strong><span>${t(state.voiceMuted ? "micMuted" : status === "speaking" ? "miraSpeaking" : status === "processing" ? "listeningBack" : "listening")}</span></div></div>` : "";
   const controls = state.voiceMode
     ? `${button("mute-voice", state.voiceMuted ? "unmuteMic" : "muteMic", state.voiceMuted ? "muted" : "mic")}${button("voice-input", "endVoice", "close", "voice-mode-end")}`
     : `${button("dictate", "dictate", "mic", "dictation-button")}${button("voice-input", "startVoice", "wave", "voice-mode-button voice-mode-launcher")}`;
-  return `<div class="composer-wrap ${state.voiceMode ? "has-voice-orb" : ""}">${focusControls}${voiceStatus}${selectedPhotoCue()}${composerAttachments()}${!state.loading && !state.photoTurns?.pending() && (state.audioRecordings?.length || state.pendingAudioUpload) ? `<button type="button" class="text-button" data-action="discard-audio-draft">${t("discardAudio")}</button>` : ""}${state.photoTurns?.pending() && !state.loading ? `<button type="button" class="text-button retry-interview-turn" data-action="retry-interview-turn">${t("retryTurn")}</button>` : ""}<form id="chat-form" class="chat-composer" data-voice-mode="${state.voiceMode ? "on" : "off"}"><button type="button" class="voice-button" data-action="attach-media" aria-label="${t("attachMedia")}" title="${t("attachMedia")}" ${state.loading ? "disabled" : ""}>${composerIcon("plus")}</button><input id="chat-attachments" type="file" accept="${Object.keys(ATTACHMENT_TYPES).join(",")}" multiple hidden /><textarea id="chat-input" rows="1" placeholder="${t(state.voiceMode ? "voicePlaceholder" : "textPlaceholder")}" aria-label="${t("yourMessage")}">${escapeHtml(state.audioTranscript)}</textarea>${controls}<button type="submit" class="send-button" aria-label="${t("send")}" ${(state.loading && !state.conversationInputs?.pending()) || state.photoMemoryTask ? "disabled" : ""}>${composerIcon("send")}</button></form><div class="composer-note"><span>${t(state.voiceMode ? "voiceNote" : "sourceNote")}</span><span>${t("shortcutNote")}</span></div></div>`;
+  const sendDisabled = atLimit || (state.loading && !state.conversationInputs?.pending()) || state.photoMemoryTask;
+  const canRetry = !state.loading && (state.photoTurns?.pending() || (atLimit && state.conversationInputs?.pending()));
+  const note = waitNote || `<div class="composer-note"><span>${t(state.voiceMode ? "voiceNote" : "sourceNote")}</span><span>${t("shortcutNote")}</span></div>`;
+  return `<div class="composer-wrap ${state.voiceMode ? "has-voice-orb" : ""}">${focusControls}${voiceStatus}${selectedPhotoCue()}${composerAttachments()}${!state.loading && !state.photoTurns?.pending() && (state.audioRecordings?.length || state.pendingAudioUpload) ? `<button type="button" class="text-button" data-action="discard-audio-draft">${t("discardAudio")}</button>` : ""}${canRetry ? `<button type="button" class="text-button retry-interview-turn" data-action="retry-interview-turn">${t("retryTurn")}</button>` : ""}<form id="chat-form" class="chat-composer" data-voice-mode="${state.voiceMode ? "on" : "off"}"><button type="button" class="voice-button" data-action="attach-media" aria-label="${t("attachMedia")}" title="${t("attachMedia")}" ${state.loading ? "disabled" : ""}>${composerIcon("plus")}</button><input id="chat-attachments" type="file" accept="${Object.keys(ATTACHMENT_TYPES).join(",")}" multiple hidden /><textarea id="chat-input" rows="1" placeholder="${t(state.voiceMode ? "voicePlaceholder" : "textPlaceholder")}" aria-label="${t("yourMessage")}">${escapeHtml(state.audioTranscript)}</textarea>${controls}<button type="submit" class="send-button" aria-label="${t("send")}" ${sendDisabled ? "disabled" : ""}>${composerIcon("send")}</button></form>${note}</div>`;
 }
 
 async function retryInterviewTurn() {
+  if (state.loading) return;
+  if (chatInputLimitReached() && state.conversationInputs?.pending()) return state.conversationInputs.restore();
   const turn = state.photoTurns?.pending();
-  if (!turn || state.loading) return;
+  if (!turn) return;
   state.audioTranscript = $("#chat-input")?.value || state.audioTranscript;
   const scope = captureProjectScope();
   const current = () => isCurrentProjectScope(scope);
@@ -3145,6 +3179,7 @@ function bindViewActions(root = document) {
     "speak": (button) => speakText(button.dataset.text),
     "cue-reaction": (button) => reactCue(button.dataset.asset, button.dataset.reaction),
     "add-person": addPerson,
+    "generate-private-draft": generatePrivateDraft,
     "retry-private-draft": retryPrivateDraft,
     "load-more-private-draft": loadMorePrivateDraft,
     "refresh-private-draft": () => refreshPrivateDraft({restart:true}),
@@ -3205,7 +3240,8 @@ async function sendChatMessage({ voiceTurn = false } = {}) {
     if (!current() || !state.voiceMode) return;
   }
   if (state.recallStatus?.payment_required) return;
-  if ((state.loading && !state.conversationInputs?.pending()) || state.photoMemoryTask || state.dictationStatus !== "off") return;
+  if (chatInputLimitReached() || (state.loading && !state.conversationInputs?.pending())
+    || state.photoMemoryTask || state.dictationStatus !== "off") return;
   if (state.voiceMode && state.voiceModeStatus !== "listening" && !voiceTurn) return;
   if (state.voiceMode && state.voiceModeRecorder && !voiceTurn) {
     if (state.voiceModeRecorder.state !== "inactive") {

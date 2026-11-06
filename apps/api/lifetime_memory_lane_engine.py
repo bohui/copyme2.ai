@@ -165,6 +165,7 @@ class LaneFence(Contract):
     partition: dict[str, Any] | None
     batch: dict[str, Any] | None = None
     coverage_round: int = Field(ge=0, strict=True)
+    debug_early_generation: Literal[True] | None = Field(default=None, exclude_if=lambda value: value is None)
     base_revision: int = Field(default=0, ge=0, strict=True)
     editorial_request: EditorialRequest | None = None
     two_lane: TwoLaneFence | None = None

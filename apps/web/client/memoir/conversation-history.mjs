@@ -103,6 +103,7 @@ export function createConversationHistory({
           text: message.role === "assistant" ? cleanAssistantText(message.text) : String(message.text || ""),
           error: message.error || "",
         };
+        if (message.failed) saved.failed = true;
         if (message.clientTurnId) saved.clientTurnId = message.clientTurnId;
         if (message.historicalContext) saved.historicalContext = historicalContext(message.historicalContext);
         if (message.responsePhotos?.length) saved.responsePhotos = state.photoTurns?.cards(message.responsePhotos);
@@ -159,6 +160,7 @@ export function createConversationHistory({
             role: message.role,
             text: message.role === "assistant" ? cleanAssistantText(message.text) : message.text,
             error: typeof message.error === "string" ? message.error : "",
+            failed: message.failed === true || message.traceMode === "error",
             clientTurnId: typeof message.clientTurnId === "string" ? message.clientTurnId : undefined,
             responsePhotos: state.photoTurns?.cards(message.responsePhotos),
             historicalContext: message.historicalContext ? historicalContext(message.historicalContext) : null,

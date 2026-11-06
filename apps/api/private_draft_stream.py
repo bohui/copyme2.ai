@@ -3,11 +3,11 @@ import asyncio
 import json
 import logging
 import os
-from urllib.parse import urlsplit
 
 from starlette.responses import StreamingResponse
 
 from .lifetime_memory_reads import ReadJSONResponse, _settle
+from .local_debug import debug_early_generation, loopback_browser
 from .turn_stream import STREAM_HEADERS
 from .turn_progress import thinking_steps_enabled
 
@@ -20,15 +20,8 @@ def draft_updates_enabled():
 
 
 def local_draft_updates(request):
-    if not (thinking_steps_enabled() or draft_updates_enabled()):
-        return False
-    browser_url = request.headers.get('origin') or request.headers.get('referer')
-    if not browser_url:
-        browser_url = 'http://' + (request.headers.get('x-forwarded-host') or request.headers.get('host', ''))
-    try:
-        return urlsplit(browser_url).hostname in {'localhost', '127.0.0.1', '::1'}
-    except ValueError:
-        return False
+    return debug_early_generation(request) or (
+        (thinking_steps_enabled() or draft_updates_enabled()) and loopback_browser(request))
 
 
 class PrivateDraftStreamResponse(StreamingResponse):

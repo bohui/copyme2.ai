@@ -42,7 +42,7 @@ def chat_page():
                 const supabaseApi = noop, toast = noop, currentUiLocale = () => 'zh-CN';
                 const submitSectionRework = noop, saveMemoryEventEdit = noop, startMemory = noop, finishChapter = noop;
                 const toggleVoiceInput = noop, startAudioRecorder = noop, cancelDictation = noop, discardAudioDraft = noop;
-                const addPerson = noop, retryPrivateDraft = noop, loadMorePrivateDraft = noop;
+                const addPerson = noop, generatePrivateDraft = noop, retryPrivateDraft = noop, loadMorePrivateDraft = noop;
                 const loadMoreMemoryEvents = noop, refreshFamilyContext = noop;
                 const mapPhotoAlbums = {sync:noop}, mapMemoryEvents = {sync:noop};
                 const storyGameDialog = {sync:noop}, authReminder = {mount:noop};
@@ -51,7 +51,7 @@ def chat_page():
                 const sendChatMessage = () => sentMessages.push($('#chat-input').value);
             ''' + '\n'.join(function(name) for name in (
                 'captureProjectScope', 'isCurrentProjectScope', 'resizeChatInput',
-                'render', 'renderStory', 'storyGameButton', 'chatComposer', 'bindViewActions',
+                'render', 'renderStory', 'storyGameButton', 'chatInputLimitReached', 'chatComposer', 'bindViewActions',
             )) + '\nrender();')
             yield page
         finally:

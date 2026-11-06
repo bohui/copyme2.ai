@@ -4207,7 +4207,8 @@ begin
  select coalesce(max(r.ordinal),0) into rounds from public.user_completed_round r
    join public.user_narrator_source s on s.user_id=r.user_id and s.project_id=r.project_id and s.client_turn_id=r.turn_id
    where r.user_id=lane.user_id and r.project_id=lane.project_id and s.sequence<=frontier;
- if lane.skill='composer' and (rounds<lane.target_milestone or lane.target_milestone=0 or exists(select 1 from public.user_narrator_source
+ -- An explicit debug request can queue composition before the first milestone.
+ if lane.skill='composer' and (rounds<lane.target_milestone or exists(select 1 from public.user_narrator_source
    where user_id=lane.user_id and project_id=lane.project_id and status='active' and sequence<=frontier and processing_status<>'succeeded')) then return null;end if;
  if lane.skill='guidance' and (not exists(select 1 from public.lifetime_two_lane_rollout where singleton and enabled)
    or exists(select 1 from public.user_agent_turn_lease where user_id=lane.user_id and expires_at>clock_timestamp())
@@ -7915,6 +7916,8 @@ begin
    if p_fence->field is null or p_fence->field is distinct from current_page->field then
      raise exception 'stale canonical lane admission' using errcode='PT409';end if;
  end loop;
+ if p_fence->'debug_early_generation' is distinct from current_page->'debug_early_generation' then
+   raise exception 'stale canonical draft authorization' using errcode='PT409';end if;
  if jsonb_typeof(p_fence->'prior_outputs') is distinct from 'array' or jsonb_array_length(p_fence->'prior_outputs')>16 then raise exception 'bounded prior output proofs required';end if;
  for proof in select value from jsonb_array_elements(p_fence->'prior_outputs') loop
    if not exists(select 1 from public.user_lifetime_lane_output where snapshot_id=(current_page->>'snapshot_id')::uuid
@@ -10105,6 +10108,8 @@ begin
    'source_high_water',snap.source_high_water,'event_high_water',snap.event_high_water,'page_number',snap.page_number,
    'root_digest',snap.root_digest,'coverage_round',snap.round_high_water,'base_revision',snap.base_revision,
    'preferences',preferences,'previous',null,'reuse',false,'complete',false);
+ if lane.skill='composer' and snap.milestone=0 then
+   payload:=payload||'{"debug_early_generation":true}'::jsonb;end if;
  if lane.skill='timeline' then
    select * into source from public.user_narrator_source where user_id=snap.user_id and project_id=snap.project_id
      and status='active' and processing_status<>'succeeded' and sequence<=snap.source_high_water
@@ -10468,7 +10473,7 @@ begin
   extraction:=extraction||jsonb_build_object('state','pending','pending',true);
  end if;
  result:=result||jsonb_build_object('progress',coalesce(result->'progress','{}')||jsonb_build_object('extraction',extraction));
- if coalesce((result->'background_progress'->>'target_milestone')::bigint,0)<5 then return result;end if;
+ if not (result ? 'background_progress') then return result;end if;
  if pending>0 and extraction->>'state'='retry_required' then
   return result||jsonb_build_object('updating',false,'error',coalesce(extraction->>'error','MEMOIR_UNAVAILABLE'),
    'background_progress',coalesce(result->'background_progress','{}')||jsonb_build_object('state','retry_required','phase','extracting'));
@@ -10491,7 +10496,7 @@ begin
  select * into lane from public.user_memoir_lane where user_id=auth.uid() and project_id=p_project_id and skill='composer';
  select coalesce(max(ordinal),0) into rounds from public.user_completed_round where user_id=auth.uid() and project_id=p_project_id;
  target:=greatest(coalesce(lane.target_milestone,0),(rounds/5)*5);
- if target<5 then return result;end if;
+ if target<5 and lane.id is null then return result;end if;
  progress:=public.memoir_lane_progress(lane);state:=progress->>'state';
  if state='finished' and coalesce((result->>'coverage_round')::bigint,0)<target then state:='pending';end if;
  select c.value->>'phase' into phase from public.user_memoir_checkpoint c join public.user_lifetime_lane_snapshot root on root.id=c.lifetime_snapshot_id
@@ -12195,6 +12200,40 @@ begin
   end if;
   return pg_catalog.jsonb_build_object('queued',queued);
 end $$;
+
+CREATE FUNCTION public.queue_debug_memoir_composer(p_owner uuid,p_project_id text,p_locale text) RETURNS jsonb
+    LANGUAGE plpgsql SECURITY DEFINER SET search_path TO '' AS $$
+declare project public.user_memoir_project%rowtype; head jsonb; previous_owner text; outcome text:='queued';
+begin
+ select p.* into project from public.user_memoir_project p join public.user_lifetime_conversation c
+   on c.user_id=p.user_id and c.project_id=p.project_id
+   where p.user_id=p_owner and p.project_id=p_project_id for update of p;
+ if not found then raise exception 'canonical conversation unavailable' using errcode='42501';end if;
+ perform public.require_lifetime_policy_ready(p_owner,p_project_id);
+ if not exists(select 1 from public.user_narrator_source where user_id=p_owner and project_id=p_project_id and status='active') then
+   return jsonb_build_object('status','insufficient_context');end if;
+
+ previous_owner:=current_setting('request.jwt.claim.sub',true);
+ perform set_config('request.jwt.claim.sub',p_owner::text,true);
+ head:=public.read_lifetime_private_draft_head(p_project_id,p_locale);
+ if head->>'snapshot_id' is not null and head->'source_revision'=head->'current_source_revision'
+   and head->'event_revision'=head->'current_event_revision' then
+   outcome:=head->>'status';
+ else
+   insert into public.user_memoir_lane as lane(user_id,project_id,skill,target_source,target_event,locale)
+     values(p_owner,p_project_id,'composer',project.source_sequence,project.event_sequence,head->>'locale')
+   on conflict(user_id,project_id,skill) do update set pending=true,
+     target_source=excluded.target_source,target_event=excluded.target_event,locale=excluded.locale
+   where (lane.target_source,lane.target_event,lane.locale) is distinct from
+     (excluded.target_source,excluded.target_event,excluded.locale)
+     or lane.attempts>=3 or (not lane.pending and lane.token is null);
+   if found then perform public.retry_user_memoir_lane(p_project_id,'composer');end if;
+ end if;
+ perform set_config('request.jwt.claim.sub',coalesce(previous_owner,''),true);
+ return jsonb_build_object('status',outcome);
+end $$;
+revoke all on function public.queue_debug_memoir_composer(uuid,text,text) from public,anon,authenticated,service_role;
+grant execute on function public.queue_debug_memoir_composer(uuid,text,text) to service_role;
 
 CREATE FUNCTION public.revalidate_user_historical_news(p_project_id text, p_hypothesis jsonb, p_snapshot jsonb) RETURNS jsonb
     LANGUAGE plpgsql SECURITY DEFINER
@@ -15394,7 +15433,7 @@ begin
    'composer_revision',head->'revision')||case when p_material then jsonb_build_object('chapters',chapters,'timeline',timeline) else '{}' end;
 end $$;
 
-create function public.story_game_context(p_owner uuid,p_project text) returns jsonb
+create function public.story_game_context(p_owner uuid,p_project text,p_debug boolean default false) returns jsonb
 language plpgsql security definer set search_path='' as $$
 declare context jsonb; edition public.user_formal_memoir_edition%rowtype;
  head public.user_formal_memoir_head%rowtype; mode jsonb; previous_owner text;
@@ -15408,14 +15447,19 @@ begin
    and edition_id=edition.id and revision=head.consent_revision and status='active'
    and policy_epoch=(context->>'policy_epoch')::bigint) then
    raise exception 'GAME_CONSENT_REQUIRED' using errcode='PT409';end if;
- previous_owner:=current_setting('request.jwt.claim.sub',true);
- perform set_config('request.jwt.claim.sub',p_owner::text,true);
- mode:=public.read_lifetime_current_mode(p_project);
- perform set_config('request.jwt.claim.sub',coalesce(previous_owner,''),true);
- if mode is null or mode->>'mode'<>'shape' or mode->>'reply_id' is null then
-   raise exception 'GAME_CURRENT_SHAPE_REQUIRED' using errcode='PT409';end if;
+ if p_debug then
+   mode:='{"debug_early_generation":true}';
+ else
+   previous_owner:=current_setting('request.jwt.claim.sub',true);
+   perform set_config('request.jwt.claim.sub',p_owner::text,true);
+   mode:=public.read_lifetime_current_mode(p_project);
+   perform set_config('request.jwt.claim.sub',coalesce(previous_owner,''),true);
+   if mode is null or mode->>'mode'<>'shape' or mode->>'reply_id' is null then
+     raise exception 'GAME_CURRENT_SHAPE_REQUIRED' using errcode='PT409';end if;
+   mode:=jsonb_build_object('reply_id',mode->>'reply_id');
+ end if;
  return context||public.story_game_composer(p_owner,p_project)||jsonb_build_object('edition_id',edition.id,'manuscript_digest',edition.digest,
-   'consent_revision',head.consent_revision,'reply_id',mode->>'reply_id');
+   'consent_revision',head.consent_revision)||mode;
 end $$;
 
 create function public.lock_story_game(p_id uuid,p_token uuid default null,p_require_token boolean default false)
@@ -15424,7 +15468,7 @@ declare game public.user_story_game%rowtype; context jsonb;
 begin
  select * into game from public.user_story_game where id=p_id;
  if not found then raise exception 'GAME_UNAVAILABLE' using errcode='42501';end if;
- context:=public.story_game_context(game.user_id,game.project_id);
+ context:=public.story_game_context(game.user_id,game.project_id,game.authority->'debug_early_generation'='true'::jsonb);
  select * into game from public.user_story_game where id=p_id for update;
  if game.state='stale' or game.authority is distinct from context then
    raise exception 'GAME_AUTHORITY_CHANGED' using errcode='PT409';end if;
@@ -15439,28 +15483,39 @@ language sql stable security definer set search_path='' as $$
    'candidate_digest',p_game.candidate_digest,'attempts',p_game.attempts,'phase',p_game.phase,
    'pool_digest',p_game.pool_digest,'selected_count',jsonb_array_length(p_game.selection->'scene_ids'),
    'retryable',p_game.state='running' and p_game.lease_until<=clock_timestamp())
+   ||case when p_game.authority ? 'debug_early_generation' then '{"debug_early_generation":true}'::jsonb else '{}'::jsonb end
 $$;
 
-CREATE FUNCTION public.begin_story_game(p_project_id text,p_request_id uuid) returns jsonb
+CREATE FUNCTION public.begin_story_game_for_owner(p_owner uuid,p_project_id text,p_request_id uuid,p_debug boolean) returns jsonb
 language plpgsql security definer set search_path='' as $$
-declare owner uuid:=auth.uid(); context jsonb; game public.user_story_game%rowtype;
+declare context jsonb; game public.user_story_game%rowtype;
 begin
- if owner is null or p_request_id is null then raise exception 'GAME_OWNER_REQUIRED' using errcode='42501';end if;
- context:=public.story_game_context(owner,p_project_id);
- select * into game from public.user_story_game where user_id=owner and project_id=p_project_id and request_id=p_request_id;
+ if p_owner is null or p_request_id is null then raise exception 'GAME_OWNER_REQUIRED' using errcode='42501';end if;
+ begin
+   context:=public.story_game_context(p_owner,p_project_id);
+ exception when sqlstate 'PT409' then
+   if p_debug is not true or sqlerrm<>'GAME_CURRENT_SHAPE_REQUIRED' then raise;end if;
+   context:=public.story_game_context(p_owner,p_project_id,true);
+ end;
+ select * into game from public.user_story_game where user_id=p_owner and project_id=p_project_id and request_id=p_request_id;
  if found then
    game:=public.lock_story_game(game.id);return public.story_game_status_record(game);
  end if;
  update public.user_story_game set state='stale',candidate=null,review=null,scene_pool=null,pool_digest=null,selection=null,selection_digest=null,brief=null,token=null,lease_until=null,
-   updated_at=clock_timestamp() where user_id=owner and project_id=p_project_id and authority is distinct from context
+   updated_at=clock_timestamp() where user_id=p_owner and project_id=p_project_id and authority is distinct from context
    and state in ('pending','running','selection_required','review_required','published');
- select * into game from public.user_story_game where user_id=owner and project_id=p_project_id
+ select * into game from public.user_story_game where user_id=p_owner and project_id=p_project_id
    and state in ('pending','running','selection_required','review_required','published');
  if found then game:=public.lock_story_game(game.id);return public.story_game_status_record(game);end if;
  insert into public.user_story_game(user_id,project_id,edition_id,request_id,authority)
- values(owner,p_project_id,(context->>'edition_id')::uuid,p_request_id,context) returning * into game;
+ values(p_owner,p_project_id,(context->>'edition_id')::uuid,p_request_id,context) returning * into game;
  return public.story_game_status_record(game);
 end $$;
+
+CREATE FUNCTION public.begin_story_game(p_project_id text,p_request_id uuid) returns jsonb
+language sql security definer set search_path='' as $$
+ select public.begin_story_game_for_owner(auth.uid(),p_project_id,p_request_id,false)
+$$;
 
 create function public.claim_story_game(p_game_id uuid) returns jsonb
 language plpgsql security definer set search_path='' as $$
@@ -15716,7 +15771,7 @@ begin
  content:=case when page.game_id is not null then game.candidate->'game' else locked.example->'game' end;
  return jsonb_build_object('project_id',locked.project_id,'status','published','game',content,
    'visibility',locked.visibility,'revision',locked.revision,'example',locked.example is not null,
-   'can_manage',coalesce(locked.user_id=auth.uid(),false),
+   'can_manage',coalesce(locked.user_id=auth.uid(),false) and not coalesce(game.authority ? 'debug_early_generation',false),
    'invitations',case when locked.user_id=auth.uid() then coalesce((select jsonb_agg(jsonb_build_object(
      'id',invitation.id,'email',invitation.email,'accepted',invitation.accepted_by is not null,
      'expires_at',invitation.expires_at) order by invitation.email)
@@ -15733,6 +15788,9 @@ begin
  if page.revision<>p_expected_revision then raise exception 'GAME_CHANGED' using errcode='PT409';end if;
  if p_visibility not in ('private','friends','public') or p_visibility is null then
    raise exception 'GAME_VISIBILITY_INVALID' using errcode='22023';end if;
+ if p_visibility<>'private' and exists(select 1 from public.user_story_game g where g.id=page.game_id
+   and g.authority ? 'debug_early_generation') then
+   raise exception 'GAME_DEBUG_PRIVATE' using errcode='42501';end if;
  update public.user_story_game_page set visibility=p_visibility,revision=revision+1,updated_at=clock_timestamp()
    where project_id=p_project_id returning * into page;
  return jsonb_build_object('visibility',page.visibility,'revision',page.revision);
@@ -16023,8 +16081,9 @@ create trigger story_game_edition_invalidation after update of active on public.
 create trigger story_game_consent_invalidation after update of consent_revision on public.user_formal_memoir_head
  for each row when(old.consent_revision is distinct from new.consent_revision) execute function public.invalidate_story_games();
 
-revoke all on function public.story_game_composer(uuid,text,boolean),public.story_game_context(uuid,text),public.lock_story_game(uuid,uuid,boolean),
+revoke all on function public.story_game_composer(uuid,text,boolean),public.story_game_context(uuid,text,boolean),public.lock_story_game(uuid,uuid,boolean),
  public.story_game_status_record(public.user_story_game),public.begin_story_game(text,uuid),
+ public.begin_story_game_for_owner(uuid,text,uuid,boolean),
  public.claim_story_game(uuid),public.read_story_game_input(uuid,uuid),public.stage_story_game(uuid,uuid,jsonb,jsonb),
  public.read_story_game(text,uuid,boolean),public.publish_story_game(text,uuid,text,jsonb),public.fail_story_game(uuid,uuid),
  public.read_story_game_status(text),public.invalidate_story_games(),public.validate_story_game_scenes(jsonb,jsonb,boolean),
@@ -16036,6 +16095,7 @@ grant execute on function public.begin_story_game(text,uuid),public.read_story_g
  public.publish_story_game(text,uuid,text,jsonb),public.read_story_game_status(text) to authenticated;
 grant execute on function public.claim_story_game(uuid),public.read_story_game_input(uuid,uuid),
  public.stage_story_game(uuid,uuid,jsonb,jsonb),public.fail_story_game(uuid,uuid),public.lock_story_game(uuid,uuid,boolean) to service_role;
+grant execute on function public.begin_story_game_for_owner(uuid,text,uuid,boolean) to service_role;
 
 
 

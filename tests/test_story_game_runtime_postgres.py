@@ -61,8 +61,8 @@ def begin_game(sql, project, request=None, **kwargs):
     return rpc(sql, 'begin_story_game', f"{literal(project)},'{request or uuid4()}'", **kwargs)
 
 
-def prepare_pool(sql, project):
-    game = begin_game(sql, project)
+def prepare_pool(sql, project, *, game=None):
+    game = game or begin_game(sql, project)
     claim = service(sql, 'claim_story_game', f"'{game['game_id']}'")
     packet = service(sql, 'read_story_game_input', f"'{game['game_id']}','{claim['token']}'")
     proposal = proposal_from_packet(packet)
@@ -71,8 +71,8 @@ def prepare_pool(sql, project):
     return game, saved, packet, proposal
 
 
-def prepare(sql, project, *, count=None):
-    game, saved, packet, proposal = prepare_pool(sql, project)
+def prepare(sql, project, *, count=None, game=None):
+    game, saved, packet, proposal = prepare_pool(sql, project, game=game)
     ids = [f'scene-{i+1}' for i in range(count or len(proposal['scenes']))]
     rpc(sql, 'confirm_story_game_scenes', f"{literal(project)},'{game['game_id']}',"
         + literal(saved['pool_digest']) + ',' + literal(ids))
@@ -113,6 +113,73 @@ def stage(sql, game, claim, proposal, **kwargs):
 
 def read(sql, project, game, review=False, **kwargs):
     return rpc(sql, 'read_story_game', f"{literal(project)},'{game['game_id']}',{str(review).lower()}", **kwargs)
+
+
+def test_local_debug_generates_a_private_draft_and_game_from_one_round(sql, tmp_path, monkeypatch):
+    import httpx
+
+    from apps.api import memory_event_worker, story_game_routes
+    from memoir_postgres_workflow import PostgresRest
+    from test_background_profile_workflow import Broker
+
+    class DebugBroker(Broker):
+        def __init__(self):
+            super().__init__(sql)
+            self.client = httpx.AsyncClient(trust_env=False)
+
+    async def defer_to_controlled_worker(_):
+        pass
+
+    monkeypatch.setenv('MEMORY_SPARK_TASK_DB', str(tmp_path / 'debug-game-tasks.sqlite3'))
+    monkeypatch.setattr(memory_event_worker, 'MemoirLaneBroker', DebugBroker)
+    monkeypatch.setattr(story_game_routes, 'authenticated_storage', lambda _: PostgresRest(sql, OWNER).storage())
+    monkeypatch.setattr(story_game_routes, '_build_confirmed_game', defer_to_controlled_worker)
+    conversation = Conversation(sql, tmp_path, monkeypatch,
+        lambda packet: {**empty(packet), 'events': [episode(packet, packet['sources'][0]['text'])]},
+        strategy='explore')
+    local = {'Host': 'localhost'}
+    remote = {'Host': 'memoir.example'}
+    with conversation.client as client:
+        conversation.project = project = rpc(sql, 'resolve_lifetime_conversation', 'null')['project_id']
+        draft_url = '/v1/story/private-draft/generate'
+        game_url = f'/v1/agent/projects/{project}/story-game'
+        draft_payload = {'project_id': project, 'language': 'en-AU'}
+        game_payload = {'request_id': str(uuid4())}
+        monkeypatch.setenv('MEMORY_SPARK_DEBUG_EARLY_GENERATION', '0')
+        assert client.post(draft_url, json=draft_payload, headers=local).status_code == 404
+        monkeypatch.setenv('MEMORY_SPARK_DEBUG_EARLY_GENERATION', '1')
+        assert client.post(draft_url, json=draft_payload, headers=remote).status_code == 404
+        assert client.post(draft_url, json=draft_payload, headers=local).json() == {'status': 'insufficient_context'}
+
+        conversation.say(MEMORIES[0])
+        assert client.post(draft_url, json=draft_payload, headers=local).json() == {'status': 'queued'}
+        conversation.drain()
+        asyncio.run(compose_game_chapters(conversation))
+        draft = client.get('/v1/story/private-draft', params={'project_id': project}).json()
+        assert draft['status'] == 'ready' and draft['coverage_round'] == 1 and draft['preview']['text']
+        assert client.post(draft_url, json=draft_payload, headers=local).json() == {'status': 'ready'}
+        assert sql('select count(*) from public.user_completed_round;').stdout.strip() == '1'
+        assert sql('select count(*) from public.user_memoir_milestone;').stdout.strip() == '0'
+
+        edition = completed(sql, project, {'revision': 0})
+        assert client.post(game_url, json=game_payload, headers=local).status_code == 409
+        consent(sql, project, edition, 1)
+        assert 'shape_required' in client.get(game_url, headers=remote).json()['eligibility']['reasons']
+        assert client.post(game_url, json=game_payload, headers=remote).status_code == 409
+        assert client.get(game_url, headers=local).json()['eligibility']['available']
+        assert rpc(sql, 'begin_story_game_for_owner', f"'{OWNER}',{literal(project)},'{uuid4()}',true",
+            check=False).returncode
+        response = client.post(game_url, json=game_payload, headers=local)
+        assert response.status_code == 202, response.text
+        game, claim, packet, proposal = prepare(sql, project, game=response.json())
+        assert packet['authority']['debug_early_generation'] is True
+        assert packet['authority']['composer_snapshot_id'] == draft['snapshot_id']
+        assert stage(sql, game, claim, proposal)['status'] == 'published'
+        assert read(sql, project, game)['status'] == 'published'
+        page = rpc(sql, 'read_story_game_page', literal(project))
+        assert page['visibility'] == 'private' and page['can_manage'] is False
+        assert rpc(sql, 'set_story_game_visibility', f"{literal(project)},'public',{page['revision']}",
+            check=False).returncode
 
 
 def test_two_steps_are_saved_for_immediate_private_play(sql, ready):

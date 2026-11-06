@@ -3,6 +3,8 @@ import { placeHistoryKey } from "./places.mjs";
 
 const stages = ["baby", "childhood", "adolescence", "young_adulthood", "midlife", "later_life"];
 const avatars = ["baby", "child", "adolescent", "young_adult", "middle_aged", "senior"];
+const stageAgeStarts = [0, 3, 13, 18, 40, 65];
+const maximumAge = 130;
 const coordinates = place => Number.isFinite(place?.latitude) && Math.abs(place.latitude) <= 90
   && Number.isFinite(place?.longitude) && Math.abs(place.longitude) <= 180;
 const label = value => String(value || "").normalize("NFKC").trim().toLowerCase().replace(/([\u3400-\u9fff])[市省]$/, "$1");
@@ -48,7 +50,7 @@ function estimatedAge(event, profile) {
   const estimate = event.temporal_estimate || {}, birth = number(profile.birth_year);
   const start = number(estimate.age_start) ?? (birth && estimate.year_start >= birth ? estimate.year_start - birth : null);
   const end = number(estimate.age_end) ?? (birth && estimate.year_end >= birth ? estimate.year_end - birth : start);
-  return start !== null && end >= start && end <= 130 ? {start,end,approximate:true,estimated:true} : null;
+  return start !== null && end >= start && end <= maximumAge ? {start,end,approximate:true,estimated:true} : null;
 }
 
 function estimatedPeriodEndYear(event, profile) {
@@ -91,8 +93,23 @@ export function eventAge(event, profile = {}) {
 export function eventAgeLabel(age, t) {
   if (age.expression) return age.expression;
   if (age.start === null) return t("mapEventAgeUnknown");
-  const value = age.start === age.end ? String(age.start) : `${age.start}–${age.end}`;
+  const value = age.end === null ? `${age.start}+` : age.start === age.end ? String(age.start) : `${age.start}–${age.end}`;
   return t(age.approximate ? "mapEventAgeApproximate" : "mapEventAge", {age:value});
+}
+
+// Use the stage when it fits the narrator's lifetime. The wider range is display-only.
+function displayTimingEstimate(stage, profile) {
+  const currentYear = new Date().getUTCFullYear();
+  const birth = number(profile.birth_year);
+  const birthYear = birth && birth <= currentYear ? birth : null;
+  const limit = birthYear === null ? maximumAge : Math.min(maximumAge,currentYear - birthYear);
+  const stageStart = stageAgeStarts[stage];
+  const stageFits = stageStart !== undefined && stageStart <= limit;
+  const start = stageFits ? stageStart : 0;
+  const next = stageFits ? stageAgeStarts[stage + 1] : undefined;
+  const end = next === undefined ? limit : Math.min(next - 1,limit);
+  return {age:{start,end,approximate:true},year:birthYear === null ? null : birthYear + start,
+    yearEnd:birthYear === null ? null : birthYear + end,approximateYear:true};
 }
 
 export function memoryEventTiming(event, profile = {}, index = 0) {
@@ -113,9 +130,11 @@ export function memoryEventTiming(event, profile = {}, index = 0) {
   const lifeStage = stages.indexOf(event.life_stage);
   const stage = lifeStage < 0 && !event.timing_conflict && !stated && (age.start === null || age.estimated) && event.temporal_anchor === "present"
     ? stages.length : lifeStage;
+  const displayEstimate = year === null && age.start === null ? displayTimingEstimate(lifeStage,profile) : null;
+  const confidence = event.yearConfidenceScore ?? (inferred || approximateYearEnd ? estimate?.confidence : null);
   return {age, year, yearEnd, calendar, stage, index, inferred, approximateYear:statedYear === null && year !== null,
-    approximateYearEnd,
-    uncertain:Number.isFinite(event.yearConfidenceScore) && event.yearConfidenceScore < .5,
+    approximateYearEnd, displayEstimate,
+    uncertain:displayEstimate !== null || Number.isFinite(confidence) && confidence < .5,
     dated:!event.timing_conflict && (age.start !== null || year !== null || Boolean(calendar))};
 }
 
@@ -284,33 +303,43 @@ export function cityEventCards(nodes) {
   });
 }
 
+function timingLabel({year,yearEnd,age,approximateYear,approximateYearEnd}, t) {
+  const endYear = approximateYearEnd ? t("mapEventYearApproximate",{year:yearEnd}) : yearEnd;
+  const years = `${year}${yearEnd > year ? `–${endYear}` : ""}`;
+  const yearText = year === null ? "" : approximateYear ? t("mapEventYearApproximate",{year:years}) : years;
+  const ageText = age.start === null ? "" : eventAgeLabel(age,t);
+  return [yearText,ageText].filter(Boolean).join(" · ");
+}
+
+function representativeAge(age) {
+  if (age.start === null || age.start === age.end) return age;
+  const estimate = Math.round((age.start + (age.end ?? age.start)) / 2);
+  return {start:estimate,end:estimate,approximate:true};
+}
+
 function memoryEventTimingText(node, t) {
-  if (node.nodes) {
-    const endpoint = (event, end = false) => {
-      const year = end ? event.yearEnd : event.year, age = end ? event.age.end : event.age.start;
-      return memoryEventTimingText({...event,year,yearEnd:year,
-        approximateYear:event.approximateYear || (end && event.approximateYearEnd),
-        age:{...event.age,start:age,end:age}},t);
-    };
-    const years = node.nodes.filter(item => item.year !== null && item.yearEnd !== null);
-    const members = years.length ? years : node.nodes.filter(item => item.age.start !== null);
-    const boundary = end => {
-      const value = item => years.length ? item[end ? "yearEnd" : "year"] : item.age[end ? "end" : "start"];
-      const selected = members.reduce((best,item) => !best || (end ? value(item) > value(best) : value(item) < value(best)) ? item : best,null);
-      return selected ? endpoint(selected,end) : "?";
-    };
-    const start = boundary(false), end = boundary(true);
-    return start === "?" && end === "?" ? "?" : t("mapEventCityRange",{start,end});
+  const single = node.nodes?.length === 1 ? node.nodes[0] : node;
+  if (!single.nodes && single.event.kind !== "period") {
+    const timing = single.displayEstimate || single;
+    const yearRange = timing.year !== null && timing.yearEnd > timing.year;
+    const year = yearRange ? Math.round((timing.year + timing.yearEnd) / 2) : timing.year;
+    return timingLabel({year,yearEnd:year,age:representativeAge(timing.age),
+      approximateYear:timing.approximateYear || yearRange},t);
   }
-  const temporal = node.event.temporal;
-  const endYear = node.approximateYearEnd ? t("mapEventYearApproximate",{year:node.yearEnd}) : node.yearEnd;
-  const years = `${node.year}${node.yearEnd > node.year ? `–${endYear}` : ""}`;
-  const year = node.event.timing_conflict ? "?"
-    : node.year !== null ? node.approximateYear ? t("mapEventYearApproximate",{year:years}) : years
-    : temporal?.precision !== "unknown" && temporal?.expression && temporal.precision !== "age"
-      ? temporal.expression : "?";
-  const age = node.age.expression || (node.age.start === null ? "?" : eventAgeLabel(node.age,t));
-  return year === "?" && age === "?" ? "?" : `${year} · ${age}`;
+  if (!node.nodes) return timingLabel(node.displayEstimate || node,t);
+  const dated = node.nodes.filter(item => item.dated);
+  const timings = dated.length ? dated : node.nodes.map(item => item.displayEstimate);
+  const years = timings.filter(item => item.year !== null && item.yearEnd !== null);
+  const members = years.length ? years : timings;
+  const boundary = end => {
+    const value = item => years.length ? item[end ? "yearEnd" : "year"] : item.age[end ? "end" : "start"];
+    const selected = members.reduce((best,item) => (end ? value(item) > value(best) : value(item) < value(best)) ? item : best);
+    const year = end ? selected.yearEnd : selected.year;
+    const age = end ? selected.age.end : selected.age.start;
+    return timingLabel({year,yearEnd:year,age:{...selected.age,start:age,end:age},
+      approximateYear:selected.approximateYear || (end && selected.approximateYearEnd)},t);
+  };
+  return t("mapEventCityRange",{start:boundary(false),end:boundary(true)});
 }
 
 function memoryQuestionMark(t) {
@@ -320,21 +349,41 @@ function memoryQuestionMark(t) {
 export function memoryEventTimingMarkup(card, t) {
   const text = memoryEventTimingText(card,t);
   const uncertain = (card.nodes || [card]).some(node => node.uncertain);
-  return `<span class="map-memory-date"${!card.nodes && card.inferred ? ` title="${escapeHtml(card.event.temporal_estimate.rationale)}"` : ""}><span data-memory-text>${escapeHtml(text)}</span>${uncertain && text !== "?" ? memoryQuestionMark(t) : ""}</span>`;
+  return `<span class="map-memory-date"${!card.nodes && card.inferred && !card.displayEstimate ? ` title="${escapeHtml(card.event.temporal_estimate.rationale)}"` : ""}><span data-memory-text>${escapeHtml(text)}</span>${uncertain ? memoryQuestionMark(t) : ""}</span>`;
+}
+
+function avatarStageForAge(age) {
+  return number(age) === null || age > maximumAge ? null : stages[stageAgeStarts.findLastIndex(start => start <= age)];
 }
 
 export function memoryEventAvatars(card, {t, lifeStageText, profile = {}, readiness = {}}) {
-  const related = new Set((card.nodes || [card]).map(node => node.event.life_stage));
-  const selected = stages.filter(stage => related.has(stage));
-  if ([...related].some(stage => !stages.includes(stage))) selected.push("unplaced");
+  const related = new Map();
+  for (const {event,age:ageRange} of card.nodes || [card]) {
+    if (stages.includes(event.life_stage)) {
+      related.set(event.life_stage,null);
+      continue;
+    }
+    const age = event.kind === "period" ? ageRange : representativeAge(ageRange);
+    const start = avatarStageForAge(age.start);
+    if (!start) {
+      related.set("unplaced",null);
+      continue;
+    }
+    const end = event.kind === "period" && age.end > age.start ? avatarStageForAge(age.end) : start;
+    if (!related.has(start)) related.set(start,end && end !== start ? {...age,end:age.start} : age);
+    if (end && !related.has(end)) related.set(end,{...age,start:age.end});
+  }
+  const selected = [...stages,"unplaced"].filter(stage => related.has(stage));
   const artwork = profile.avatar_style === "female" ? "female" : "male";
   return `<span class="map-memory-avatars">${selected.map(stage => {
     if (stage === "unplaced") return `<span class="map-memory-avatar is-unknown" role="img" aria-label="${escapeHtml(t("unplacedStage"))}" title="${escapeHtml(t("unplacedStage"))}"><svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="8" r="4"/><path d="M4 22v-3a8 8 0 0 1 16 0v3z"/></svg></span>`;
+    const hint = related.get(stage), label = lifeStageText(stage,"label");
     const context = readiness[stage] || {};
     const percent = Math.max(0,Math.min(100,Number(context.percent) || 0));
     const color = ["red","amber","green"].includes(context.color) ? context.color : "red";
-    const description = t("contextReadiness",{stage:lifeStageText(stage,"label"),percent,words:context.word_equivalents || 0});
-    return `<span class="map-memory-avatar readiness-${color}" role="img" aria-label="${escapeHtml(description)}" title="${escapeHtml(description)}" style="--readiness:${percent}%"><img src="/static/timeline_avatar_${avatars[stages.indexOf(stage)]}_${artwork}.png" alt="" /></span>`;
+    const description = hint ? [label,eventAgeLabel(hint,t)].filter(Boolean).join(" · ")
+      : t("contextReadiness",{stage:label,percent,words:context.word_equivalents || 0});
+    return `<span class="map-memory-avatar${hint ? "" : ` readiness-${color}`}" role="img" aria-label="${escapeHtml(description)}" title="${escapeHtml(description)}"${hint ? "" : ` style="--readiness:${percent}%"`}><img src="/static/timeline_avatar_${avatars[stages.indexOf(stage)]}_${artwork}.png" alt="" /></span>`;
   }).join("")}</span>`;
 }
 

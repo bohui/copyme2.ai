@@ -551,7 +551,8 @@ def test_map_city_chronology_preserves_skill_relations_across_paginated_api(sql,
     from test_shared_memory_events_postgres import literal
     home_quote = 'I currently live in Sydney. I have lived here for fourteen years.'
     first = 'I was born in Chengde in 1983. ' + home_quote
-    later = 'I grew up in Chengde. Later I studied and worked in Shanghai for five years before moving to Sydney.'
+    insects = 'I went to catch insects in Chengde during primary school.'
+    later = insects + ' Later I studied and worked in Shanghai for five years before moving to Sydney.'
     followup = 'I still remember going to work by train in Shanghai.'
     home_id = None
     study_id = None
@@ -570,11 +571,11 @@ def test_map_city_chronology_preserves_skill_relations_across_paginated_api(sql,
             values = [('Birth','Chengde','I was born in Chengde in 1983.','baby'),
                       ('Sydney residence','Sydney',home_quote,'unplaced')]
         else:
-            values = [('Growing up','Chengde','I grew up in Chengde.','childhood'),
+            values = [('Catching insects','Chengde',insects,'childhood'),
                       ('Shanghai study and work','Shanghai','Later I studied and worked in Shanghai for five years before moving to Sydney.','unplaced')]
         for title, city, quote, stage in values:
             ref = reference(packet,quote)
-            item = dict(episode(packet,quote,title=title),kind='event' if title=='Birth' else 'period',
+            item = dict(episode(packet,quote,title=title),kind='event' if city=='Chengde' else 'period',
                 life_stage=stage,stage_evidence=[ref] if stage!='unplaced' else None,
                 yearConfidenceScore=1.0 if title=='Birth' else 0.0,
                 temporal=dict(expression='1983',precision='year',year_start=1983,basis=[ref]) if title=='Birth' else None)
@@ -584,14 +585,15 @@ def test_map_city_chronology_preserves_skill_relations_across_paginated_api(sql,
                 source=packet['sources'][0]
                 anchor=source if text==first else packet['conversation_history'][-1]['source']
                 year=int(anchor['created_at'][:4])
-                start,end,confidence = (year-15,year,.8) if city=='Sydney' else (year-20,year-13,.65) if city=='Shanghai' else (1986,2000,.4)
+                start,end,confidence = (year-15,year,.8) if city=='Sydney' else (year-20,year-13,.65) if city=='Shanghai' else (1989,1993,.4)
                 if overlap and city in {'Shanghai','Sydney'}:
                     start,end,confidence = (1999 if city=='Shanghai' else 2004),year,.3
                 dependency=dict(source_id=anchor['id'],version=anchor['version'],
                     quote=home_quote if city=='Shanghai' else 'I was born in Chengde in 1983.')
                 item['temporal_estimate']=dict(year_start=start,year_end=end,age_start=start-1983,age_end=end-1983,
                     confidence=confidence,reference_year=year if city!='Chengde' else None,
-                    rationale='Original duration and narrator birth anchors.',basis=[ref,dependency])
+                    rationale='Primary school and the original birth year.' if city=='Chengde' else 'Original duration and narrator birth anchors.',
+                    basis=[ref,dependency])
                 item['yearConfidenceScore']=confidence
                 if repair_estimate and city=='Sydney' and not packet.get('retry_reason'):
                     item['temporal_estimate'].update(year_start=None,age_start=None)

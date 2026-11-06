@@ -163,8 +163,7 @@ test('provisional locations join city summaries and low-confidence dates use a s
   assert.match(cards.innerHTML,/map-memory-question/);
   zoom(chengde);
   assert.match(cards.innerHTML,/School compound/);
-  assert.match(cards.innerHTML,/1986/);
-  assert.match(cards.innerHTML,/1995/);
+  assert.match(cards.innerHTML,/data-memory-text>About 1991 · About age 8</);
   assert.match(cards.innerHTML,/map-memory-question/);
   childhood.locationConfidenceScore=.5;
   childhood.yearConfidenceScore=.5;
@@ -325,18 +324,16 @@ test('near-parallel legs at a shared city show one trail until the overview', t=
   assert.ok(footprints.length>incoming.length);
 });
 
-test('local footprints connect chronological city events across an intervening visit to another city', t=>{
+test('city detail shows individual memories without footprints between them', t=>{
   const school={...chengde,place:'School',granularity:'suburb',hierarchy:[...chengde.hierarchy,'School'],
     longitude:chengde.longitude+.1,latitude:chengde.latitude+.1};
   const home={...chengde,place:'Home',granularity:'suburb',hierarchy:[...chengde.hierarchy,'Home'],
     longitude:chengde.longitude-.1,latitude:chengde.latitude-.1};
-  const events=[event('Return home',home,2010,'midlife'),event('Sydney visit',sydney,2000,'young_adulthood'),
-    event('School',school,1990,'childhood')];
-  const {footprints,zoom}=mapFixture(t,false,[school,home],events);
+  const events=[event('Return home',home,2010,'midlife'),event('School',school,1990,'childhood')];
+  const {cards,footprints,zoom}=mapFixture(t,false,[school,home],events);
   zoom(chengde);
-  assert.ok(footprints.length>0,'The city chronology must have its own trail');
-  assert.ok(footprints.every(stamp=>stamp.width===10 && stamp.height===10));
-  assert.ok(footprints[0].x>footprints.at(-1).x,'Follow school then home, independent of capture order');
+  assert.match(cards.innerHTML,/School[^]*Return home/);
+  assert.deepEqual(footprints,[]);
 });
 
 test('memories sharing only a city pin keep the intercity trail without inventing local positions', t=>{

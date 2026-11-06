@@ -17,6 +17,7 @@ function setup(overrides = {}) {
   const context = vm.createContext({state, escapeHtml, translate,
     translateWith:(key, values) => translate(key).replace(/\{(\w+)\}/g, (_, name) => values[name]),
     formatText:escapeHtml, sourcePills:() => 'sources', referencesWorkspace:() => '',storyGameButton:() => '',
+    privateDraftGenerationButton:() => '',
     familyWorkspace:() => '<div>family view</div>', timelineWorkspace:() => '<div>timeline view</div>',
     workspaceIsVisible:() => true, workspaceMediaOverview:() => '<section class="workspace-media-overview">places and pictures</section>',
     lifeStageNavigator:() => '<section>life stages</section>', render:() => {},

@@ -148,6 +148,7 @@ def test_agent_config_exposes_public_connection_settings(monkeypatch):
     monkeypatch.setenv('SUPABASE_PUBLISHABLE_KEY', 'public-key')
     monkeypatch.setenv('MEMORY_SPARK_SHOW_THINKING_STEPS', '0')
     monkeypatch.delenv('MEMORY_SPARK_SHOW_DRAFT_UPDATES', raising=False)
+    monkeypatch.delenv('MEMORY_SPARK_DEBUG_EARLY_GENERATION', raising=False)
     client = TestClient(create_app(MemoryStore()))
 
     response = client.get('/v1/agent/config')
@@ -163,6 +164,7 @@ def test_agent_config_exposes_public_connection_settings(monkeypatch):
         'geoapify_browser_api_key': None,
         'show_thinking_steps': False,
         'show_draft_updates': False,
+        'debug_early_generation': False,
         'free_recall_rounds':20,
         'private_draft_cadence':5,
     }
@@ -183,6 +185,23 @@ def test_agent_config_draft_updates_are_independent_of_thinking_steps(monkeypatc
     monkeypatch.setenv('MEMORY_SPARK_SHOW_DRAFT_UPDATES', drafts)
     response = TestClient(create_app(MemoryStore())).get('/v1/agent/config')
     assert response.json()['show_draft_updates'] is enabled
+
+
+@pytest.mark.parametrize('host,origin,expected', [
+    ('localhost:3000', 'http://localhost:3000', True),
+    ('127.0.0.1:3000', None, True),
+    ('[::1]:3000', None, True),
+    ('memoir.example', 'http://localhost:3000', False),
+    ('localhost:3000', 'https://memoir.example', False),
+])
+def test_early_generation_is_advertised_only_on_loopback(monkeypatch, host, origin, expected):
+    monkeypatch.setenv('MEMORY_SPARK_DEBUG_EARLY_GENERATION', '1')
+    headers = {'X-Forwarded-Host': host}
+    if origin:
+        headers['Origin'] = origin
+    response = TestClient(create_app(MemoryStore())).get('/v1/agent/config', headers=headers)
+    assert response.json()['debug_early_generation'] is expected
+    assert response.json()['free_recall_rounds'] == 20
 
 @pytest.mark.parametrize('provider', ['google', 'geoapify', 'invalid'])
 def test_agent_config_exposes_only_the_selected_browser_maps_key(monkeypatch, provider):

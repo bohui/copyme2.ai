@@ -5,6 +5,8 @@ export function createPrivateDraft({
   applyBackgroundSkillProgress, captureProjectScope, freeRecallFinished, isCurrentProjectScope, memoirApiPath, persistChatHistory, profile,
   render, state, storyApi, updateStreamingAssistantMessage
 }) {
+  let generation = null;
+
   function currentSectionRework() {
     const rework = state.sectionRework;
     return rework && isCurrentProjectScope(rework)
@@ -148,7 +150,7 @@ export function createPrivateDraft({
     const scope = captureProjectScope();
     if (!scope.projectId || !state.supabase?.accessToken) return;
     const language = state.privateDraftLocale || profile().preferred_language || currentUiLocale();
-    const debug = state.showThinkingSteps || state.showDraftUpdates;
+    const debug = state.showThinkingSteps || state.showDraftUpdates || state.debugEarlyGeneration;
     const active = state.privateDraftStream;
     if (debug && !restart && active && !active.controller.signal.aborted &&
         isCurrentProjectScope(active.scope) && active.language === language) return active.ready;
@@ -210,6 +212,39 @@ export function createPrivateDraft({
     await storyApi('/v1/story/private-draft/retry',{method:'POST',body:JSON.stringify({
       project_id:state.project.id,language:state.privateDraftLocale || profile().preferred_language || currentUiLocale()})});
     await refreshPrivateDraft({restart:true});
+  }
+
+  async function generatePrivateDraft({forGame = false} = {}) {
+    const scope = captureProjectScope();
+    if (!state.debugEarlyGeneration || !scope.projectId || !state.supabase?.accessToken ||
+        (generation?.busy && isCurrentProjectScope(generation))) return;
+    const attempt = generation = {...scope, busy:true, status:null};
+    render();
+    try {
+      const language = forGame ? null : state.privateDraftLocale || profile().preferred_language || currentUiLocale();
+      const {status} = await storyApi("/v1/story/private-draft/generate", {method:"POST", body:JSON.stringify({
+        project_id:scope.projectId, language,
+      })});
+      if (!isCurrentProjectScope(scope)) return;
+      attempt.status = status;
+      if (status !== "insufficient_context") await refreshPrivateDraft({restart:true});
+      return status;
+    } catch (_) {
+      attempt.status = "error";
+      return attempt.status;
+    } finally {
+      attempt.busy = false;
+      if (isCurrentProjectScope(scope)) render();
+    }
+  }
+
+  function privateDraftGenerationButton() {
+    if (!state.debugEarlyGeneration || !state.project?.id) return "";
+    const attempt = generation && isCurrentProjectScope(generation) ? generation : null;
+    const key = attempt?.status === "error" ? "Memoir.workspace.privateDraftBlocked"
+      : attempt?.status === "insufficient_context" || state.privateDraft?.status === "insufficient_context"
+        ? "Memoir.recall.previewInsufficient" : null;
+    return `<div class="workspace-game"><button type="button" class="button button-secondary" data-action="generate-private-draft" ${attempt?.busy || state.privateDraft?.updating ? "disabled" : ""}>${escapeHtml(translate("Memoir.storyFlow.generateMemoir"))}</button>${key ? `<p role="status">${escapeHtml(translate(key))}</p>` : ""}</div>`;
   }
 
   async function selectPrivateDraftLocale(language) {
@@ -288,8 +323,9 @@ export function createPrivateDraft({
   }
 
   function privateDraftPreview({ inChapters = false } = {}) {
-    if (!inChapters || !(state.showDraftUpdates || freeRecallFinished())) return "";
+    if (!inChapters || !(state.debugEarlyGeneration || state.showDraftUpdates || freeRecallFinished())) return "";
     const saved=state.privateDraft;
+    if (state.debugEarlyGeneration && saved?.error === "LIFETIME_COMPOSITION_PENDING" && !saved.updating) return "";
     if (!saved || !saved.preview && !saved.error && !saved.approval_required && !saved.original_withheld &&
         !saved.updating) return "";
     const t=(key,values={})=>escapeHtml(translateWith(`Memoir.workspace.${key}`,values));
@@ -312,6 +348,7 @@ export function createPrivateDraft({
 
   return {
     currentSectionRework, decidePrivateDraftProposal, loadMorePrivateDraft, openSectionRework,
-    privateDraftPreview, privateDraftThinkingStep, refreshPrivateDraft, retryPrivateDraft, selectPrivateDraftLocale, submitSectionRework
+    generatePrivateDraft, privateDraftGenerationButton, privateDraftPreview, privateDraftThinkingStep,
+    refreshPrivateDraft, retryPrivateDraft, selectPrivateDraftLocale, submitSectionRework
   };
 }

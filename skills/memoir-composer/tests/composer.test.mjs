@@ -23,6 +23,18 @@ test('host-authorized private checkpoint at five preserves twenty-round quota an
  p.request.trigger.composition_authorized=false;p.request.trigger.type='free_rounds_completed';
  assert.equal(preparePlan(p.request).status,'trial_not_finished');
 });
+test('an on-demand private draft uses available evidence at zero completed rounds',()=>{
+ const {request}=focusedFixture();
+ Object.assign(request.trigger,{type:'private_draft_checkpoint',free_rounds_completed:0,free_round_limit:20,
+   private_draft_authorized:true,private_rounds_completed:0,private_draft_cadence:5});
+ assert.equal(preparePlan(request).status,'private_draft_not_authorized');
+ request.trigger.private_draft_on_demand=true;
+ assert.equal(preparePlan(request).kind,'sample_chapter');
+ request.trigger.composition_authorized=true;
+ assert.equal(preparePlan(request).status,'invalid_private_draft_scope');
+ request.trigger.private_draft_authorized=false;
+ assert.equal(preparePlan(request).status,'private_draft_not_authorized');
+});
 const exactLength=(n)=>{const p=focusedFixture(),c=p.draft.chapters[0];c.title='Chapter';c.subtitle='';c.blocks=[block('length_block',Array(n-1).fill('memory').join(' '),[ref('s_home')])];p.draft.outline[0].title=c.title;return p;};
 for(const [name,fn] of Object.entries({focused:focusedFixture,broad:broadFixture,formal:formalFixture,progressive:()=>progressiveFixture(false),protected:()=>progressiveFixture(true),Chinese:chineseFixture}))
  test(`synthetic ${name} fixture validates`,()=>{const p=fn();const v=validateDraft(p.request,p.draft);assert.equal(v.ok,true,JSON.stringify(v.errors));});

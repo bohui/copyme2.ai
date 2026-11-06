@@ -66,6 +66,32 @@ for (const rounds of [5, 20]) {
   });
 }
 
+test('debug memoir generation queues the current project and streams the saved draft before recall ends', async () => {
+  const s = setup({showThinkingSteps:false, showDraftUpdates:false, debugEarlyGeneration:false});
+  const calls = [];
+  s.context.escapeHtml = String;
+  s.context.storyApi = async (path, options) => {
+    calls.push([path, JSON.parse(options.body)]);
+    return {status:'queued'};
+  };
+  vm.runInContext('let generation = null;', s.context);
+  for (const name of ['generatePrivateDraft', 'privateDraftGenerationButton']) {
+    vm.runInContext(source.match(new RegExp(`(?:async )?function ${name}\\([^]*?\\n\\}`))[0], s.context);
+  }
+  assert.equal(s.context.privateDraftGenerationButton(), '');
+  await s.context.generatePrivateDraft();
+  assert.deepEqual(calls, []);
+  s.state.debugEarlyGeneration = true;
+  assert.match(s.context.privateDraftGenerationButton(), /data-action="generate-private-draft"/);
+  await s.context.generatePrivateDraft();
+  await settled(s.state);
+  assert.deepEqual(calls, [['/v1/story/private-draft/generate', {project_id:'p', language:'zh-CN'}]]);
+  assert.equal(s.state.privateDraft.preview.text, '童年回忆');
+  await s.context.generatePrivateDraft({forGame:true});
+  await settled(s.state);
+  assert.deepEqual(calls.at(-1), ['/v1/story/private-draft/generate', {project_id:'p', language:null}]);
+});
+
 test('one request delivers draft changes without scheduling HTTP polling', async()=>{
   const s=setup();
   await s.context.refreshPrivateDraft();

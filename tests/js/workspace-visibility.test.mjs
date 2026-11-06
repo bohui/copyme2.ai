@@ -112,6 +112,27 @@ test('live draft previews require only their own flag and a local browser', asyn
   }
 });
 
+test('early generation opens Chapters at zero rounds only on a flagged loopback browser', async () => {
+  for (const [hostname, flag, enabled] of [['localhost', true, true], ['localhost', false, false],
+    ['memoir.example', true, false]]) {
+    const {state, context, app} = workspaceHarness({
+      placeJourney:null, recallStatus:{rounds_completed:0, free_rounds:20}, currentInterviewMode:{mode:'explore'},
+    }, {
+      window:{location:{hostname}}, memoirApiPath:String,
+      fetch:async () => ({json:async () => ({auth_mode:'test', debug_early_generation:flag})}),
+      memoirWorkspace:() => context.storyGameButton(),
+    });
+    for (const name of ['loadSupabaseConfig', 'storyGameButton']) vm.runInContext(extract(name), context);
+    await context.loadSupabaseConfig();
+    context.renderStory();
+    assert.equal(state.debugEarlyGeneration, enabled);
+    assert.equal(context.freeRecallFinished(), false);
+    assert.equal(app.innerHTML.includes('data-workspace-tab="memoir"'), enabled);
+    assert.equal(app.innerHTML.includes('data-story-game'), enabled);
+    assert.doesNotMatch(app.innerHTML, /data-workspace-tab="family"|data-workspace-tab="timeline"/);
+  }
+});
+
 test('draft controls never appear beneath the message input, including with local debugging enabled', () => {
   for (const showThinkingSteps of [false, true]) for (const showDraftUpdates of [false,true]) {
     for (const overrides of [{placeJourney:null}, {workspaceCollapsed:true}]) {

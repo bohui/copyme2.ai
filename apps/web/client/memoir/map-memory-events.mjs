@@ -1,6 +1,6 @@
 import { updateMemoryCards } from "./map-memory-card-updates.mjs";
 import { escapeHtml } from "./dom.mjs";
-import { buildMapMemoryJourney, cityEventCards, map2DViewRectangle, mapCityInView, mapCityOverlapsView, mapTrailWindow, matchesEventPlace, memoryEventCardMarkup, memoryTrailLegs } from "./map-memory-journey.mjs";
+import { buildMapMemoryJourney, cityEventCards, map2DViewRectangle, mapCityInView, mapCityOverlapsView, mapTrailWindow, matchesEventPlace, memoryEventCardMarkup } from "./map-memory-journey.mjs";
 import { placeHistoryKey } from "./places.mjs";
 
 export function createMapMemoryEvents({getEvents, getGroups, getProfile, getScope, getIdentity = getScope, getStage,
@@ -368,12 +368,9 @@ export function createMapMemoryEvents({getEvents, getGroups, getProfile, getScop
       const dx = to.x - from.x, dy = to.y - from.y, distance = Math.hypot(dx,dy);
       return distance < 12 ? null : {leg,from,to,dx,dy,distance,range};
     };
-    const localNodes = journey.nodes.filter(node => node.groupKey === viewCity);
-    const local = new Set(localNodes.map(node => node.event.id)).size > 1
-      ? memoryTrailLegs(localNodes).map(projectLeg).filter(Boolean) : [];
-    const size = local.length ? 10 : 16, spacing = local.length ? 18 : 30;
-    const segments = [...local], cityDirections = [], connectedCities = new Set();
-    for (const leg of local.length ? [] : journey.legs) {
+    const size = 16, spacing = 30;
+    const segments = [], cityDirections = [], connectedCities = new Set();
+    for (const leg of journey.legs) {
       if (leg.from.groupKey === leg.to.groupKey) continue;
       const pair = JSON.stringify([leg.from.groupKey,leg.to.groupKey].sort());
       if (connectedCities.has(pair)) continue;

@@ -155,8 +155,9 @@ export function preparePlan(r) {
   if(!r.trigger.confirmed) return block('awaiting_event_confirmation','Only a confirmed application event may start this skill.');
   let kind;
   if(r.trigger.type==='private_draft_checkpoint') {
+    const onDemand=r.trigger.private_draft_on_demand===true;
     if(r.trigger.private_draft_authorized!==true || !Number.isInteger(r.trigger.private_draft_cadence) ||
-       !Number.isInteger(r.trigger.private_rounds_completed) || r.trigger.private_rounds_completed<r.trigger.private_draft_cadence)
+       !Number.isInteger(r.trigger.private_rounds_completed) || (!onDemand && r.trigger.private_rounds_completed<r.trigger.private_draft_cadence))
       return block('private_draft_not_authorized','The host must authorize a completed private draft checkpoint.');
     if(r.target.audience!=='storyteller'||r.target.medium!=='web'||r.trigger.composition_authorized||r.prior_state.kind==='formal_memoir')
       return block('invalid_private_draft_scope','Private checkpoints cannot authorize a full or published manuscript.');

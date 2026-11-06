@@ -366,6 +366,7 @@
       "voiceNote": "Mira 会用 AI 生成的声音回复，然后继续倾听。点击 × 结束。身份和同意经确认后，提交会私密保留原始录音。",
       "sourceNote": "您的叙述与相关记忆将会被一起保存。",
       "shortcutNote": "按 Enter 发送 · 按 Shift + Enter 换行",
+      "sendWait": "您说的太快了，请稍等",
       "dictate": "语音输入",
       "cancelDictation": "取消语音输入",
       "stopDictation": "停止录音",

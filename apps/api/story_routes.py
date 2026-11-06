@@ -541,6 +541,24 @@ def build_router(
         finally:
             await asyncio.to_thread(_close, storage)
 
+    @router.post('/private-draft/generate', status_code=202, include_in_schema=False)
+    async def generate_debug_draft(payload: StoryPreviewCreate, request: Request,
+                                   authorization: str | None = Header(default=None)):
+        from .formal_memoir_routes import _rpc_error
+        from .local_debug import debug_early_generation, debug_generation_rpc
+        if not debug_early_generation(request):
+            raise HTTPException(404, 'Not found')
+        storage = await asyncio.to_thread(storage_for, authorization)
+        try:
+            return await debug_generation_rpc('queue_debug_memoir_composer', storage.user_id,
+                p_project_id=payload.project_id, p_locale=payload.language)
+        except httpx.HTTPStatusError as error:
+            raise _rpc_error(error) from None
+        except httpx.RequestError:
+            raise HTTPException(503, 'Draft generation is temporarily unavailable') from None
+        finally:
+            await asyncio.to_thread(_close, storage)
+
     @router.post('/private-draft/retry')
     async def retry_private_draft(payload: StoryPreviewCreate, authorization: str | None = Header(default=None)):
         storage = await asyncio.to_thread(storage_for, authorization)

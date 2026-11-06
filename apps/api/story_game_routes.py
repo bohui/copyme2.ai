@@ -5,13 +5,14 @@ import re
 from uuid import UUID
 
 import httpx
-from fastapi import APIRouter, BackgroundTasks, Header, HTTPException
+from fastapi import APIRouter, BackgroundTasks, Header, HTTPException, Request
 from pydantic import BaseModel, Field
 from starlette.responses import JSONResponse, Response
 
 from .agent_routes_support import authenticated_storage
 from .conversation_recovery import PROJECT_ID_PATTERN
 from .formal_memoir_routes import _rpc_error
+from .local_debug import debug_early_generation, debug_generation_rpc
 
 router = APIRouter(tags=['Private story game'])
 
@@ -123,10 +124,18 @@ class StoryGameResponse(Response):
 
 
 @router.get('/projects/{project_id}/story-game')
-async def game_status(project_id: str, authorization: str | None = Header(default=None)):
+async def game_status(project_id: str, request: Request, authorization: str | None = Header(default=None)):
     storage = await owned_storage(project_id, authorization)
     try:
         result = await rpc(storage, 'read_story_game_status', project_id)
+        if debug_early_generation(request):
+            eligibility = result['eligibility']
+            reasons = [reason for reason in eligibility['reasons']
+                       if reason not in {'shape_required', 'current_decision_required'}]
+            if reasons != eligibility['reasons']:
+                eligibility.update(reasons=reasons, available=not reasons, authority_eligible=not reasons)
+                if not (result.get('adaptation') or {}).get('debug_early_generation'):
+                    result['adaptation'] = None
         return JSONResponse(result, headers={'Cache-Control': 'no-store'})
     except httpx.HTTPStatusError as error:
         raise _rpc_error(error) from None
@@ -158,11 +167,15 @@ async def advance_formal(project_id: str, payload: FormalAdvance,
 
 @router.post('/projects/{project_id}/story-game', status_code=202)
 async def create_game(project_id: str, payload: GameRequest,
-                      background_tasks: BackgroundTasks,
+                      background_tasks: BackgroundTasks, request: Request,
                       authorization: str | None = Header(default=None)):
     storage = await owned_storage(project_id, authorization)
     try:
-        job = await rpc(storage, 'begin_story_game', project_id, p_request_id=str(payload.request_id))
+        if debug_early_generation(request):
+            job = await debug_generation_rpc('begin_story_game_for_owner', storage.user_id,
+                p_project_id=project_id, p_request_id=str(payload.request_id), p_debug=True)
+        else:
+            job = await rpc(storage, 'begin_story_game', project_id, p_request_id=str(payload.request_id))
         if job['status'] not in {'published','selection_required'}:
             background_tasks.add_task(_build_confirmed_game,job['game_id'])
         return JSONResponse(job, status_code=202, headers={'Cache-Control': 'no-store'})
