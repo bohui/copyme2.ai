@@ -21,7 +21,7 @@ const family=createFamilyWorkspace({state,captureProjectScope:()=>project_id,isC
 await family.refreshFamilyContext({mapSnapshot:structuredClone(pages.first)});
 assert.equal(requests.length,1,'Only read the continuation after Atlas supplies the first page');
 assert.equal(state.timeline.length,4);
-assert.deepEqual(state.timeline.map(event=>event.title),['Birth','Growing up','Shanghai study and work','Sydney residence']);
+assert.deepEqual(state.timeline.map(event=>event.title),['Birth','Catching insects','Shanghai study and work','Sydney residence']);
 const enriched=state.timeline.map(event=>({...event,places:locations[event.id].items.map(link=>({...link,
   place:places.find(place=>place.place===link.place.place)}))}));
 const journey=buildMapMemoryJourney(enriched,groupPlaces(places),state.project.profile);
@@ -34,13 +34,17 @@ for (const city of cities) {
     lifeStageText:stage=>stage});
   assert.ok(html.includes(`<strong class="map-memory-summary"><span data-memory-text>${city.city}</span></strong>`));
   if (with_estimates || city.city==='Chengde') assert.match(html,/From .+ to .+/);
-  else assert.match(html,/<span class="map-memory-date"><span data-memory-text>\?<\/span><\/span>/);
-  assert.doesNotMatch(html,/Year not yet known|Age not yet known/);
+  else assert.match(html,/From About 1983 · About age 0 to About \d{4} · About age \d+<\/span><sup class="map-memory-question"/);
+  assert.doesNotMatch(html,/Age not yet known|Year not yet known/);
+  if (city.city==='Sydney' && with_estimates) {
+    assert.match(html,/timeline_avatar_.*_male\.png/);
+    assert.doesNotMatch(html,/is-unknown/);
+  }
   assert.match(html,/data-memory-city=[^>]+>Expand memories<\/button>/);
   assert.match(html,/data-memory-add[^>]*>Add a memory<\/button>/);
-  assert.doesNotMatch(html,/Birth|Growing up|Shanghai study and work|Sydney residence|data-memory-explore|confidence/);
+  assert.doesNotMatch(html,/Birth|Catching insects|Shanghai study and work|Sydney residence|data-memory-explore|confidence/);
   if (city.city==='Chengde') assert.ok(html.includes(with_estimates
-    ? 'From 1983 · About age 0 to About 2000 · About age 17'
+    ? 'From 1983 · About age 0 to About 1993 · About age 10'
     : 'From 1983 · About age 0 to 1983 · About age 0'));
 }
 assert.ok(journey.legs.some(leg=>leg.from.city==='Shanghai' && leg.to.city==='Sydney'),
@@ -51,12 +55,17 @@ for (const node of journey.nodes) {
   assert.doesNotMatch(html,/confidence|>\d+%</);
   assert.doesNotMatch(html,/data-memory-add/,'An API event card must not gain a second city-level add action');
   if (node.event.title==='Birth') assert.match(html,/1983 · About age 0/);
-  else if (with_estimates) {
+  else if (node.event.title==='Catching insects') {
+    assert.match(html,/About 1991 · About age 8<\/span><sup class="map-memory-question"/);
+    if (with_estimates) {
+      assert.equal(node.event.temporal_estimate.age_start,6);
+      assert.equal(node.event.temporal_estimate.age_end,10);
+      assert.ok(!('basis' in node.event.temporal_estimate));
+    }
+  } else if (with_estimates) {
     assert.match(html,/About \d{4}–\d{4} · About age \d+–\d+/);
     assert.ok(!('basis' in node.event.temporal_estimate));
-  } else {
-    assert.match(html,/<span class="map-memory-date"><span data-memory-text>\?<\/span><\/span>/);
-  }
+  } else assert.match(html,/About 1983–\d{4} · About age 0–\d+<\/span><sup class="map-memory-question"/);
   assert.ok(!('source_refs' in node.event));
 }
 

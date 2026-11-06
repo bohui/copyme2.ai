@@ -163,8 +163,7 @@ test('provisional locations join city summaries and low-confidence dates use a s
   assert.match(cards.innerHTML,/map-memory-question/);
   zoom(chengde);
   assert.match(cards.innerHTML,/School compound/);
-  assert.match(cards.innerHTML,/1986/);
-  assert.match(cards.innerHTML,/1995/);
+  assert.match(cards.innerHTML,/data-memory-text>About 1991 · About age 8</);
   assert.match(cards.innerHTML,/map-memory-question/);
   childhood.locationConfidenceScore=.5;
   childhood.yearConfidenceScore=.5;

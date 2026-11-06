@@ -96,8 +96,8 @@ test('canonical timeline rows show the same estimated years and ages as map card
     formatDateExpression:value=>value,referencesWorkspace:()=>'',lifeStageText:()=>''});
   load(context,'timelineWorkspace');
   const html=context.timelineWorkspace();
-  assert.match(html,/mapEventYearApproximate:1988–1990/);
-  assert.match(html,/mapEventAgeApproximate:5–7/);
+  assert.match(html,/mapEventYearApproximate:1989/);
+  assert.match(html,/mapEventAgeApproximate:6</);
   assert.doesNotMatch(html,/mapEventEstimatedConfidence|mapEventDateConfidence|map-memory-confidence/);
 });
 test('protected draft proposals remain explicitly review-only and missing originals are disclosed', () => {

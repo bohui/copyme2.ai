@@ -131,7 +131,7 @@ test('undated members do not erase the known city bounds', () => {
   for (const events of [[birth],[birth,later]]) {
     const grouped=cityEventCards(buildMapMemoryJourney(events,groups,{birth_year:1983}).nodes)[0];
     const html=memoryEventCardMarkup(grouped,{t,lifeStageText:stage=>stage});
-    assert.match(html,/From 1983 · About age 0 to 1983 · About age 0/);
+    assert.match(html,events.length === 1 ? /data-memory-text>1983 · About age 0</ : /From 1983 · About age 0 to 1983 · About age 0/);
     assert.match(html,/Expand memories/);
     assert.doesNotMatch(html,/data-memory-explore|Explore this memory/);
   }
@@ -169,7 +169,7 @@ test('Chengde, Shanghai and Sydney cards retain whole residence periods and narr
     temporal_estimate:{year_start:1983+start,year_end:1983+end,age_start:start,age_end:end,confidence:.4}});
   const home={...residence('home',chengde,0,16),temporal:{expression:'从出生一直到16岁',precision:'age'}};
   const study={...residence('study',shanghai,17,29),relations:[{kind:'before',event_id:'sydney'}]};
-  const sydney=residence('sydney',city,29,43);
+  const sydney={...residence('sydney',city,28,43),yearConfidenceScore:.7};
   const childhood=event('childhood',6,chengde);
   const journey=buildMapMemoryJourney([sydney,study,home,childhood],groupPlaces([chengde,shanghai,city]),{birth_year:1983});
   const cards=cityEventCards(journey.nodes);
@@ -177,7 +177,10 @@ test('Chengde, Shanghai and Sydney cards retain whole residence periods and narr
   const html=cards.map(card=>memoryEventCardMarkup(card,{t,lifeStageText:stage=>stage}));
   assert.match(html[0],/From About 1983 · Age 0 to About 1999 · Age 16/);
   assert.match(html[1],/From About 2000 · About age 17 to About 2012 · About age 29/);
-  assert.match(html[2],/From About 2012 · About age 29 to About 2026 · About age 43/);
+  assert.match(html[2],/From About 2011 · About age 28 to About 2026 · About age 43/);
+  assert.match(html[2],/title="young_adulthood · About age 28"[^>]*><img src="[^"]*timeline_avatar_young_adult_male\.png"/);
+  assert.match(html[2],/title="midlife · About age 43"[^>]*><img src="[^"]*timeline_avatar_middle_aged_male\.png"/);
+  assert.doesNotMatch(html[2],/is-unknown|map-memory-question/);
   assert.ok(journey.legs.some(leg=>leg.from.city==='Shanghai' && leg.to.city==='Sydney'));
 });
 
@@ -372,14 +375,43 @@ test('cards show readiness with colored rings and keep confidence scores out of 
   assert.equal(JSON.stringify(original),saved);
 });
 
-test('unplaced events keep a neutral avatar and unknown dates rather than an invented life stage', () => {
+test('unplaced events with no date clues show one uncertain age in both map views', () => {
   const {nodes}=buildMapMemoryJourney([{...event('unknown',6,school,'unplaced'),temporal:null,yearConfidenceScore:0}],groups);
   const html=memoryEventCardMarkup(nodes[0],{t,lifeStageText:()=>''});
-  assert.match(html,/<span class="map-memory-date"><span data-memory-text>\?<\/span><\/span>/);
-  assert.doesNotMatch(html,/Year not yet known|Age not yet known/);
+  assert.match(html,/<span data-memory-text>About age 65<\/span><sup class="map-memory-question"/);
+  assert.match(memoryEventCardMarkup(cityEventCards(nodes)[0],{t,lifeStageText:()=>''}),
+    /<span data-memory-text>About age 65<\/span><sup class="map-memory-question"/);
+  assert.equal(nodes[0].dated,false);
   assert.doesNotMatch(html,/confidence|>\d+%</);
   assert.match(html,/is-unknown[^]*Stage not yet known[^]*<svg/);
   assert.doesNotMatch(html,/timeline_avatar_/);
+});
+
+test('a childhood clue displays one age without dating the event for routing', () => {
+  const childhood={...event('catching insects',null,school),
+    temporal:{expression:'小时候',precision:'approximate'},yearConfidenceScore:0};
+  const birth={...event('birth',null,melbourne,'baby'),
+    temporal:{expression:'1983',precision:'year',year_start:1983}};
+  const journey=buildMapMemoryJourney([birth,childhood],groups,{birth_year:1983});
+  const node=journey.nodes.find(item=>item.event.id==='catching insects');
+  const html=memoryEventCardMarkup(node,{t,lifeStageText:stage=>stage});
+  assert.match(html,/About 1991 · About age 8<\/span><sup class="map-memory-question"/);
+  assert.equal(node.year,null);
+  assert.equal(node.dated,false);
+  assert.deepEqual(journey.legs.map(leg=>leg.stageTransition),[true],
+    'Stage order can still connect cities without treating the displayed estimate as a date');
+  const ageOnly=buildMapMemoryJourney([childhood],groups).nodes[0];
+  const ageOnlyHtml=memoryEventCardMarkup(ageOnly,{t,lifeStageText:stage=>stage});
+  assert.match(ageOnlyHtml,/<span data-memory-text>About age 8<\/span>/);
+});
+
+test('an event with only a reliable year shows that year without a question mark', () => {
+  const year={...event('year only',null,city,'unplaced'),
+    temporal:{expression:'2007',precision:'year',year_start:2007},yearConfidenceScore:.5};
+  const {nodes}=buildMapMemoryJourney([year],groups);
+  const html=memoryEventCardMarkup(nodes[0],{t,lifeStageText:stage=>stage});
+  assert.match(html,/<span class="map-memory-date"><span data-memory-text>2007<\/span><\/span>/);
+  assert.doesNotMatch(html,/map-memory-question/);
 });
 
 test('model estimates order city cards and show approximate years and ages without confidence scores', () => {
@@ -392,7 +424,7 @@ test('model estimates order city cards and show approximate years and ages witho
   const journey=buildMapMemoryJourney(input,groups,{birth_year:1983});
   assert.deepEqual(journey.nodes.map(node=>node.event.id),['birth','growing up','study','home']);
   const html=memoryEventCardMarkup(journey.nodes.at(-1),{t,lifeStageText:()=>''});
-  assert.match(html,/About 2011–2013 · About age 28–30/);
+  assert.match(html,/data-memory-text>About 2012 · About age 29</);
   assert.doesNotMatch(html,/confidence|>\d+%</);
   assert.match(html,/title="Original duration and birth anchors\."/);
   assert.equal(JSON.stringify(input),saved);
@@ -409,6 +441,8 @@ test('stated dates and timing conflicts take precedence over estimated years', (
   const conflict=buildMapMemoryJourney([{...input,timing_conflict:true}],groups,{birth_year:1983}).nodes[0];
   assert.equal(conflict.year,null);
   assert.deepEqual(conflict.age,{start:null,end:null});
+  assert.match(memoryEventCardMarkup(conflict,{t,lifeStageText:()=>''}),
+    /About 1991 · About age 8<\/span><sup class="map-memory-question"/);
 });
 
 test('nearby memories stay distinct, with overflow instead of inaccessible cards', () => {
