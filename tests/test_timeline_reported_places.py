@@ -100,10 +100,22 @@ def test_active_place_order_reuses_supported_word_ages(later, earlier):
 def test_chronological_active_city_and_explicit_redirect_replay_to_client(sql, tmp_path, monkeypatch):
     from pathlib import Path
     import subprocess
+    from apps.api import place_groups
     from test_conversation_reply import proposal
     raw = json.loads((Path(__file__).parent / 'fixtures/timeline-active-location.json').read_text())
     text = '我叫慧博，现在生活在悉尼，但是我于1983年4月出生在河北省承德市附属医院'
     redirect = '不，我想聊在悉尼的生活。'
+    def geocode(query, *, language, landmark=False):
+        assert language == 'zh-CN'
+        label = query.split(',')[0]
+        if label == '悉尼':
+            return dict(city='悉尼', region='新南威尔士州', country='澳大利亚',
+                latitude=-33.8688, longitude=151.2093, partial_match=False)
+        assert label in {'承德市附属医院', '承德市'}
+        return dict(city='承德市', region='河北省', country='中国',
+            latitude=41.0 if landmark else 40.9515, longitude=117.9634, partial_match=landmark)
+    monkeypatch.setattr(place_groups, 'search_place_details', geocode)
+
     def extract(packet):
         if packet['sources'][0]['text'] != text:
             return empty(packet)
@@ -117,6 +129,8 @@ def test_chronological_active_city_and_explicit_redirect_replay_to_client(sql, t
             elif isinstance(value, list):
                 for item in value: bind(item)
         bind(output)
+        for cue in output['place_journeys']:
+            cue.update(latitude=None, longitude=None)
         return output
     def reply(context):
         redirected = context['source']['text'] == redirect
@@ -141,10 +155,17 @@ def test_chronological_active_city_and_explicit_redirect_replay_to_client(sql, t
         page = conversation.client.get('/v1/story/map-events', params=dict(project_id=conversation.project)).json()
         links = {event['id']:conversation.client.get(
             f'/v1/story/map-events/{conversation.project}/{event["id"]}/places').json()['items'] for event in page['events']}
+        grouping = {}
+        for items in links.values():
+            linked, = items
+            response = conversation.client.post(f'/v1/agent/places/{conversation.project}/groups',
+                json={'places':[linked['place']], 'language':'zh-CN'})
+            assert response.status_code == 200, response.text
+            grouping[linked['place']['place']] = response.json()
         replay = Path(__file__).parent / 'js/helpers/replay-question-place-focus.mjs'
         checked = subprocess.run(['node', str(replay)], input=json.dumps(dict(project_id=conversation.project,
             result=result, snapshot=initial, redirect_snapshot=later, events=page['events'], links=links,
-            places=raw['place_journeys'])), text=True, capture_output=True, timeout=10)
+            places=raw['place_journeys'], grouping=grouping)), text=True, capture_output=True, timeout=10)
         assert checked.returncode == 0, checked.stdout + checked.stderr
 
 

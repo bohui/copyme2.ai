@@ -3267,7 +3267,11 @@ async function sendChatMessage({ voiceTurn = false } = {}) {
   state.audioTranscript = "";
   state.audioTranscriptKind = "narrator_chat";
   conversationScroll.follow();
-  return state.conversationInputs.enqueue({id, text, messageText, sourceKind, uploadId, attachments, recordingIds, firstReply});
+  const queuedBehindAnother = reserved.length > 0;
+  const sending = state.conversationInputs.enqueue({id, text, messageText, sourceKind, uploadId, attachments, recordingIds, firstReply});
+  // An active queue skips the initial loading render.
+  if (queuedBehindAnother) render();
+  return sending;
 }
 
 async function processChatMessage(message, delivery) {

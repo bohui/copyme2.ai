@@ -162,7 +162,8 @@ export function mapCityInView(cities, project, width, height) {
 }
 
 export function mapCityOverlapsView(city, rectangle) {
-  if (!coordinates(city) || !rectangle) return false;
+  if (!rectangle) return false;
+  if (!coordinates(city)) return city?.nodes?.some(node => mapCityOverlapsView(node,rectangle)) ?? false;
   const {west,south,east,north} = rectangle;
   const radians = value => value*Math.PI/180;
   const turn = Math.PI*2, longitude = radians(city.longitude), latitude = radians(city.latitude);

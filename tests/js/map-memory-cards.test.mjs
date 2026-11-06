@@ -38,7 +38,8 @@ function mapFixture(t, mobile=false, extraPlaces=[], savedEvents, canAddMemory=t
   let redraw,moveEnd,finishFlight,center=settings.center || null;
   const flights=[],views=[],explored=[],added=[];
   const viewer={isDestroyed:()=>false,scene:{mode:2,postRender:{addEventListener:cb=>{redraw=cb;return ()=>{};}}},
-    camera:{frustum:{left:-100000,right:100000},setView:view=>{views.push(view);center=view.destination.height>40000 ? null : view.destination;},
+    camera:{frustum:{left:-100000,right:100000},computeViewRectangle:settings.computeViewRectangle,
+      setView:view=>{views.push(view);center=view.destination.height>40000 ? null : view.destination;},
       flyTo:flight=>{flights.push(flight);finishFlight=flight.complete;},
       moveEnd:{addEventListener:callback=>{moveEnd=callback;return ()=>{moveEnd=null;};}}}};
   const cesium={SceneMode:{SCENE2D:2},Cartesian3:{fromDegrees:(longitude,latitude,height)=>({longitude,latitude,height})},
@@ -111,6 +112,19 @@ test('panning outside every linked city clears the event cards at every zoom and
     assert.equal((cards.innerHTML.match(/class="map-memory-card is-city/g)||[]).length,3);
     assert.equal(map.viewCity(),null);
   }
+});
+
+test('visible event pins keep their city cards when the resolver has no city coordinates',t=>{
+  const places=[chengde,sydney].map(({latitude,longitude,...city})=>({
+    ...city,map_city:city,map_pin:{latitude,longitude},
+  }));
+  const events=places.map((place,index)=>event(`Memory ${index}`,place,2000+index,'childhood'));
+  const radians=value=>value*Math.PI/180;
+  const {map,cards}=mapFixture(t,false,[],events,true,{places,
+    computeViewRectangle:()=>({west:radians(110),east:radians(125),south:radians(35),north:radians(45)})});
+  assert.equal(map.nodes().length,2,'Both events have drawable pins');
+  assert.match(cards.innerHTML,/Chengde/);
+  assert.doesNotMatch(cards.innerHTML,/Sydney/);
 });
 
 test('each city card has its own add-memory action without expanding or continuing an event', t=>{

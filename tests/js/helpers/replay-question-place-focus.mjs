@@ -5,7 +5,7 @@ import {createPhotoWorkspace} from '../../../apps/web/client/memoir/photo-worksp
 import {applyDerivedWorkspace} from '../../../apps/web/client/memoir/derived-workspace.mjs';
 import {matchesEventPlace} from '../../../apps/web/client/memoir/map-memory-journey.mjs';
 
-const {project_id,snapshot,redirect_snapshot,events,links,places}=JSON.parse(readFileSync(0,'utf8'));
+const {project_id,snapshot,redirect_snapshot,events,links,places,grouping}=JSON.parse(readFileSync(0,'utf8'));
 const expected=places.find(place=>matchesEventPlace(place,snapshot.current_active_location));
 const other=places.find(place=>place!==expected);
 assert.ok(expected,'The server must supply the story-owned active location');
@@ -13,7 +13,7 @@ Object.assign(globalThis,{window:{devicePixelRatio:1,location:{origin:'https://m
   matchMedia:()=>({matches:false})},localStorage:{getItem:()=>null,setItem(){throw new Error('Map navigation must not persist story authority');}}});
 
 for (const restore of ['live','refresh','reopen']) {
-  const state={project:{id:project_id,profile:{}},supabase:{user:{id:'owner'}},lifeStage:'all',timeline:[],chat:[],
+  const state={project:{id:project_id,profile:{}},supabase:{user:{id:'owner'},accessToken:grouping && 'fixture'},lifeStage:'all',timeline:[],chat:[],
     currentActiveLocation:restore==='live' ? null : undefined};
   const cards={innerHTML:'',scrollTop:0,querySelectorAll:()=>[],getBoundingClientRect:()=>({top:0,bottom:700})};
   const toolbar={innerHTML:''},overflow={replaceChildren(){}};
@@ -28,7 +28,14 @@ for (const restore of ['live','refresh','reopen']) {
     querySelector:selector=>selector==='.map-memory-layer' ? layer : selector==='.map-photo-album-layer' ? photoLayer : null};
   globalThis.document={documentElement:{lang:'zh-CN'},querySelector:()=>null};
   const dependencies={state,profile:()=>state.project.profile,render(){},lifeStageText:stage=>stage,
-    captureProjectScope:()=>project_id,isCurrentProjectScope:()=>true};
+    captureProjectScope:()=>project_id,isCurrentProjectScope:()=>true,
+    supabaseApi:async(path,{body})=>{
+      assert.equal(path,`/v1/agent/places/${project_id}/groups`);
+      const {places:[place],language}=JSON.parse(body);
+      assert.equal(language,'zh-CN');
+      assert.ok(grouping[place.place]);
+      return grouping[place.place];
+    }};
   let workspace;
   const photos=createPhotoWorkspace({...dependencies,placeMapTarget:place=>workspace.placeMapTarget(place)});
   workspace=createPlaceWorkspace({...dependencies,photos});
@@ -36,15 +43,15 @@ for (const restore of ['live','refresh','reopen']) {
   map.sync(null);
   applyDerivedWorkspace(state,snapshot);
   state.project.profile.memory_places=state.project.profile.memory_places.map(place=>({...place,
-    ...places.find(candidate=>matchesEventPlace(candidate,place)),pictures:[{
+    ...(!grouping && places.find(candidate=>matchesEventPlace(candidate,place))),pictures:[{
       asset_id:place.place,image_url:`https://photos.example/${encodeURIComponent(place.place)}.jpg`,
       allowed_actions:{embed:true},date_expression:new Date().toLocaleDateString('en-CA',{timeZone:'Australia/Sydney'}),title:place.place,
       latitude:places.find(candidate=>matchesEventPlace(candidate,place)).latitude,
       longitude:places.find(candidate=>matchesEventPlace(candidate,place)).longitude}]}));
   state.placeJourney=state.project.profile.memory_places.find(place=>matchesEventPlace(place,other));
   state.selectedPlace=null;
-  state.timeline=events.map(event=>({...event,canonical:true,places:links[event.id].map(link=>({...link,
-    place:{...link.place,...places.find(candidate=>matchesEventPlace(candidate,link.place))}}))}));
+  state.timeline=events.map(event=>({...event,canonical:true,places:grouping ? links[event.id]
+    : links[event.id].map(link=>({...link,place:{...link.place,...places.find(candidate=>matchesEventPlace(candidate,link.place))}}))}));
   map.sync(null);await new Promise(resolve=>setImmediate(resolve));
   const markup=workspace.workspaceMediaOverview();
   assert.match(markup,/workspace-media-map/);
@@ -52,8 +59,13 @@ for (const restore of ['live','refresh','reopen']) {
   map.sync(scene);
   const flights=[],views=[];
   let center=null;
+  const radians=value=>value*Math.PI/180;
   const viewer={isDestroyed:()=>false,scene:{mode:2,postRender:{addEventListener(){}}},
     camera:{frustum:{left:-100000,right:100000},flyTo:flight=>flights.push(flight),
+      computeViewRectangle:()=>center
+        ? {west:radians(center.longitude-1),east:radians(center.longitude+1),
+          south:radians(center.latitude-1),north:radians(center.latitude+1)}
+        : {west:0,east:Math.PI,south:-Math.PI/2,north:Math.PI/2},
       setView:view=>{views.push(view);center=view.destination.height>40000 ? null : view.destination;}}};
   const cesium={SceneMode:{SCENE2D:2},Cartesian3:{fromDegrees:(longitude,latitude,height)=>({longitude,latitude,height})},
     SceneTransforms:{worldToWindowCoordinates:(_,point)=>center ? {x:300+(point.longitude-center.longitude)*500,
@@ -63,6 +75,9 @@ for (const restore of ['live','refresh','reopen']) {
     assert.equal(flights.length,1,'null → chronological city needs one flight');
     assert.equal(flights[0].destination.latitude,expected.latitude);
     center=expected;viewer.camera.frustum={left:-6000,right:6000};flights[0].complete();
+    assert.ok(cards.innerHTML.includes(expected.place),'The city flight must display its events');
+    if (grouping) assert.equal(map.nodes().find(node=>node.place==='承德市附属医院')?.cityOnly,true,
+      'An unresolved landmark can use its city without getting a landmark pin');
     assert.ok(!cards.innerHTML.includes(other.place==='承德市' ? '承德出生' : '悉尼生活'));
   } else {
     assert.equal(flights.length,0,'Restoring data is not an active-location change');

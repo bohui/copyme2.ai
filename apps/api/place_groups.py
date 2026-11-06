@@ -51,9 +51,32 @@ def _coordinates(place):
                for value in (lat, lon)) and -90 <= lat <= 90 and -180 <= lon <= 180
 
 
+def _provider_city(details):
+    if details and details.get('city'):
+        return {'place': details['city'], 'hierarchy': ['Earth', *filter(None,
+            (details.get('country'), details.get('region'), details['city']))], 'granularity': 'city'}
+    return None
+
+
 def resolve_place_groups(places, *, allow_provider=True, language=None):
     cities = [place for place in places if place['granularity'] == 'city']
     records, lookups, provider_available = [], 0, True
+
+    def lookup(place):
+        nonlocal lookups, provider_available
+        if not allow_provider or lookups >= MAX_LOOKUPS or not provider_available:
+            return None
+        lookups += 1
+        query = ', '.join(reversed(_path(place)))
+        options = {'language': language} if language else {}
+        if place['granularity'] == 'landmark':
+            options['landmark'] = True
+        try:
+            return search_place_details(query, **options)
+        except (GeocodingUnavailable, httpx.HTTPError, ValueError, TypeError):
+            provider_available = False
+            return None
+
     for index, place in enumerate(places):
         path = [_label(label) for label in _path(place)]
         ancestors = [city for city in cities if len(_path(city)) <= len(path)
@@ -66,21 +89,9 @@ def resolve_place_groups(places, *, allow_provider=True, language=None):
                               and place.get('latitude') == city.get('latitude')
                               and place.get('longitude') == city.get('longitude'))
         pin = {**deepcopy(place), 'accuracy': 'approximate'} if own_coordinates and not same_as_parent else None
-        details = None
-        if allow_provider and (not city or not pin or language) and lookups < MAX_LOOKUPS and provider_available:
-            lookups += 1
-            try:
-                query = ', '.join(reversed(_path(place)))
-                options = {'language': language} if language else {}
-                if place['granularity'] == 'landmark':
-                    options['landmark'] = True
-                details = search_place_details(query, **options)
-            except (GeocodingUnavailable, httpx.HTTPError, ValueError, TypeError):
-                provider_available = False
+        details = lookup(place) if not city or not pin or language else None
         if details:
-            if details.get('city'):
-                resolved_city = {'place': details['city'], 'hierarchy': ['Earth', *filter(None,
-                    (details.get('country'), details.get('region'), details['city']))], 'granularity': 'city'}
+            if resolved_city := _provider_city(details):
                 if city and _coordinates(city):
                     resolved_city['latitude'], resolved_city['longitude'] = city['latitude'], city['longitude']
                 if language or city is None or _key(city) != _key(resolved_city):
@@ -100,6 +111,12 @@ def resolve_place_groups(places, *, allow_provider=True, language=None):
                 and pin['latitude'] == city.get('latitude')
                 and pin['longitude'] == city.get('longitude')):
             pin = None
+        if pin is None and city_identity != _key(place) and city['granularity'] == 'city' and not _coordinates(city):
+            # Verify the city's own centre separately from the unresolved child.
+            centre = lookup(city)
+            match = _provider_city(centre)
+            if match and _key(match) == _key(city) and not centre.get('partial_match') and _coordinates(centre):
+                city.update(latitude=centre['latitude'], longitude=centre['longitude'])
         records.append({'index': index, 'city_key': _key(city), 'city': city, 'pin': pin,
                         'pin_status': 'READY' if pin else 'UNRESOLVED'})
     # A coarse city mention can omit the state that a later mention supplies.

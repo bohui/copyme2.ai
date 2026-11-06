@@ -88,8 +88,11 @@ def test_send_interrupts_mira_and_keeps_three_separate_inputs(chat, before_accep
         expect(page.locator('.assistant')).to_have_text('An outdated partial reply.')
     page.locator('#chat-input').fill(originals[1])
     page.locator('#chat-input').press('Enter')
+    assert page.locator('#chat-input').input_value() == ''
+    assert page.locator('.user').all_text_contents() == originals[:2]
     page.locator('#chat-input').fill(originals[2])
     page.locator('.send-button').click()
+    assert page.locator('.user').all_text_contents() == originals
     if before_acceptance:
         assert page.evaluate('requests.length') == 1
         assert not page.evaluate('requests[0].aborted')
