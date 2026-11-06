@@ -10,11 +10,9 @@ different owners and projects remain separate.
 | --- | --- |
 | `memoir-mira` | `memoir-mira.policy-review`, `.reply`, `.reply-repair`, `.read-context` |
 | `memoir-atlas` | `memoir-atlas.orchestrate`, `.check-pending-work`, `.read-skill`, `.execute-skill`, `.process-source` |
-| `memoir-author-timeline` | `memoir-author-timeline.extract`, `.summarize`, `.dispatch` |
+| `memoir-author-timeline` | `memoir-author-timeline.extract`, `.reconcile`, `.summarize`, `.dispatch` |
 | `memoir-composer` | `memoir-composer.prepare`, `.draft`, `.review`, `.outline-<phase>`, `.dispatch` |
 | `memoir-memory-context` | `memoir-memory-context.profile`, `.dispatch` |
-| `memoir-place-journey` | `memoir-place-journey.extract`, `.dispatch` |
-| `memoir-place-groups` | `memoir-place-groups.<phase>` |
 | `memoir-family-tree` | `memoir-family-tree.<phase>` |
 | `memoir-place-photo-research` | `memoir-place-photo-research.discovery`, `.research` |
 | `memoir-historical-news-research` | `memoir-historical-news-research.discovery`, `.research` |

@@ -298,9 +298,6 @@ def test_foreground_keeps_replying_while_background_finishes_then_batches_queued
             ['I was born in Hobart.'],['We played in the school housing.','Our favourite game was hide-and-seek.']]
         assert [s['id'] for s in originals]==[first['accepted_source_id'],*[r['accepted_source_id'] for r in later]]
         last_turn=sql('select client_turn_id from public.user_narrator_source where sequence=3;').stdout.strip()
-        from apps.api.background_skills import group_places
-        grouping=asyncio.run(group_places(OWNER,conversation.project,[],client_turn_id=last_turn))
-        assert grouping['skill_progress']['started_at'] and grouping['skill_progress']['finished_at']
         response=conversation.client.get('/v1/story/readiness',params={'project_id':conversation.project})
         progress=response.json()['skill_progress']['items']
         steps=[s for s in progress if s['phase']=='extract' and s['status']=='saved']
@@ -400,7 +397,7 @@ def test_finished_background_output_waits_for_foreground_policy_without_another_
                 assert conversation.client.get('/v1/agent/profile').json()['birth_place']=='Hobart'
 
 
-@pytest.mark.parametrize('retry_choices',[[],['memoir-place-journey']])
+@pytest.mark.parametrize('retry_choices',[[],['memoir-author-timeline','memoir-memory-context']])
 def test_failed_extraction_retry_preserves_the_saved_source_skills(sql,tmp_path,monkeypatch,retry_choices):
     from test_conversation_attribution import episode
     monkeypatch.setenv('MEMORY_SPARK_TASK_DB',str(tmp_path / 'tasks.sqlite'))
@@ -435,6 +432,62 @@ def test_failed_extraction_retry_preserves_the_saved_source_skills(sql,tmp_path,
         assert len(attempts)==2, 'Retry must execute the previously selected extraction.'
         assert sql('select count(*) from public.user_memory_event;').stdout.strip()=='1'
         assert sql('select processing_status from public.user_narrator_source;').stdout.strip()=='succeeded'
+
+
+@pytest.mark.parametrize('legacy_skills,expected',[
+    (['memoir-place-journey'], ['memoir-author-timeline']),
+    (['memoir-place-journey','memoir-author-timeline','memoir-memory-context'],
+     ['memoir-author-timeline','memoir-memory-context']),
+])
+def test_pending_place_journey_resumes_in_author_timeline(sql,tmp_path,monkeypatch,legacy_skills,expected):
+    from uuid import uuid4
+    from test_conversation_attribution import episode, reference
+    from test_shared_memory_events_postgres import literal
+
+    monkeypatch.setenv('MEMORY_SPARK_TASK_DB',str(tmp_path / 'tasks.sqlite'))
+    text = 'I lived in Hobart in 2005.'
+    turn = str(uuid4())
+    fenced = []
+
+    def extract(packet):
+        ref = reference(packet, text)
+        return {'events':[{**episode(packet,text,title='Living in Hobart'), 'kind':'period',
+            'location':{'place':'Hobart','hierarchy':['Earth','Australia','Hobart'],'granularity':'city'},
+            'location_basis':[ref], 'locationConfidenceScore':1.0}]}
+
+    async def boundary(request, provider):
+        job = json.loads(request.content).get('bounded_lane')
+        if job and job['phase'] in {'extract','reconcile'}:
+            fenced.append(job['fence'])
+        return await provider(request)
+
+    conversation = Conversation(sql,tmp_path,monkeypatch,extract,external_boundary=boundary)
+    with conversation.client:
+        saved = conversation.say(text,turn=turn)
+        conversation.deliver_receipts()
+        lane = sql("select id from public.user_memoir_lane where skill='timeline';").stdout.strip()
+        page = service(sql,'claim_memoir_lane',p_lane_id=lane,p_run_seconds=300)
+        snapshot = page['snapshot_id']
+        source = {key:page['source'][key] for key in ('id','version','char_start','char_end')}
+        legacy = {**page, 'two_lane':{**page['two_lane'],'work_mode':'extract','selected_skills':legacy_skills}}
+        decision = literal({'source':source,'skills':legacy_skills})
+        sql(f"update public.user_lifetime_lane_snapshot set source_decision={decision} where id='{snapshot}';"
+            f"select public.background_skill_receipt({literal(legacy)},'extract','memoir-place-journey','model','completed');"
+            "update public.user_background_skill_work set model_invoked=true,model_attempts=1 where skill='memoir-place-journey';")
+        service(sql,'yield_lifetime_memoir_lane',p_lane_id=lane,p_token=page['token'])
+        sql('update public.user_memoir_lane set available_at=clock_timestamp();')
+
+        result = asyncio.run(conversation.worker.execute_lane(lane))
+        assert result['status']=='saved', (result,conversation.last_db_error)
+        assert [phase for phase,_ in conversation.admissions if phase!='profile']==['extract','reconcile']
+        assert all(f['snapshot_id']==snapshot and f['two_lane']['selected_skills']==expected for f in fenced)
+        decision = json.loads(sql(f"select source_decision from public.user_lifetime_lane_snapshot where id='{snapshot}';").stdout)
+        assert decision == {'source':source,'skills':expected}
+        assert sql("select skill from public.user_background_skill_work where phase='extract' and status='saved';").stdout.strip()=='memoir-author-timeline'
+        assert sql('select processing_status from public.user_narrator_source;').stdout.strip()=='succeeded'
+        assert sql('select count(*) from public.user_memory_event;').stdout.strip()=='1'
+        assert sql('select s.client_turn_id from public.user_memory_event_source r join public.user_narrator_source s '
+                   f"on s.id=r.source_id where r.source_id='{saved['accepted_source_id']}';").stdout.strip()==turn
 
 
 @pytest.mark.parametrize('choices,text,phases',[

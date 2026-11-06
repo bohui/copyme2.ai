@@ -234,15 +234,6 @@ def test_deterministic_and_admission_semantics_are_checked(case):
         validate_case(case, changed)
 
 
-def test_place_markers_must_cover_only_current_named_places():
-    case = next(c for c in cases() if c['validator'] == 'journey')
-    reply = 'One place.\n[[MEMORY_SPARK_PLACE_JOURNEY]]' + json.dumps(
-        {'schema_version': 1, 'place': 'Sydney', 'hierarchy': ['Earth', 'Australia', 'Sydney'],
-         'granularity': 'city'}) + '[[/MEMORY_SPARK_PLACE_JOURNEY]]'
-    with pytest.raises(ValueError, match='place_coverage'):
-        validate_case(case, reply)
-
-
 def test_rejection_categories_never_retain_provider_exception_details():
     assert provider_rejection(json.dumps({'error': {'message': 'private secret; tool_choice is unsupported'}})) == 'tool_choice_rejected'
     assert provider_rejection(b'private secret') == 'unclassified_provider_rejection'

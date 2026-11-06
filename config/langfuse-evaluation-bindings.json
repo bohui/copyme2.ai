@@ -238,8 +238,7 @@
       "scope": "model",
       "primary_prompt": "memoir/skills/author-timeline/extract",
       "evaluated_prompts": [
-        "memoir/skills/author-timeline/extract",
-        "memoir/skills/place-journey/extract"
+        "memoir/skills/author-timeline/extract"
       ],
       "metrics": [
         "correctness",
@@ -365,27 +364,17 @@
       "validator": null
     },
     "memoir/skills/place-groups/group": {
-      "scope": "code",
+      "scope": "retired",
       "primary_prompt": null,
       "evaluated_prompts": [],
-      "metrics": [
-        "contract"
-      ],
-      "validator": "apps/api/place_groups.py"
+      "metrics": [],
+      "validator": null
     },
     "memoir/skills/place-journey/extract": {
-      "scope": "embedded",
-      "primary_prompt": "memoir/skills/place-journey/extract",
-      "evaluated_prompts": [
-        "memoir/skills/author-timeline/extract",
-        "memoir/skills/place-journey/extract"
-      ],
-      "metrics": [
-        "correctness",
-        "relevance",
-        "completeness",
-        "safety"
-      ],
+      "scope": "retired",
+      "primary_prompt": null,
+      "evaluated_prompts": [],
+      "metrics": [],
       "validator": null
     },
     "memoir/skills/place-photo-research/discovery": {
@@ -809,33 +798,11 @@
       ],
       "validator": null
     },
-    "memoir/probes/skills/place-groups/group": {
-      "scope": "probe",
-      "primary_prompt": "memoir/probes/skills/place-groups/group",
-      "evaluated_prompts": [
-        "memoir/probes/skills/place-groups/group"
-      ],
-      "metrics": [
-        "contract"
-      ],
-      "validator": null
-    },
     "memoir/probes/skills/story-game/brief": {
       "scope": "probe",
       "primary_prompt": "memoir/probes/skills/story-game/brief",
       "evaluated_prompts": [
         "memoir/probes/skills/story-game/brief"
-      ],
-      "metrics": [
-        "contract"
-      ],
-      "validator": null
-    },
-    "memoir/probes/skills/place-groups": {
-      "scope": "probe",
-      "primary_prompt": "memoir/probes/skills/place-groups/instructions",
-      "evaluated_prompts": [
-        "memoir/probes/skills/place-groups/instructions"
       ],
       "metrics": [
         "contract"
@@ -1558,8 +1525,7 @@
         "67396b78ff13e9ae1f61e6b8cd97a0f6"
       ],
       "evaluated_prompts": [
-        "memoir/skills/author-timeline/extract",
-        "memoir/skills/place-journey/extract"
+        "memoir/skills/author-timeline/extract"
       ],
       "metrics": [
         "correctness",
@@ -1593,8 +1559,7 @@
         "fe817be7bad63b36658d45cabbfe333e"
       ],
       "evaluated_prompts": [
-        "memoir/skills/author-timeline/extract",
-        "memoir/skills/place-journey/extract"
+        "memoir/skills/author-timeline/extract"
       ],
       "metrics": [
         "correctness",
@@ -1616,8 +1581,7 @@
         "8258281a546d5f3e51e5182ef1c790fc"
       ],
       "evaluated_prompts": [
-        "memoir/skills/author-timeline/extract",
-        "memoir/skills/place-journey/extract"
+        "memoir/skills/author-timeline/extract"
       ],
       "metrics": [
         "correctness",
@@ -1637,8 +1601,7 @@
         "f77ca2eecf27fd82b7c5201b79378eeb"
       ],
       "evaluated_prompts": [
-        "memoir/skills/author-timeline/extract",
-        "memoir/skills/place-journey/extract"
+        "memoir/skills/author-timeline/extract"
       ],
       "metrics": [
         "correctness",
@@ -1664,8 +1627,7 @@
         "eafffeb1-c6f7-4993-a50f-48a5bd13d158"
       ],
       "evaluated_prompts": [
-        "memoir/skills/author-timeline/extract",
-        "memoir/skills/place-journey/extract"
+        "memoir/skills/author-timeline/extract"
       ],
       "metrics": [
         "correctness",
@@ -1693,8 +1655,7 @@
         "ed04e07a-1317-50ab-8eac-47d1b4d45086"
       ],
       "evaluated_prompts": [
-        "memoir/skills/author-timeline/extract",
-        "memoir/skills/place-journey/extract"
+        "memoir/skills/author-timeline/extract"
       ],
       "metrics": [
         "correctness",
@@ -1728,8 +1689,7 @@
         "fbc7452a-b492-49be-88c8-722ed4491c5d"
       ],
       "evaluated_prompts": [
-        "memoir/skills/author-timeline/extract",
-        "memoir/skills/place-journey/extract"
+        "memoir/skills/author-timeline/extract"
       ],
       "metrics": [
         "correctness",
@@ -1763,8 +1723,7 @@
         "f7511172-f66a-5a9c-8129-b416c089d99e"
       ],
       "evaluated_prompts": [
-        "memoir/skills/author-timeline/extract",
-        "memoir/skills/place-journey/extract"
+        "memoir/skills/author-timeline/extract"
       ],
       "metrics": [
         "correctness",
@@ -2103,7 +2062,7 @@
       "id": "cmw1gue3p00ds1z020r47rjrs",
       "name": "memoir/skills/place-groups/group/golden/contracts-campaign-0114d47bf1df",
       "target": "memoir/skills/place-groups/group",
-      "status": "active",
+      "status": "retired",
       "source_dataset_id": "cmw0mxw4s00261z02ypyn2buw",
       "source_item_ids": [
         "0f98114aa612e62160e4499e36e2ebee",
@@ -2124,31 +2083,29 @@
         "d52dadb37ab9e7cbdd5650d247f92f81"
       ],
       "evaluated_prompts": [],
-      "metrics": [
-        "contract"
-      ]
+      "metrics": [],
+      "retirement_reason": "Author Timeline and the deterministic map service replace this skill. Dataset IDs and historical results are retained."
     },
     {
       "id": "cmw0mvvrr000q1z02a220a52m",
       "name": "memoir/skills/place-groups/group/golden/contracts-campaign-3fc96c911046",
       "target": "memoir/skills/place-groups/group",
-      "status": "active",
+      "status": "retired",
       "source_dataset_id": null,
       "source_item_ids": [
         "387b4b5a3685cc3cb07ad8839eccc147"
       ],
       "evaluated_prompts": [],
-      "metrics": [
-        "contract"
-      ],
+      "metrics": [],
       "previous_name": "memoir/golden/memoir-workflows/skill-contracts/campaign-3fc96c911046",
-      "children": []
+      "children": [],
+      "retirement_reason": "Author Timeline and the deterministic map service replace this skill. Dataset IDs and historical results are retained."
     },
     {
       "id": "cmvf63b2m006y1z02j4hcpwry",
       "name": "memoir/skills/place-groups/group/golden/core",
       "target": "memoir/skills/place-groups/group",
-      "status": "active",
+      "status": "retired",
       "source_dataset_id": null,
       "source_item_ids": [
         "054f088d921bb4b69b18d4a770aa4e28",
@@ -2169,45 +2126,42 @@
         "ff96ff39a46c58580afb4890b20c2a98"
       ],
       "evaluated_prompts": [],
-      "metrics": [
-        "contract"
-      ],
+      "metrics": [],
       "previous_name": "memoir/golden/memoir-place-groups/group/core",
-      "children": []
+      "children": [],
+      "retirement_reason": "Author Timeline and the deterministic map service replace this skill. Dataset IDs and historical results are retained."
     },
     {
       "id": "cmw1guf2k00ed1z02hgj1xte6",
       "name": "memoir/skills/place-groups/group/golden/delivery-core",
       "target": "memoir/skills/place-groups/group",
-      "status": "active",
+      "status": "retired",
       "source_dataset_id": "cmvdcb2g2000f1z02wqx8n34y",
       "source_item_ids": [
         "757f50cef23a876967b9ac8120bf967b"
       ],
       "evaluated_prompts": [],
-      "metrics": [
-        "contract"
-      ]
+      "metrics": [],
+      "retirement_reason": "Author Timeline and the deterministic map service replace this skill. Dataset IDs and historical results are retained."
     },
     {
       "id": "cmw1guf9300eh1z0260bktm91",
       "name": "memoir/skills/place-groups/group/golden/delivery-v2",
       "target": "memoir/skills/place-groups/group",
-      "status": "active",
+      "status": "retired",
       "source_dataset_id": "cmvde28s7001g1z024qbscebn",
       "source_item_ids": [
         "17d120346eee853b38efb92e183d10e1"
       ],
       "evaluated_prompts": [],
-      "metrics": [
-        "contract"
-      ]
+      "metrics": [],
+      "retirement_reason": "Author Timeline and the deterministic map service replace this skill. Dataset IDs and historical results are retained."
     },
     {
       "id": "cmw1guffx00el1z028wb402jj",
       "name": "memoir/skills/place-journey/extract/golden/contracts-campaign-0114d47bf1df",
       "target": "memoir/skills/place-journey/extract",
-      "status": "active",
+      "status": "retired",
       "source_dataset_id": "cmw0mxw4s00261z02ypyn2buw",
       "source_item_ids": [
         "116d4f0d09b82c2d38ffc6b3b21b8d2a",
@@ -2215,22 +2169,15 @@
         "c26ecbb9adbeeae9aa3a59ce305911df",
         "fea43130b1f63601c7612aae211af5a9"
       ],
-      "evaluated_prompts": [
-        "memoir/skills/author-timeline/extract",
-        "memoir/skills/place-journey/extract"
-      ],
-      "metrics": [
-        "correctness",
-        "relevance",
-        "completeness",
-        "safety"
-      ]
+      "evaluated_prompts": [],
+      "metrics": [],
+      "retirement_reason": "Author Timeline and the deterministic map service replace this skill. Dataset IDs and historical results are retained."
     },
     {
       "id": "cmvf63buk007h1z02aw7y2u4g",
       "name": "memoir/skills/place-journey/extract/golden/core",
       "target": "memoir/skills/place-journey/extract",
-      "status": "active",
+      "status": "retired",
       "source_dataset_id": null,
       "source_item_ids": [
         "0bc00f81dd9054d6a2ba6532a0abfaee",
@@ -2250,58 +2197,37 @@
         "c3158d77a895cfeff1babd6d06ff202f",
         "c6b3d49e24640d619836e0000d7f782d"
       ],
-      "evaluated_prompts": [
-        "memoir/skills/author-timeline/extract",
-        "memoir/skills/place-journey/extract"
-      ],
-      "metrics": [
-        "correctness",
-        "relevance",
-        "completeness",
-        "safety"
-      ],
+      "evaluated_prompts": [],
+      "metrics": [],
       "previous_name": "memoir/golden/memoir-place-journey/extract/core",
-      "children": []
+      "children": [],
+      "retirement_reason": "Author Timeline and the deterministic map service replace this skill. Dataset IDs and historical results are retained."
     },
     {
       "id": "cmw1gufo400et1z02sko454ga",
       "name": "memoir/skills/place-journey/extract/golden/delivery-core",
       "target": "memoir/skills/place-journey/extract",
-      "status": "active",
+      "status": "retired",
       "source_dataset_id": "cmvdcb2g2000f1z02wqx8n34y",
       "source_item_ids": [
         "764669bf12ab4aaa930d7b195c24aef1"
       ],
-      "evaluated_prompts": [
-        "memoir/skills/author-timeline/extract",
-        "memoir/skills/place-journey/extract"
-      ],
-      "metrics": [
-        "correctness",
-        "relevance",
-        "completeness",
-        "safety"
-      ]
+      "evaluated_prompts": [],
+      "metrics": [],
+      "retirement_reason": "Author Timeline and the deterministic map service replace this skill. Dataset IDs and historical results are retained."
     },
     {
       "id": "cmw1gufr300ex1z02s0vzre8q",
       "name": "memoir/skills/place-journey/extract/golden/delivery-v2",
       "target": "memoir/skills/place-journey/extract",
-      "status": "active",
+      "status": "retired",
       "source_dataset_id": "cmvde28s7001g1z024qbscebn",
       "source_item_ids": [
         "dfbcf8ad0c90558b4a32a645d66b5598"
       ],
-      "evaluated_prompts": [
-        "memoir/skills/author-timeline/extract",
-        "memoir/skills/place-journey/extract"
-      ],
-      "metrics": [
-        "correctness",
-        "relevance",
-        "completeness",
-        "safety"
-      ]
+      "evaluated_prompts": [],
+      "metrics": [],
+      "retirement_reason": "Author Timeline and the deterministic map service replace this skill. Dataset IDs and historical results are retained."
     },
     {
       "id": "cmw1gufuq00f11z023c25c7j3",
@@ -3664,8 +3590,7 @@
         "dce05e07f8d28dbc275b714cd41ba20d"
       ],
       "evaluated_prompts": [
-        "memoir/skills/author-timeline/extract",
-        "memoir/skills/place-journey/extract"
+        "memoir/skills/author-timeline/extract"
       ],
       "metrics": [
         "execution_available",
@@ -3791,7 +3716,7 @@
       "id": "cmw1xdj8r00za1z02ebar0x6p",
       "name": "memoir/skills/place-journey/extract/golden/campaign-eac77f97ffe3",
       "target": "memoir/skills/place-journey/extract",
-      "status": "active",
+      "status": "retired",
       "source_dataset_id": null,
       "source_item_ids": [
         "0de01d63ccf5aa6bdd8fc88e073c8f58",
@@ -3811,23 +3736,17 @@
         "ea083ff4b0170e51f5384b4e8aa7af63",
         "ff639800bf5b16a26ee6023fc52c1a16"
       ],
-      "evaluated_prompts": [
-        "memoir/skills/author-timeline/extract",
-        "memoir/skills/place-journey/extract"
-      ],
-      "metrics": [
-        "execution_available",
-        "contract_pass",
-        "latency_seconds"
-      ],
+      "evaluated_prompts": [],
+      "metrics": [],
       "evaluator": "scripts/run_memoir_agent_evaluation.py:scores",
-      "evidence_scope": "Synthetic proposals and code contracts; canonical delivery and independent human editorial acceptance remain unverified."
+      "evidence_scope": "Synthetic proposals and code contracts; canonical delivery and independent human editorial acceptance remain unverified.",
+      "retirement_reason": "Author Timeline and the deterministic map service replace this skill. Dataset IDs and historical results are retained."
     },
     {
       "id": "cmw1xdjpy00zt1z029rbi0l7p",
       "name": "memoir/skills/place-groups/group/golden/campaign-30393d2d8676",
       "target": "memoir/skills/place-groups/group",
-      "status": "active",
+      "status": "retired",
       "source_dataset_id": null,
       "source_item_ids": [
         "0c0618c7abb134b1f5d37feb1c471ca0",
@@ -3848,13 +3767,10 @@
         "f91667e2ca61181b4a3d9b0cb63a01af"
       ],
       "evaluated_prompts": [],
-      "metrics": [
-        "execution_available",
-        "contract_pass",
-        "latency_seconds"
-      ],
+      "metrics": [],
       "evaluator": "scripts/run_memoir_agent_evaluation.py:scores",
-      "evidence_scope": "Synthetic proposals and code contracts; canonical delivery and independent human editorial acceptance remain unverified."
+      "evidence_scope": "Synthetic proposals and code contracts; canonical delivery and independent human editorial acceptance remain unverified.",
+      "retirement_reason": "Author Timeline and the deterministic map service replace this skill. Dataset IDs and historical results are retained."
     },
     {
       "id": "cmw1xdk6r010c1z025otonsvs",
@@ -4188,8 +4104,7 @@
         "b4bc596b1bff56b0f80c3a14e18ec6d7"
       ],
       "evaluated_prompts": [
-        "memoir/skills/author-timeline/extract",
-        "memoir/skills/place-journey/extract"
+        "memoir/skills/author-timeline/extract"
       ],
       "metrics": [
         "execution_available",
@@ -4230,7 +4145,7 @@
       "id": "cmw3baiyp0cb51z02tpruimjn",
       "name": "memoir/skills/place-journey/extract/golden/campaign-5ab262c11c1f",
       "target": "memoir/skills/place-journey/extract",
-      "status": "active",
+      "status": "retired",
       "source_dataset_id": null,
       "source_item_ids": [
         "1f559794c4bd824b8ebe588d2e4dd61f",
@@ -4238,17 +4153,11 @@
         "7380b979526fcdb961e8cd2e59ebaa06",
         "979d53789396f7bfbdbd4ea065d6367c"
       ],
-      "evaluated_prompts": [
-        "memoir/skills/author-timeline/extract",
-        "memoir/skills/place-journey/extract"
-      ],
-      "metrics": [
-        "execution_available",
-        "contract_pass",
-        "latency_seconds"
-      ],
+      "evaluated_prompts": [],
+      "metrics": [],
       "evaluator": "scripts/run_memoir_agent_evaluation.py:scores",
-      "evidence_scope": "Synthetic proposals and code contracts; canonical delivery and independent human editorial acceptance remain unverified."
+      "evidence_scope": "Synthetic proposals and code contracts; canonical delivery and independent human editorial acceptance remain unverified.",
+      "retirement_reason": "Author Timeline and the deterministic map service replace this skill. Dataset IDs and historical results are retained."
     }
   ],
   "online": [
@@ -4401,20 +4310,6 @@
       ],
       "observation_names": [
         "memoir-memory-context.profile"
-      ],
-      "observation_prefix": null
-    },
-    {
-      "name": "memoir/skills/place-journey/extract/online/quality",
-      "target": "memoir/skills/place-journey/extract",
-      "sampling": 0.1,
-      "metrics": [
-        "relevance",
-        "completeness",
-        "safety"
-      ],
-      "observation_names": [
-        "memoir-place-journey.extract"
       ],
       "observation_prefix": null
     },

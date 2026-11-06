@@ -21,9 +21,8 @@ class DerivedHints(_Places):
 
 def extraction_contract(*, attribution=False, continuity=False, source=None, selected_skills=None):
     from .memory_events import extraction_schema
-    timeline = selected_skills is None or 'memoir-author-timeline' in selected_skills
-    places = selected_skills is None or 'memoir-place-journey' in selected_skills
-    schema = extraction_schema(allow_draft_relations=timeline and not places)
+    places = selected_skills is None
+    schema = extraction_schema(allow_draft_relations=not places)
     if places:
         extension = DerivedHints.model_json_schema()
         extension['$defs']['_PlaceJourney']['required'] = list(extension['$defs']['_PlaceJourney']['properties'])
@@ -32,7 +31,7 @@ def extraction_contract(*, attribution=False, continuity=False, source=None, sel
         schema['$defs'].update(extension['$defs'])
         schema['properties'].update(extension['properties'])
         schema['required'] += list(extension['properties'])
-    name = 'memoir/skills/author-timeline/extract' if timeline else 'memoir/skills/place-journey/extract'
+    name = 'memoir/skills/author-timeline/extract'
     instructions = render_prompt_artifact(prompt_path(name), variables={
         'events_only': not places, 'places': places, 'place_rules': places,
         'attribution': attribution, 'continuity': continuity,
@@ -46,11 +45,6 @@ def extraction_contract(*, attribution=False, continuity=False, source=None, sel
         schema['$defs'].update(extension['$defs'])
         schema['properties'].update(extension['properties'])
         schema['required'].append('continuity_updates')
-    if selected_skills is not None:
-        if 'memoir-author-timeline' not in selected_skills:
-            for field in ('events', 'continuity_updates', 'event_places'):
-                if field in schema['properties']:
-                    schema['properties'][field]['maxItems'] = 0
     return instructions,schema
 
 

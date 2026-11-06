@@ -871,9 +871,9 @@ def test_runtime_dispatches_to_private_worker_and_syncs_allowlisted_artifacts(mo
                and event['data']['status'] == 'completed'
                and event['data']['detail'] == 'Conversation memory saved' for event in events)
     saved_index = next(i for i, event in enumerate(events) if event['type'] == 'conversation_saved')
-    place_index = next(i for i, event in enumerate(events) if event.get('data', {}).get('skill') == 'memoir-place-journey')
+    place_index = next(i for i, event in enumerate(events) if event.get('data', {}).get('id') == 'place-journey')
     assert place_index > saved_index
-    assert any(step.get('skill') == 'memoir-place-journey' for step in result['trace'])
+    assert any(step.get('id') == 'place-journey' and step['kind'] == 'progress' for step in result['trace'])
     assert not any(step.get('skill') == 'memoir-family-tree' for step in result['trace'])
     assert events[saved_index]['data']['trace']
     assert result["trace_mode"] == "codex-worker"

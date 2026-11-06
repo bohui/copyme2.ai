@@ -202,7 +202,7 @@ async def run_lifetime_turn(runtime,storage,text,*,publication,project_id=None,l
                     await progress.update('place-journey',
                         'Restored saved place cues · ' + ' · '.join(place['place'] for place in journeys),
                         '已恢复保存的地点线索 · ' + ' · '.join(place['place'] for place in journeys),
-                        status='cached',skill='memoir-place-journey')
+                        status='cached')
                     workspace=place_workspace_update(project_id,journeys)
                     response.update(workspace)
                     if on_event:await on_event({'type':'workspace_update','data':workspace})
@@ -427,16 +427,16 @@ async def run_lifetime_turn(runtime,storage,text,*,publication,project_id=None,l
             if journeys:
                 places=' · '.join(place['place'] for place in journeys)
                 await progress.update('place-journey','Validating and saving place cues · '+places,
-                    '正在核实并保存地点线索 · '+places,skill='memoir-place-journey')
+                    '正在核实并保存地点线索 · '+places)
                 try:
                     await call('persist_lifetime_place_journeys',p_fence=fence,p_source_id=source['id'],p_source_version=source['version'],
                         p_journeys=validated['place_journeys'])
                 except Exception:
                     await progress.update('place-journey','Place cues could not be saved','地点线索未能保存',
-                        status='failed',skill='memoir-place-journey')
+                        status='failed')
                     raise
                 await progress.update('place-journey','Validated and saved place cues · '+places,
-                    '已核实并保存地点线索 · '+places,status='completed',skill='memoir-place-journey')
+                    '已核实并保存地点线索 · '+places,status='completed')
             await progress.update('collector-call','Mira’s reply is ready','Mira 的回复已准备好',status='completed')
             await progress.update('save','Saving conversation memory','正在保存对话记忆')
             await publication.flush()  # no old queued chunk can be relabeled by our phase commit

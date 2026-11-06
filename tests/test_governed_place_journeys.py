@@ -137,18 +137,18 @@ def test_canonical_http_turn_delivers_places_to_the_workspace(sql, tmp_path, mon
         assert workspace['project_id'] == result['project_id'] and workspace['source_sequence'] == 1
         assert workspace['place_journey_change']['mentioned']
         assert [event['data']['status'] for event in events if event['type'] == 'progress'
-            and event['data'].get('skill') == 'memoir-place-journey'] == ['running', 'completed']
+            and event['data'].get('id') == 'place-journey'] == ['running', 'completed']
     else:
         result = response.json()
     assert result['conversation_saved']
-    assert any(step.get('skill') == 'memoir-place-journey' and step['status'] == 'completed'
+    assert any(step.get('id') == 'place-journey' and step['kind'] == 'progress' and step['status'] == 'completed'
         for step in result['trace'])
     assert [place['place'] for place in result['place_journeys']] == ['悉尼', '承德市']
     assert result['place_journey']['place'] == '承德市'
     replay = next(json.loads(line)['data'] for line in retry.text.splitlines()
         if json.loads(line)['type'] == 'result') if streaming else retry.json()
     assert replay['cached'] and replay['place_journeys'] == result['place_journeys']
-    restored = next(step for step in replay['trace'] if step.get('skill') == 'memoir-place-journey')
+    restored = next(step for step in replay['trace'] if step.get('id') == 'place-journey')
     assert restored['status'] == 'cached'
     assert 'Restored' in restored['detail'] or '恢复' in restored['detail']
     assert len(calls) == 1

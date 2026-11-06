@@ -210,7 +210,8 @@ test('old canonical turns show saved place restoration without inventing an exec
   });
   vm.runInContext(extract('hydratePlaceJourney'),context);
   await context.hydratePlaceJourney();
-  assert.equal(old.trace[0].skill,'memoir-place-journey');
+  assert.equal(old.trace[0].id,'place-journey');
+  assert.equal(old.trace[0].kind,'progress');
   assert.match(old.trace[0].detail,/placeJourneyRestored · Chengde/);
   assert.equal(unrelated.trace,undefined);
   await context.hydratePlaceJourney();

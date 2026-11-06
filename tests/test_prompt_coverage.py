@@ -15,7 +15,8 @@ def inputs():
 def test_every_retained_prompt_has_a_current_source_and_evaluation_review():
     coverage, bindings = inputs()
     assert validate(coverage, bindings)['prompts'] == len(prompt_registry(include_unpublished=True))
-    assert len(coverage['retired']) == 1
+    assert {'memoir/skills/place-journey/extract', 'memoir/probes/skills/place-groups/group',
+            'memoir/probes/skills/place-groups/instructions'} <= set(coverage['retired'])
 
 
 def test_a_new_prompt_file_cannot_escape_review_by_omitting_the_catalog(tmp_path):
@@ -62,7 +63,7 @@ def test_sdk_grader_is_identified_separately_from_hosted_automation_rules():
 
 def test_one_dataset_and_evaluator_set_can_cover_multiple_prompts():
     coverage, bindings = inputs()
-    target='memoir/skills/author-timeline/extract'
+    target='memoir/agents/mira/reply'
     dataset=next(d for d in bindings['datasets'] if d['target']==target
         and d['status']=='active' and d['name'].endswith('/golden/core'))
     snapshot=json.loads((ROOT/'docs/prompt-audit-live.json').read_text())

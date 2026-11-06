@@ -1,7 +1,6 @@
 """Synthetic cases and independent checks for isolated live skill calls.
 
 These are contract probes, not authorization to persist application artifacts.
-Deterministic skills are probed for instruction adherence, not rerouted in production.
 """
 from copy import deepcopy
 from pathlib import Path
@@ -11,8 +10,6 @@ from apps.api.background_profile import PROFILE_FIELDS, profile_contract, profil
 from apps.api.family_context import extract_family_tree_context
 from apps.api.lifetime_memory_lane_engine import EXTRACTION_WINDOW_CONTRACT
 from apps.api.memory_events import extraction_instructions, extraction_schema, validate_extraction
-from apps.api.place_groups import resolve_place_groups
-from apps.api.place_journey import extract_place_journeys
 
 ROOT = Path(__file__).resolve().parents[1]
 
@@ -29,7 +26,6 @@ def eval_fragment(name):
         'independent-events': 'memoir/probes/skills/author-timeline/extract',
         'native-search': 'memoir/probes/shared/native-search',
         'photo-lead': 'memoir/probes/skills/place-photo-research/discovery',
-        'place-groups': 'memoir/probes/skills/place-groups/group',
         'story-game': 'memoir/probes/skills/story-game/brief',
     }
     return load_prompt_artifact(prompt_path(names[name]))
@@ -266,23 +262,6 @@ def cases():
                'family_enabled': True, 'saved_people': [],
                'storyteller_message': 'My mother is named Mei. She repaired bicycles in our shed.'},
         validator='family'))
-    rows.append(dict(id='journey-two-places', skill='memoir-place-journey', schema=None,
-        instructions=skill_prompt('memoir-place-journey'),
-        input={'storyteller_message': 'I moved from Sydney to Perth. I used to walk beside the river.'},
-        validator='journey'))
-    places = [dict(place='Sydney', hierarchy=['Earth', 'Australia', 'New South Wales', 'Sydney'],
-                   granularity='city', latitude=-33.87, longitude=151.21),
-              dict(place='Chatswood', hierarchy=['Earth', 'Australia', 'New South Wales', 'Sydney', 'Chatswood'],
-                   granularity='suburb', latitude=-33.797, longitude=151.183)]
-    expected_groups = resolve_place_groups(deepcopy(places), allow_provider=False)
-    rows.append(dict(id='groups-independent-child-pin', skill='memoir-place-groups',
-        instructions=skill_prompt('memoir-place-groups') + eval_fragment('place-groups'),
-        schema=object_schema({'city_groups': {'type': 'integer'}, 'independent_pins': {'type': 'integer'},
-                              'conversation_must_wait': {'type': 'boolean'}}),
-        input={'places': places}, expected={'city_groups': len({p['city_key'] for p in expected_groups['places']}),
-            'independent_pins': sum(p['pin'] is not None for p in expected_groups['places']),
-            'conversation_must_wait': False}, validator='equal',
-        scope='instruction probe; actual grouping is deterministic and has no model invocation'))
     rows.append(dict(id='story-game-missing-authority', skill='memoir-story-game',
         instructions=skill_prompt('memoir-story-game', 'references/runtime-contract.md') + eval_fragment('story-game'),
         schema=object_schema({'generation_permitted': {'type': 'boolean'}, 'game_generated': {'type': 'boolean'},
@@ -361,9 +340,5 @@ def validate_case(case, value):
         if not tree or not any(p['name'] == 'Mei' and p.get('family_title') == 'mother'
                                and 'bicycl' in p.get('introduction', '').lower() for p in tree['people']):
             raise ValueError('missing_grounded_mother')
-    elif kind == 'journey':
-        _, journeys = extract_place_journeys(value)
-        if [p['place'] for p in journeys] != ['Sydney', 'Perth']:
-            raise ValueError('place_coverage_or_grounding')
     else:
         raise ValueError('unknown_validator')

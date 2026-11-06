@@ -43,7 +43,7 @@ def anchor_question(output, source, quote, start=None, end=None):
         output['question_evidence'] = evidence
 
 
-def test_two_lane_extraction_includes_place_skill_without_conflicting_output_instruction():
+def test_compatibility_timeline_extraction_includes_coarse_place_cues():
     from apps.api.two_lane_memory import extraction_contract
     from apps.api.model_request import instruction_manifest
     instructions, schema = extraction_contract()

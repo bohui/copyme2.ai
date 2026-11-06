@@ -12,16 +12,14 @@ from scripts.run_memoir_skill_evaluation import evaluation_manifest
 from scripts.prompt_registry import ROOT, prompt_registry
 
 
-@pytest.mark.parametrize('selected_skills',[None,['memoir-place-journey'],['memoir-author-timeline','memoir-place-journey']])
-def test_place_hint_components_are_expanded_before_model_dispatch(selected_skills):
+def test_compatibility_place_hints_are_owned_by_timeline():
     from apps.api.two_lane_memory import extraction_contract
     from apps.api.model_request import instruction_manifest
-    instructions, schema = extraction_contract(selected_skills=selected_skills)
+    instructions, schema = extraction_contract()
     assert '{{prompt:' not in instructions
     assert 'Read saved canonical' in instructions and 'place_journeys' in instructions
     assert {'events', 'place_journeys'} <= set(schema['required'])
-    timeline = selected_skills is None or 'memoir-author-timeline' in selected_skills
-    primary = 'memoir/skills/' + ('author-timeline/extract' if timeline else 'place-journey/extract')
+    primary = 'memoir/skills/author-timeline/extract'
     assert [p['name'] for p in instruction_manifest(instructions, schema, primary_name=primary)['artifacts']] == [primary]
 
 

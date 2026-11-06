@@ -3650,7 +3650,11 @@ begin
    source.id,source.version,source.client_turn_id,coalesce(first_source,0),coalesce(last_source,0),p_status,p_reason,
    case when p_execution='model' and p_status='saved' then null else false end,
    case when p_execution='model' and p_status='saved' then null else 0 end,(p_page->>'token')::uuid)
- on conflict(user_id,project_id,id) do update set status=excluded.status,reason=excluded.reason,
+ on conflict(user_id,project_id,id) do update set status=excluded.status,reason=excluded.reason,skill=excluded.skill,
+   model_invoked=case when user_background_skill_work.skill<>excluded.skill then excluded.model_invoked
+     else user_background_skill_work.model_invoked end,
+   model_attempts=case when user_background_skill_work.skill<>excluded.skill then excluded.model_attempts
+     else user_background_skill_work.model_attempts end,
    page_digest=excluded.page_digest,lease_token=excluded.lease_token,updated_at=clock_timestamp();
 end $$;
 
@@ -4475,14 +4479,6 @@ begin
       where snapshot_id=snap.id and page_number=p_page_number;
     if not found then raise exception 'background continuity commit receipt required';end if;
   end if;
-  if result->>'status'='page_saved' and result->>'replayed' is distinct from 'true'
-      and page->>'skill'='timeline' and page ? 'two_lane'
-      and page->'two_lane'->>'work_mode'='extract'
-      and (not(page->'two_lane' ? 'selected_skills') or page->'two_lane'->'selected_skills' ?& array['memoir-author-timeline','memoir-place-journey'])
-      and jsonb_array_length(coalesce(p_result->'place_journeys','[]'::jsonb))=0 then
-    perform public.background_skill_receipt(
-      page,'place','memoir-place-journey','embedded','skipped','no_place_cue');
-  end if;
   return result;
 end $$;
 
@@ -4531,23 +4527,17 @@ begin
    if not exists(select 1 from public.user_background_skill_work where lane_id=p_lane_id and page_digest=p_page_digest and status='saved')
      and page->'two_lane'->>'work_mode' is distinct from 'reply_only' then
      perform public.background_skill_receipt(page,case when page->>'skill'='composer' then 'commit' else 'extract' end,
-       case when page->>'skill'='composer' then 'memoir-composer'
-         when page->'two_lane' ? 'selected_skills' and not(page->'two_lane'->'selected_skills' ? 'memoir-author-timeline')
-           then 'memoir-place-journey' else 'memoir-author-timeline' end,
+       case when page->>'skill'='composer' then 'memoir-composer' else 'memoir-author-timeline' end,
        'model','saved','invocation_receipt_unavailable');
    end if;
    if page->'two_lane'->>'work_mode'='reply_only' then
      perform public.background_skill_receipt(page,'extract','memoir-author-timeline','model','skipped','reply_only');
    end if;
-   if page->>'skill'='timeline' and page->'two_lane'->'selected_skills' ? 'memoir-author-timeline'
-     and not(page->'two_lane'->'selected_skills' ? 'memoir-place-journey') then
+   if page->>'skill'='timeline' and page->'two_lane'->'selected_skills' ? 'memoir-author-timeline' then
      if jsonb_array_length(p_result->'events')>0 and not exists(select 1 from public.user_background_skill_work where lane_id=p_lane_id
         and id=public.background_skill_id(page,'reconcile') and status='saved') then
        perform public.background_skill_receipt(page,'reconcile','memoir-author-timeline','model','saved','invocation_receipt_unavailable');
      end if;
-   elsif page->>'skill'='timeline' and page ? 'two_lane' and jsonb_array_length(coalesce(p_result->'place_journeys','[]'))>0
-     and (not(page->'two_lane' ? 'selected_skills') or page->'two_lane'->'selected_skills' ? 'memoir-author-timeline') then
-     perform public.background_skill_receipt(page,'place','memoir-place-journey','embedded','saved');
    end if;
  end if;
  return result;
@@ -4773,8 +4763,7 @@ begin
  if (page->>'complete')::boolean then raise exception 'snapshot completion requires root commit';end if;
  source_id:=(page->'source'->>'id')::uuid;current_source_version:=(page->'source'->>'version')::bigint;
  if lane.skill='timeline' then
-   reconciling:=coalesce(page->'two_lane'->'selected_skills' ? 'memoir-author-timeline'
-     and not(page->'two_lane'->'selected_skills' ? 'memoir-place-journey'),false);
+   reconciling:=coalesce(page->'two_lane'->'selected_skills' ? 'memoir-author-timeline',false);
    if jsonb_typeof(p_result->'events') is distinct from 'array' or jsonb_array_length(p_result->'events')>100 then
      raise exception 'bounded event proposals required';end if;
    if reconciling and jsonb_array_length(p_result->'events')>0
@@ -9536,7 +9525,7 @@ CREATE FUNCTION public.read_lifetime_memoir_lane_page(p_lane_id uuid, p_token uu
     LANGUAGE plpgsql SECURITY DEFINER
     SET search_path TO ''
     AS $$
-declare page jsonb; source public.user_narrator_source%rowtype; context jsonb; inputs jsonb; coverage jsonb; events jsonb; decision jsonb;
+declare page jsonb; source public.user_narrator_source%rowtype; context jsonb; inputs jsonb; coverage jsonb; events jsonb; decision jsonb; selected jsonb;
 begin
  if exists(select 1 from public.user_memoir_lane where id=p_lane_id and skill='guidance') then
    return public.read_lifetime_interview_guidance_page(p_lane_id,p_token);end if;
@@ -9579,6 +9568,19 @@ begin
      if decision is not null then
        if decision->'source'=jsonb_build_object('id',page->'source'->'id','version',page->'source'->'version',
            'char_start',page->'source'->'char_start','char_end',page->'source'->'char_end') then
+         if decision->'skills' ? 'memoir-place-journey' then
+           -- Resume this window through Timeline. The new page digests fence off old output.
+           selected:=(decision->'skills')-'memoir-place-journey';
+           if not(selected ? 'memoir-author-timeline') then
+             selected:='["memoir-author-timeline"]'::jsonb||selected;
+           end if;
+           decision:=jsonb_set(decision,'{skills}',selected);
+           update public.user_lifetime_lane_snapshot set source_decision=decision where id=(page->>'snapshot_id')::uuid;
+           update public.user_background_skill_work set status='skipped',reason='skill_retired',updated_at=clock_timestamp()
+             where snapshot_id=(page->>'snapshot_id')::uuid and skill='memoir-place-journey'
+             and id in (public.background_skill_id(page,'extract'),public.background_skill_id(page,'place'))
+             and status in ('running','failed','completed');
+         end if;
          page:=jsonb_set(page,'{two_lane,selected_skills}',decision->'skills');
          if decision->'skills' ? 'memoir-memory-context' then
            page:=jsonb_set(page,'{two_lane,profile_complete}',to_jsonb(
@@ -9589,8 +9591,8 @@ begin
                and (not a.auto_enabled or a.manual_complete or a.field_locks ?& array[
                  'name','birth_year','birth_date_expression','birth_place','avatar_style']))));
          end if;
-         page:=jsonb_set(page,'{two_lane,work_mode}',to_jsonb(case when decision->'skills' ?| array[
-           'memoir-author-timeline','memoir-place-journey'] then 'extract' else 'reply_only' end));
+         page:=jsonb_set(page,'{two_lane,work_mode}',to_jsonb(
+           case when decision->'skills' ? 'memoir-author-timeline' then 'extract' else 'reply_only' end));
        else
          page:=jsonb_set(page,'{two_lane,work_mode}',to_jsonb('pending'::text));
        end if;
@@ -11591,7 +11593,7 @@ CREATE FUNCTION public.record_background_service_work(p_user_id uuid, p_project_
     AS $memoir$
 declare source public.user_narrator_source%rowtype; result jsonb;
 begin
- if p_step->>'skill' not in ('memoir-place-groups','memoir-place-photo-research','memoir-historical-news-research')
+ if p_step->>'skill' not in ('memoir-place-photo-research','memoir-historical-news-research')
    or p_step->>'status' not in ('running','completed','saved','failed','cached')
    or p_step->>'execution' not in ('deterministic','provider','cache')
    or p_step->>'id' !~ '^[a-f0-9]{64}$' then raise exception 'invalid service receipt' using errcode='22023';end if;
@@ -11625,8 +11627,7 @@ begin
  page:=public.read_lifetime_memoir_lane_page(p_lane_id,p_token);
  if page->>'page_digest' is distinct from p_page_digest or page->>'skill'<>'timeline'
    or page->'two_lane'->>'work_mode' is distinct from 'extract'
-   or not coalesce(page->'two_lane'->'selected_skills' ? 'memoir-author-timeline',false)
-   or page->'two_lane'->'selected_skills' ? 'memoir-place-journey' then
+   or not coalesce(page->'two_lane'->'selected_skills' ? 'memoir-author-timeline',false) then
    raise exception 'stale timeline reconciliation page' using errcode='PT409';end if;
  if jsonb_typeof(p_hints) is distinct from 'array' or jsonb_array_length(p_hints) not between 1 and 100
    or octet_length(p_hints::text)>65536 then
@@ -11718,25 +11719,6 @@ CREATE FUNCTION public.record_lifetime_skill_phase(p_fence jsonb, p_phase text, 
     LANGUAGE plpgsql SECURITY DEFINER
     SET search_path TO ''
     AS $$
-declare page jsonb;
-begin
-  perform public.record_lifetime_skill_phase_before_place_progress(
-    p_fence,p_phase,p_status,p_invocation_id);
-  if p_phase='extract' and p_status='running' then
-    page:=public.read_lifetime_memoir_lane_page(
-      (p_fence->>'lane_id')::uuid,(p_fence->>'token')::uuid);
-    if page ? 'two_lane' and page->'two_lane'->>'work_mode'='extract'
-      and (not(page->'two_lane' ? 'selected_skills') or page->'two_lane'->'selected_skills' ?& array['memoir-author-timeline','memoir-place-journey']) then
-      perform public.background_skill_receipt(
-        page,'place','memoir-place-journey','embedded','running');
-    end if;
-  end if;
-end $$;
-
-CREATE FUNCTION public.record_lifetime_skill_phase_before_place_progress(p_fence jsonb, p_phase text, p_status text, p_invocation_id uuid) RETURNS void
-    LANGUAGE plpgsql SECURITY DEFINER
-    SET search_path TO ''
-    AS $$
 declare page jsonb; source public.user_narrator_source%rowtype; skill text; first_source bigint;last_source bigint;
 begin
  if p_phase not in ('extract','reconcile','profile','summarize','prepare','draft','review','index','guidance') or p_status not in ('running','completed','failed')
@@ -11749,8 +11731,6 @@ begin
  else
    page:=public.read_lifetime_memoir_lane_page((p_fence->>'lane_id')::uuid,(p_fence->>'token')::uuid);
    skill:=case when page->>'skill'='composer' then 'memoir-composer' when page->>'skill'='guidance' then 'memoir-interview-guidance' else 'memoir-author-timeline' end;
-   if p_phase='extract' and page->'two_lane' ? 'selected_skills'
-     and not(page->'two_lane'->'selected_skills' ? 'memoir-author-timeline') then skill:='memoir-place-journey';end if;
    if (page->>'skill'='timeline' and p_phase not in ('extract','reconcile','summarize'))
      or (page->>'skill'='composer' and p_phase not in ('prepare','draft','review','index','guidance')) then
      raise exception 'skill phase mismatch' using errcode='42501';end if;
@@ -11769,10 +11749,12 @@ begin
  values((page->>'user_id')::uuid,page->>'project_id',public.background_skill_id(page,p_phase),
    (page->>'lane_id')::uuid,(page->>'snapshot_id')::uuid,page->>'page_digest',p_phase,skill,'model',
    source.id,source.version,source.client_turn_id,coalesce(first_source,0),coalesce(last_source,0),p_status,p_status='completed',1,p_invocation_id,(page->>'token')::uuid)
- on conflict(user_id,project_id,id) do update set status=excluded.status,
+ on conflict(user_id,project_id,id) do update set status=excluded.status,reason=null,skill=excluded.skill,
    page_digest=excluded.page_digest,lease_token=excluded.lease_token,
-   model_attempts=public.user_background_skill_work.model_attempts+case when public.user_background_skill_work.invocation_id<>p_invocation_id then 1 else 0 end,
-   model_invoked=public.user_background_skill_work.model_invoked or excluded.model_invoked,
+   model_attempts=case when user_background_skill_work.skill<>excluded.skill then excluded.model_attempts
+     else coalesce(user_background_skill_work.model_attempts,0)+case
+       when user_background_skill_work.invocation_id is distinct from p_invocation_id then 1 else 0 end end,
+   model_invoked=excluded.model_invoked or (user_background_skill_work.skill=excluded.skill and user_background_skill_work.model_invoked),
    invocation_id=p_invocation_id,updated_at=clock_timestamp()
  where public.user_background_skill_work.status<>'saved';
 end $$;
@@ -14745,7 +14727,6 @@ revoke all on function public.record_background_service_work(uuid, text, jsonb) 
 revoke all on function public.read_lifetime_timeline_candidates(uuid,uuid,text,jsonb) from public,anon,authenticated,service_role;
 revoke all on function public.record_lifetime_lane_output(uuid, uuid, bigint, text, text, text, jsonb) from public,anon,authenticated,service_role;
 revoke all on function public.record_lifetime_skill_phase(jsonb, text, text, uuid) from public,anon,authenticated,service_role;
-revoke all on function public.record_lifetime_skill_phase_before_place_progress(jsonb, text, text, uuid) from public,anon,authenticated,service_role;
 revoke all on function public.record_lifetime_source_position() from public,anon,authenticated,service_role;
 revoke all on function public.record_memory_event_change() from public,anon,authenticated,service_role;
 revoke all on function public.record_private_draft_change() from public,anon,authenticated,service_role;
@@ -16896,9 +16877,9 @@ begin
    if page->'complete'<>'false'::jsonb or page ? 'memory_summary'
      or page->'source' is distinct from p_source then return false;end if;
  end if;
- if jsonb_typeof(p_skills) is distinct from 'array' or jsonb_array_length(p_skills)>3
+ if jsonb_typeof(p_skills) is distinct from 'array' or jsonb_array_length(p_skills)>2
    or exists(select 1 from jsonb_array_elements(p_skills) s where jsonb_typeof(s)<>'string'
-     or s#>>'{}' not in ('memoir-author-timeline','memoir-place-journey','memoir-memory-context'))
+     or s#>>'{}' not in ('memoir-author-timeline','memoir-memory-context'))
    or (select count(*)<>count(distinct s) from jsonb_array_elements(p_skills) s) then
    raise exception 'valid source skill selection required' using errcode='22023';end if;
  source_key:=jsonb_build_object('id',p_source->'id','version',p_source->'version',

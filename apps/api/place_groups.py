@@ -1,15 +1,31 @@
-"""Background city membership and individual pins; source memories remain distinct."""
+"""Resolve map city membership and individual pins for public places."""
+import asyncio
 from copy import deepcopy
 import json
 import math
 import unicodedata
 
 import httpx
+from fastapi import HTTPException
 
 from .place_geocoding import GeocodingUnavailable, search_place_details
 from .place_identity import geographic_label
+from .place_journey import validate_event_location
 
 MAX_LOOKUPS = 8
+
+
+async def resolve_map_place_groups(payload):
+    raw_places = payload.get('places')
+    if not isinstance(raw_places, list) or len(raw_places) > 1000:
+        raise HTTPException(422, 'Invalid place group input')
+    places = [validate_event_location(place) for place in raw_places]
+    if any(place is None for place in places):
+        raise HTTPException(422, 'Invalid place group input')
+    language = payload.get('language')
+    if language not in (None, 'en-AU', 'zh-CN'):
+        raise HTTPException(422, 'Unsupported place display language')
+    return await asyncio.to_thread(resolve_place_groups, places, language=language)
 
 
 def _label(value):
@@ -104,5 +120,5 @@ def resolve_place_groups(places, *, allow_provider=True, language=None):
         if len(matches) == 1:
             record['city_key'], full = next(iter(matches.items()))
             record['city'] = deepcopy(full)
-    return {'schema_version': 1, 'skills': ['memoir-place-groups'], 'places': records,
+    return {'schema_version': 1, 'places': records,
             'status': 'READY' if all(record['pin'] for record in records) else 'PARTIAL'}

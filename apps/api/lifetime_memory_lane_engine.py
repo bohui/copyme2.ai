@@ -116,8 +116,8 @@ class TwoLaneFence(Contract):
     strategy_mode: Literal['shadow','active'] | None = None
     strategy_revision: int = Field(default=0,ge=0,strict=True)
     reply_contract: Literal['reply-v2'] | None = Field(default=None, exclude_if=lambda value: value is None)
-    selected_skills: list[Literal['memoir-author-timeline','memoir-place-journey','memoir-memory-context']] | None = Field(
-        default=None, max_length=3, exclude_if=lambda value: value is None)
+    selected_skills: list[Literal['memoir-author-timeline','memoir-memory-context']] | None = Field(
+        default=None, max_length=2, exclude_if=lambda value: value is None)
     profile_complete: bool | None = Field(default=None,exclude_if=lambda value: value is None)
 
 
@@ -199,11 +199,11 @@ def _object(value):
     return parsed
 
 
-def lane_prompt_name(phase, *, timeline=True):
+def lane_prompt_name(phase):
     if phase in {'profile', 'summarize'}:
         return 'memoir/skills/memory-context/' + ('summary' if phase == 'summarize' else phase)
     if phase == 'extract':
-        return 'memoir/skills/' + ('author-timeline' if timeline else 'place-journey') + '/extract'
+        return 'memoir/skills/author-timeline/extract'
     if phase == 'reconcile':
         return 'memoir/skills/author-timeline/reconcile'
     return 'memoir/skills/composer/' + phase
@@ -280,9 +280,8 @@ def lane_contract(phase, locale, *, batch=False, two_lane=False, fence=None, ret
         if choices:
             schema['$defs']['ref']={'anyOf':choices}
     selected = fence.two_lane.selected_skills if fence and fence.two_lane else None
-    timeline = selected is None or 'memoir-author-timeline' in selected
-    places = two_lane and (selected is None or 'memoir-place-journey' in selected)
-    name = lane_prompt_name(phase, timeline=timeline)
+    places = two_lane and selected is None
+    name = lane_prompt_name(phase)
     instructions = render_prompt_artifact(prompt_path(name), variables={
         'events_only': not places, 'places': places, 'place_rules': places,
         'attribution': bool(two_lane and fence and fence.attribution_context),
@@ -861,10 +860,6 @@ async def run_bounded_lane(*, command, home_root, base_url, api_key, model,
         'author_timeline' if bounded.phase in {'extract','reconcile','summarize'} else 'composer')
     skill_name = {'memory_context': 'memoir-memory-context',
         'author_timeline': 'memoir-author-timeline', 'composer': 'memoir-composer'}[role]
-    if (bounded.phase == 'extract' and bounded.fence.two_lane
-            and bounded.fence.two_lane.selected_skills is not None
-            and set(bounded.fence.two_lane.selected_skills) - {'memoir-memory-context'} == {'memoir-place-journey'}):
-        skill_name = 'memoir-place-journey'
     check_issue14_dispatch(issue14_admission,role=role)
     publisher = _publisher(bounded,publisher)
     instructions,schema = lane_contract(bounded.phase,bounded.fence.locale,batch=bounded.fence.batch is not None, two_lane=bounded.fence.two_lane is not None, fence=bounded.fence, retry_reason=_object(bounded.packet)['payload'].get('retry_reason'))
@@ -877,7 +872,7 @@ async def run_bounded_lane(*, command, home_root, base_url, api_key, model,
     input_contract = EXTRACTION_WINDOW_CONTRACT if (bounded.phase == 'extract'
         and _object(bounded.packet)['payload'].get('window_contract') == EXTRACTION_WINDOW_CONTRACT) else None
     manifest = instruction_manifest(instructions, schema, variant=bounded.phase, input_contract=input_contract,
-        primary_name=lane_prompt_name(bounded.phase, timeline=skill_name != 'memoir-place-journey'))
+        primary_name=lane_prompt_name(bounded.phase))
     call_name = f'{skill_name}.{bounded.phase}'
     payload = dict(model=model, instructions=instructions, input=bounded.packet,
         store=False, stream=True, tools=[], tool_choice='none', parallel_tool_calls=False,

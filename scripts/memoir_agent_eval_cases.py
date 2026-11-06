@@ -58,15 +58,16 @@ def catalog(*, full=False):
     selected = {
         'memoir-author-timeline': {'exact-testimony', 'uncertain-year', 'unicode-quote'},
         'memoir-memory-context': {'explicit-profile', 'manual-value', 'manual-blank', 'approximate-date', 'other-people'},
-        'memoir-place-journey': {'two-cities', 'unmentioned', 'homonym'},
         'memoir-composer': {'first-checkpoint', 'empty-checkpoint'},
         'memoir-family-tree': {'unwired-integration'},
         'memoir-story-game': {'missing-consent'},
     }
+    active = set(inventory())
     for item in build_cases():
-        if item['skill'] in {'memoir-interviewer', 'memoir-place-photo-research', 'memoir-historical-news-research'}:
+        if item['skill'] not in active or item['skill'] in {
+                'memoir-interviewer', 'memoir-place-photo-research', 'memoir-historical-news-research'}:
             continue
-        if not full and item['skill'] != 'memoir-place-groups' and item['case'] not in selected.get(item['skill'], set()):
+        if not full and item['case'] not in selected.get(item['skill'], set()):
             continue
         rows.append(dict(id='skills/' + item['id'], component='skills', skill=item['skill'], locale=item['locale'],
             task=item['task'], gold=item['gold'], scenario=item))
@@ -75,7 +76,7 @@ def catalog(*, full=False):
             locale='en-AU', task=dict(kind='native-discovery', synthetic=True, public_only=True),
             gold=dict(required=['completed native search receipt', 'independent source inspection'])))
     covered = {row['skill'] for row in rows}
-    if not set(inventory()) <= covered:
+    if not active <= covered:
         raise ValueError('incomplete_current_inventory')
     if len({row['id'] for row in rows}) != len(rows):
         raise ValueError('duplicate_evaluation_case')

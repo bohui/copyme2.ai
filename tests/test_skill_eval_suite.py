@@ -9,20 +9,20 @@ from scripts import memoir_skill_eval_suite as suite
 from scripts.memoir_live_skill_cases import scenario_cases
 
 
-def selected(skill='memoir-place-groups', **kwargs):
+def selected(skill='memoir-memory-context', **kwargs):
     return suite.plan(skill=[skill], **kwargs)
 
 
 def test_inventory_and_bilingual_scenarios_are_complete_and_stable():
     plan = suite.plan()
-    assert len(plan['inventory']) == 10
-    assert len(plan['items']) == 160
-    assert len({(c['skill'], c['case']) for c in plan['items']}) == 80
-    assert len({c['id'] for c in plan['items']}) == 160
+    assert len(plan['inventory']) == 8
+    assert len(plan['items']) == 128
+    assert len({(c['skill'], c['case']) for c in plan['items']}) == 64
+    assert len({c['id'] for c in plan['items']}) == 128
     assert all({c['locale'] for c in plan['items'] if c['skill'] == skill} == {'en-AU', 'zh-CN'}
                for skill in plan['inventory'])
-    assert len(plan['evaluators']) == 20
-    assert len(plan['datasets']) == 12
+    assert len(plan['evaluators']) == 16
+    assert len(plan['datasets']) == 10
     assert plan['http_dispatches'] == 0
     case = deepcopy(plan['items'][0])
     before = case['id']
@@ -64,22 +64,16 @@ def test_cli_planning_never_allocates_services_or_reads_env(monkeypatch, capsys,
     assert list(tmp_path.iterdir()) == []
 
 
-def test_real_grouping_dispatches_no_skill_model_and_keeps_denominators(tmp_path):
-    receipt = asyncio.run(suite.run(selected(), tmp_path))
-    assert len(receipt['results']) == 16
-    assert receipt['budgets']['skill']['dispatched'] == 0
-    assert all(r['contract']['status'] == 'pass' for r in receipt['results'])
-    assert all(r['execution'] == 'completed' for r in receipt['results'])
-    assert all(r['quality']['status'] == 'unavailable' for r in receipt['results'])
-    assert receipt['status'] == 'incomplete'
-    assert receipt['coverage']['memoir-place-groups']['planned'] == 16
-    assert json.loads((tmp_path / 'receipt.json').read_text()) == receipt
+@pytest.mark.parametrize('skill',['memoir-place-groups','memoir-place-journey'])
+def test_retired_skills_cannot_be_planned(skill):
+    with pytest.raises(ValueError, match='unknown_skill'):
+        selected(skill)
 
 
 def test_missing_runners_keep_every_item_and_cannot_pass(tmp_path):
     receipt = asyncio.run(suite.run(suite.plan(), tmp_path))
-    assert len(receipt['results']) == 160
-    assert len(receipt['coverage']) == 10
+    assert len(receipt['results']) == 128
+    assert len(receipt['coverage']) == 8
     family = receipt['coverage']['memoir-family-tree']
     assert family['planned'] == family['unavailable'] == 16
     assert family['positive_delivery'] == 0
@@ -150,7 +144,7 @@ def test_invalid_or_critical_judgments_never_pass(tmp_path, change):
     class Judge(ControlledJudge):
         async def call(self, packet):
             return {**await super().call(packet), **change}
-    result = asyncio.run(suite.run(selected(), tmp_path, sdk_judge=Judge(), max_judge_calls=1))
+    result = asyncio.run(suite.run(selected(), tmp_path, skill=ControlledSkill(), sdk_judge=Judge(), max_judge_calls=1))
     assert result['results'][0]['quality']['status'] != 'pass'
     assert result['results'][1]['quality']['reason'] == 'judge_budget_exhausted'
 
@@ -163,7 +157,7 @@ def test_mutually_exclusive_executors_fail_before_work(tmp_path):
 
 def test_model_cannot_forge_host_witnesses_and_receipts_cannot_be_rebound(tmp_path):
     planned = selected()
-    result = asyncio.run(suite.run(planned, tmp_path))
+    result = asyncio.run(suite.run(planned, tmp_path, skill=ControlledSkill()))
     item = planned['items'][0]
     row = result['results'][0]
     assert suite.hosted_contract(item, row['output'], row['binding'], result)['status'] == 'pass'

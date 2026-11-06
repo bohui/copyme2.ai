@@ -141,8 +141,8 @@ def test_atlas_system_prompt_is_agent_owned_and_the_shared_identity_is_retired()
 def test_skill_instructions_have_one_langfuse_name_and_developer_contracts_are_not_prompts():
     registry = prompt_registry()
     assert registry["memoir/skills/family-tree/extract"] == "skills/memoir-family-tree/SKILL.md"
-    assert registry["memoir/skills/place-journey/extract"] == "skills/memoir-place-journey/prompts/extract.md"
-    assert "skills/memoir-place-journey/SKILL.md" not in registry.values()
+    assert "memoir/skills/place-journey/extract" not in registry
+    assert all(not name.startswith("memoir/probes/skills/place-groups") for name in registry)
     assert "memoir/memory/family-tree" not in registry
     assert "skills/memoir-family-tree/references/contract.md" not in registry.values()
     assert "skills/memoir-place-groups/references/contract.md" not in registry.values()

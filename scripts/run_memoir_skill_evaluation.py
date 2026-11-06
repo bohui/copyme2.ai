@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Plan and evaluate all ten Memoir skills; retain historical v2 helpers."""
+"""Plan and evaluate current Memoir skills and retain historical v2 helpers."""
 from __future__ import annotations
 
 import argparse
@@ -24,15 +24,7 @@ if str(ROOT) not in sys.path:
 from scripts.langfuse_prompt_client import prompt_client
 from scripts.memoir_live_skill_cases import cases, validate_case
 from scripts.run_memoir_live_skills import LiveProvider, compose, manifest, native_search, save, evaluation_trace_metadata
-from scripts.langfuse_dataset_names import (SKILL_TASKS, SKILL_TARGETS, target_dataset, dataset_target, admission_dataset, delivery_target, score_name)
-
-# A dataset contains one target; batching is an execution concern.
-DATASET_PHASES = {
-    **{admission_dataset(s, 'triggers-v2'): 'triggers' for s in SKILL_TASKS if s != 'memoir-interviewer'},
-    **{target_dataset(delivery_target(dict(skill=s, kind='live_contract' if s != 'memoir-composer' else 'live_composer')),
-        suite='delivery-v3'): 'deliveries' for s in SKILL_TASKS if s != 'memoir-interviewer'},
-}
-
+from scripts.langfuse_dataset_names import (SKILL_TARGETS, target_dataset, dataset_target, admission_dataset, delivery_target, score_name)
 
 # These tests invoke production admission/scheduling code with controlled replies;
 # their passing status is never evidence of live model delivery.
@@ -41,6 +33,7 @@ TRIGGERS = {
         'tests/test_background_skill_workflow.py::test_readiness_reports_saved_skill_with_actual_turn_and_source_coverage',
         'tests/test_background_skill_workflow.py::test_reply_only_is_skipped_not_model_applied_and_hidden_when_thinking_off',
         'tests/test_canonical_turn_publication.py::test_controlled_delivery_and_replay_keep_sql_authority_until_asgi_send',
+        'tests/test_memoir_background_agent_workflow.py::test_pending_place_journey_resumes_in_author_timeline',
     ],
     'memoir-composer': [
         'tests/test_background_skill_workflow.py::test_only_existing_profile_and_composer_schedules_advance_on_round_milestones',
@@ -64,16 +57,6 @@ TRIGGERS = {
         'tests/test_background_profile.py::test_no_model_profile_dispositions_do_not_load_the_skill',
         'tests/test_background_profile.py::test_profile_contract_limits_targets_and_never_targets_saved_manual_reference',
     ],
-    'memoir-place-groups': [
-        'tests/test_place_groups.py',
-        'tests/test_background_skill_workflow.py::test_completed_optional_service_receipts_do_not_expire',
-    ],
-    'memoir-place-journey': [
-        'tests/test_background_skill_workflow.py::test_shared_place_pass_is_embedded_not_a_second_model_request',
-        'tests/test_background_skill_workflow.py::test_shared_place_pass_reports_skipped_when_no_place_was_derived',
-        'tests/test_place_journey.py::test_place_journey_marker_must_match_the_current_storyteller_message',
-        'tests/test_place_journey.py::test_explicit_place_uncertainty_blocks_mapping_even_when_a_city_is_named',
-    ],
     'memoir-place-photo-research': [
         'tests/test_background_skill_workflow.py::test_slow_photo_runner_cannot_hold_A_or_memory_and_cache_is_not_a_new_call',
         'tests/test_place_photo_pages.py::test_stable_pages_reuse_one_search_and_reject_other_queries',
@@ -81,6 +64,14 @@ TRIGGERS = {
     ],
     'memoir-story-game': ['tests/test_memoir_story_game.py', 'tests/test_story_game_runtime.py',
                          'tests/test_story_game_runtime_postgres.py'],
+}
+
+
+# A dataset contains one current target; batching is an execution concern.
+DATASET_PHASES = {
+    **{admission_dataset(s, 'triggers-v2'): 'triggers' for s in TRIGGERS},
+    **{target_dataset(delivery_target(dict(skill=s, kind='live_contract' if s != 'memoir-composer' else 'live_composer')),
+        suite='delivery-v3'): 'deliveries' for s in TRIGGERS},
 }
 
 

@@ -683,7 +683,7 @@
       {
         "path": "scripts/memoir_judge_calibration.py",
         "symbol": "request",
-        "line": 74
+        "line": 75
       }
     ],
     "targets": [
@@ -736,7 +736,7 @@
       {
         "path": "scripts/memoir_judge_calibration.py",
         "symbol": "request",
-        "line": 74
+        "line": 75
       }
     ],
     "targets": [
@@ -789,7 +789,7 @@
       {
         "path": "scripts/memoir_judge_calibration.py",
         "symbol": "request",
-        "line": 74
+        "line": 75
       }
     ],
     "targets": [
@@ -841,7 +841,7 @@
       {
         "path": "scripts/memoir_judge_calibration.py",
         "symbol": "request",
-        "line": 74
+        "line": 75
       }
     ],
     "targets": [
@@ -893,7 +893,7 @@
       {
         "path": "scripts/memoir_judge_calibration.py",
         "symbol": "request",
-        "line": 74
+        "line": 75
       }
     ],
     "targets": [
@@ -956,7 +956,7 @@
       {
         "path": "scripts/memoir_judge_calibration.py",
         "symbol": "request",
-        "line": 74
+        "line": 75
       }
     ],
     "targets": [
@@ -1008,7 +1008,7 @@
       {
         "path": "scripts/memoir_judge_calibration.py",
         "symbol": "request",
-        "line": 74
+        "line": 75
       }
     ],
     "targets": [
@@ -1060,7 +1060,7 @@
       {
         "path": "scripts/memoir_judge_calibration.py",
         "symbol": "request",
-        "line": 74
+        "line": 75
       }
     ],
     "targets": [
@@ -1118,7 +1118,7 @@
       {
         "path": "scripts/memoir_judge_calibration.py",
         "symbol": "request",
-        "line": 74
+        "line": 75
       }
     ],
     "targets": [
@@ -1175,7 +1175,7 @@
       {
         "path": "scripts/memoir_judge_calibration.py",
         "symbol": "request",
-        "line": 74
+        "line": 75
       }
     ],
     "targets": [
@@ -1227,7 +1227,7 @@
       {
         "path": "scripts/memoir_judge_calibration.py",
         "symbol": "request",
-        "line": 74
+        "line": 75
       }
     ],
     "targets": [
@@ -1280,7 +1280,7 @@
       {
         "path": "scripts/memoir_judge_calibration.py",
         "symbol": "request",
-        "line": 74
+        "line": 75
       }
     ],
     "targets": [
@@ -1333,7 +1333,7 @@
       {
         "path": "scripts/memoir_judge_calibration.py",
         "symbol": "request",
-        "line": 74
+        "line": 75
       }
     ],
     "targets": [
@@ -1386,7 +1386,7 @@
       {
         "path": "scripts/memoir_judge_calibration.py",
         "symbol": "request",
-        "line": 74
+        "line": 75
       }
     ],
     "targets": [
@@ -1439,7 +1439,7 @@
       {
         "path": "scripts/memoir_judge_calibration.py",
         "symbol": "request",
-        "line": 74
+        "line": 75
       }
     ],
     "targets": [
@@ -1492,7 +1492,7 @@
       {
         "path": "scripts/memoir_judge_calibration.py",
         "symbol": "request",
-        "line": 74
+        "line": 75
       }
     ],
     "targets": [
@@ -1545,7 +1545,7 @@
       {
         "path": "scripts/memoir_judge_calibration.py",
         "symbol": "request",
-        "line": 74
+        "line": 75
       }
     ],
     "targets": [
@@ -1598,7 +1598,7 @@
       {
         "path": "scripts/memoir_judge_calibration.py",
         "symbol": "request",
-        "line": 74
+        "line": 75
       }
     ],
     "targets": [
@@ -1651,7 +1651,7 @@
       {
         "path": "scripts/memoir_judge_calibration.py",
         "symbol": "request",
-        "line": 74
+        "line": 75
       }
     ],
     "targets": [
@@ -1703,7 +1703,7 @@
       {
         "path": "scripts/memoir_judge_calibration.py",
         "symbol": "request",
-        "line": 74
+        "line": 75
       }
     ],
     "targets": [
@@ -1755,7 +1755,7 @@
       {
         "path": "scripts/memoir_judge_calibration.py",
         "symbol": "request",
-        "line": 74
+        "line": 75
       }
     ],
     "targets": [
@@ -1902,12 +1902,12 @@
       {
         "path": "scripts/memoir_live_skill_cases.py",
         "symbol": "cases",
-        "line": 251
+        "line": 247
       },
       {
         "path": "scripts/memoir_live_skill_cases.py",
         "symbol": "eval_fragment",
-        "line": 26
+        "line": 23
       }
     ],
     "targets": [
@@ -1940,12 +1940,12 @@
       {
         "path": "scripts/memoir_live_skill_cases.py",
         "symbol": "cases",
-        "line": 251
+        "line": 247
       },
       {
         "path": "scripts/memoir_live_skill_cases.py",
         "symbol": "eval_fragment",
-        "line": 26
+        "line": 23
       }
     ],
     "targets": [
@@ -1978,92 +1978,16 @@
       {
         "path": "scripts/memoir_live_skill_cases.py",
         "symbol": "cases",
-        "line": 251
+        "line": 247
       },
       {
         "path": "scripts/memoir_live_skill_cases.py",
         "symbol": "eval_fragment",
-        "line": 26
+        "line": 23
       }
     ],
     "targets": [
       "memoir/probes/skills/historical-news-research/discovery"
-    ],
-    "evaluators": [],
-    "sdk_evaluators": [],
-    "declared_metrics": [
-      "contract (requires code/reference or manual grading)"
-    ],
-    "hosted_rule_ids": [],
-    "datasets": [],
-    "regressions": [
-      "tests/test_memoir_live_skills.py",
-      "tests/test_automatic_prompt_evaluation.py"
-    ],
-    "gaps": [
-      "No active hosted dataset",
-      "No active hosted grader verified; use the declared regression/calibration path"
-    ]
-  },
-  {
-    "name": "memoir/probes/skills/place-groups/group",
-    "source": "tests/evaluation/prompts/live-skills/place-groups.md",
-    "version": 1,
-    "sha256": "8608c7d241e54df1b460248bf12e26c373361f4b9f4b20f50a92324aecf447cc",
-    "use": "probe",
-    "scenario": "Isolated live-skill/native-search evaluation instructions; production place grouping stays deterministic.",
-    "consumers": [
-      {
-        "path": "scripts/memoir_live_skill_cases.py",
-        "symbol": "cases",
-        "line": 251
-      },
-      {
-        "path": "scripts/memoir_live_skill_cases.py",
-        "symbol": "eval_fragment",
-        "line": 26
-      }
-    ],
-    "targets": [
-      "memoir/probes/skills/place-groups/group"
-    ],
-    "evaluators": [],
-    "sdk_evaluators": [],
-    "declared_metrics": [
-      "contract (requires code/reference or manual grading)"
-    ],
-    "hosted_rule_ids": [],
-    "datasets": [],
-    "regressions": [
-      "tests/test_memoir_live_skills.py",
-      "tests/test_automatic_prompt_evaluation.py"
-    ],
-    "gaps": [
-      "No active hosted dataset",
-      "No active hosted grader verified; use the declared regression/calibration path"
-    ]
-  },
-  {
-    "name": "memoir/probes/skills/place-groups/instructions",
-    "source": "skills/memoir-place-groups/SKILL.md",
-    "version": 1,
-    "sha256": "f03171f20d2c2d595b08e0fe579ed456a4da606da8e02c3555c27788e50fdda4",
-    "use": "probe",
-    "scenario": "Isolated live-skill/native-search evaluation instructions; production place grouping stays deterministic.",
-    "consumers": [
-      {
-        "path": "scripts/memoir_live_skill_cases.py",
-        "symbol": "cases",
-        "line": 251
-      },
-      {
-        "path": "scripts/memoir_live_skill_cases.py",
-        "symbol": "eval_fragment",
-        "line": 26
-      }
-    ],
-    "targets": [
-      "memoir/probes/skills/place-groups"
     ],
     "evaluators": [],
     "sdk_evaluators": [],
@@ -2092,12 +2016,12 @@
       {
         "path": "scripts/memoir_live_skill_cases.py",
         "symbol": "cases",
-        "line": 251
+        "line": 247
       },
       {
         "path": "scripts/memoir_live_skill_cases.py",
         "symbol": "eval_fragment",
-        "line": 26
+        "line": 23
       }
     ],
     "targets": [
@@ -2130,12 +2054,12 @@
       {
         "path": "scripts/memoir_live_skill_cases.py",
         "symbol": "cases",
-        "line": 251
+        "line": 247
       },
       {
         "path": "scripts/memoir_live_skill_cases.py",
         "symbol": "eval_fragment",
-        "line": 26
+        "line": 23
       }
     ],
     "targets": [
@@ -2539,10 +2463,10 @@
   {
     "name": "memoir/skills/author-timeline/extract",
     "source": "skills/memoir-author-timeline/prompts/extract.md",
-    "version": 5,
-    "sha256": "dee2b67275100aef548b4e3e324dc8d65582452daca8a1c2b293865b06cc7add",
+    "version": 7,
+    "sha256": "f3dac99ee1a349ffba988b8e0c6adec49fe214eda9a24b5dddc52a1ebef3ae99",
     "use": "conditional",
-    "scenario": "Draft original timing, geography and same-response chronology in a bounded source window. Canonical identity choices are deferred to reconciliation. Already-admitted legacy requests retain their identity and place contracts.",
+    "scenario": "Draft original timing, geography and chronology in a bounded source window. Pending Place Journey windows are resumed here and use Timeline reconciliation. The unselected compatibility path still produces coarse place hints.",
     "consumers": [
       {
         "path": "apps/api/memory_events.py",
@@ -2557,7 +2481,6 @@
     ],
     "targets": [
       "memoir/skills/author-timeline/extract",
-      "memoir/skills/place-journey/extract",
       "memoir/workflows/source-to-private-draft"
     ],
     "evaluators": [
@@ -2585,12 +2508,7 @@
       "cmw1gxovu00qe1z02e9fhtbvw",
       "cmw1gxp1800r21z02cf04y226",
       "cmw1gxozh00qu1z023nygmiw6",
-      "cmw1gxnnd00jq1z02kohj4xzk",
-      "cmw1gxpl600u61z029ljswpzl",
-      "cmw1gxpm500ue1z02p4lx9i25",
-      "cmw1gxpn000um1z02lhgh2a47",
-      "cmw1gxpnw00uu1z02zzm00d7k",
-      "cmw1gxnx400l31z02dl5sz9py"
+      "cmw1gxnnd00jq1z02kohj4xzk"
     ],
     "datasets": [
       {
@@ -2658,38 +2576,6 @@
         "source": "live snapshot"
       },
       {
-        "name": "memoir/skills/place-journey/extract/golden/contracts-campaign-0114d47bf1df",
-        "id": "cmw1guffx00el1z028wb402jj",
-        "items": 4,
-        "experiments": 0,
-        "scored_items": 0,
-        "source": "live snapshot"
-      },
-      {
-        "name": "memoir/skills/place-journey/extract/golden/core",
-        "id": "cmvf63buk007h1z02aw7y2u4g",
-        "items": 16,
-        "experiments": 0,
-        "scored_items": 0,
-        "source": "live snapshot"
-      },
-      {
-        "name": "memoir/skills/place-journey/extract/golden/delivery-core",
-        "id": "cmw1gufo400et1z02sko454ga",
-        "items": 1,
-        "experiments": 0,
-        "scored_items": 0,
-        "source": "live snapshot"
-      },
-      {
-        "name": "memoir/skills/place-journey/extract/golden/delivery-v2",
-        "id": "cmw1gufr300ex1z02s0vzre8q",
-        "items": 1,
-        "experiments": 0,
-        "scored_items": 0,
-        "source": "live snapshot"
-      },
-      {
         "name": "memoir/workflows/source-to-private-draft/golden/core",
         "id": "cmvf63exl00921z024ddyz6sa",
         "items": 2,
@@ -2706,25 +2592,9 @@
         "source": "live snapshot"
       },
       {
-        "name": "memoir/skills/place-journey/extract/golden/campaign-eac77f97ffe3",
-        "id": "cmw1xdj8r00za1z02ebar0x6p",
-        "items": 16,
-        "experiments": 0,
-        "scored_items": 0,
-        "source": "live snapshot"
-      },
-      {
         "name": "memoir/skills/author-timeline/extract/golden/campaign-0b27a36c3f16",
         "id": "cmw3b7cpw0cal1z02ydjcysku",
         "items": 6,
-        "experiments": 0,
-        "scored_items": 0,
-        "source": "live snapshot"
-      },
-      {
-        "name": "memoir/skills/place-journey/extract/golden/campaign-5ab262c11c1f",
-        "id": "cmw3baiyp0cb51z02tpruimjn",
-        "items": 4,
         "experiments": 0,
         "scored_items": 0,
         "source": "live snapshot"
@@ -2741,7 +2611,8 @@
       "tests/test_prompt_usage_link.py",
       "tests/test_memoir_background_agent_workflow.py::test_timeline_reconciles_and_revises_a_city_period",
       "tests/test_timeline_reported_places.py::test_map_city_chronology_preserves_skill_relations_across_paginated_api",
-      "tests/js/map-memory-journey.test.mjs"
+      "tests/js/map-memory-journey.test.mjs",
+      "tests/test_memoir_background_agent_workflow.py::test_pending_place_journey_resumes_in_author_timeline"
     ],
     "gaps": [
       "Requires scenario/branch-specific execution evidence",
@@ -4122,201 +3993,6 @@
     ]
   },
   {
-    "name": "memoir/skills/place-journey/extract",
-    "source": "skills/memoir-place-journey/prompts/extract.md",
-    "version": 1,
-    "sha256": "8d778ca5b24702a6e2ffc7cc13a8a02499a948a9beeb1b2cad23733dcbbb4251",
-    "use": "shared",
-    "scenario": "Place cues share one preloaded structured timeline/place extraction request; place-only work uses the same bounded JSON contract.",
-    "consumers": [
-      {
-        "path": "apps/api/two_lane_memory.py",
-        "symbol": "extraction_contract",
-        "line": 22
-      },
-      {
-        "path": "apps/api/memoir_skill_agent.py",
-        "symbol": "skill_document",
-        "line": 47
-      }
-    ],
-    "targets": [
-      "memoir/skills/author-timeline/extract",
-      "memoir/skills/place-journey/extract"
-    ],
-    "evaluators": [
-      "memoir/evaluators/shared/completeness",
-      "memoir/evaluators/shared/correctness",
-      "memoir/evaluators/shared/relevance",
-      "memoir/evaluators/shared/safety"
-    ],
-    "sdk_evaluators": [
-      "scripts/run_memoir_agent_evaluation.py:scores"
-    ],
-    "declared_metrics": [
-      "memoir/evaluators/shared/completeness",
-      "memoir/evaluators/shared/correctness",
-      "memoir/evaluators/shared/relevance",
-      "memoir/evaluators/shared/safety"
-    ],
-    "hosted_rule_ids": [
-      "cmw1gxorh00pi1z02gv53pn1h",
-      "cmw1gxosj00pq1z028cgxafa1",
-      "cmw1gxotn00py1z0279y1br4o",
-      "cmw1gxoub00q61z02iz9y33y1",
-      "cmw1gxoxt00qm1z021jsj08gg",
-      "cmw1gxovu00qe1z02e9fhtbvw",
-      "cmw1gxp1800r21z02cf04y226",
-      "cmw1gxozh00qu1z023nygmiw6",
-      "cmw1gxnnd00jq1z02kohj4xzk",
-      "cmw1gxpl600u61z029ljswpzl",
-      "cmw1gxpm500ue1z02p4lx9i25",
-      "cmw1gxpn000um1z02lhgh2a47",
-      "cmw1gxpnw00uu1z02zzm00d7k",
-      "cmw1gxnx400l31z02dl5sz9py"
-    ],
-    "datasets": [
-      {
-        "name": "memoir/skills/author-timeline/extract/golden/contracts-campaign-0114d47bf1df",
-        "id": "cmw1gu7ws00bc1z02zjj4ib17",
-        "items": 6,
-        "experiments": 0,
-        "scored_items": 0,
-        "source": "live snapshot"
-      },
-      {
-        "name": "memoir/skills/author-timeline/extract/golden/core",
-        "id": "cmvf62s10003s1z021ip1f0jw",
-        "items": 16,
-        "experiments": 0,
-        "scored_items": 0,
-        "source": "live snapshot"
-      },
-      {
-        "name": "memoir/skills/author-timeline/extract/golden/delivery-core",
-        "id": "cmw1gu8fm00bm1z02de9qs56x",
-        "items": 2,
-        "experiments": 0,
-        "scored_items": 0,
-        "source": "live snapshot"
-      },
-      {
-        "name": "memoir/skills/author-timeline/extract/golden/delivery-v2",
-        "id": "cmw1gu8p900br1z02xxvlq4b6",
-        "items": 2,
-        "experiments": 0,
-        "scored_items": 0,
-        "source": "live snapshot"
-      },
-      {
-        "name": "memoir/skills/author-timeline/extract/golden/event-grounding",
-        "id": "cmvcxwiok001n1z029quda4ra",
-        "items": 8,
-        "experiments": 0,
-        "scored_items": 0,
-        "source": "live snapshot"
-      },
-      {
-        "name": "memoir/skills/author-timeline/extract/golden/event-grounding-20261008-v1",
-        "id": "cmuzc53sj00031z02d3zzutu0",
-        "items": 8,
-        "experiments": 0,
-        "scored_items": 0,
-        "source": "live snapshot"
-      },
-      {
-        "name": "memoir/skills/author-timeline/extract/golden/temporal-placement",
-        "id": "cmvcxwj1b001y1z02xjgwdkjy",
-        "items": 14,
-        "experiments": 0,
-        "scored_items": 0,
-        "source": "live snapshot"
-      },
-      {
-        "name": "memoir/skills/author-timeline/extract/golden/temporal-placement-20261008-v1",
-        "id": "cmuzc59lq000e1z02ioeafsko",
-        "items": 14,
-        "experiments": 0,
-        "scored_items": 0,
-        "source": "live snapshot"
-      },
-      {
-        "name": "memoir/skills/place-journey/extract/golden/contracts-campaign-0114d47bf1df",
-        "id": "cmw1guffx00el1z028wb402jj",
-        "items": 4,
-        "experiments": 0,
-        "scored_items": 0,
-        "source": "live snapshot"
-      },
-      {
-        "name": "memoir/skills/place-journey/extract/golden/core",
-        "id": "cmvf63buk007h1z02aw7y2u4g",
-        "items": 16,
-        "experiments": 0,
-        "scored_items": 0,
-        "source": "live snapshot"
-      },
-      {
-        "name": "memoir/skills/place-journey/extract/golden/delivery-core",
-        "id": "cmw1gufo400et1z02sko454ga",
-        "items": 1,
-        "experiments": 0,
-        "scored_items": 0,
-        "source": "live snapshot"
-      },
-      {
-        "name": "memoir/skills/place-journey/extract/golden/delivery-v2",
-        "id": "cmw1gufr300ex1z02s0vzre8q",
-        "items": 1,
-        "experiments": 0,
-        "scored_items": 0,
-        "source": "live snapshot"
-      },
-      {
-        "name": "memoir/skills/author-timeline/extract/golden/campaign-47b4a4b14664",
-        "id": "cmw1xdh4100x61z02j759k06p",
-        "items": 16,
-        "experiments": 0,
-        "scored_items": 0,
-        "source": "live snapshot"
-      },
-      {
-        "name": "memoir/skills/place-journey/extract/golden/campaign-eac77f97ffe3",
-        "id": "cmw1xdj8r00za1z02ebar0x6p",
-        "items": 16,
-        "experiments": 0,
-        "scored_items": 0,
-        "source": "live snapshot"
-      },
-      {
-        "name": "memoir/skills/author-timeline/extract/golden/campaign-0b27a36c3f16",
-        "id": "cmw3b7cpw0cal1z02ydjcysku",
-        "items": 6,
-        "experiments": 0,
-        "scored_items": 0,
-        "source": "live snapshot"
-      },
-      {
-        "name": "memoir/skills/place-journey/extract/golden/campaign-5ab262c11c1f",
-        "id": "cmw3baiyp0cb51z02tpruimjn",
-        "items": 4,
-        "experiments": 0,
-        "scored_items": 0,
-        "source": "live snapshot"
-      }
-    ],
-    "regressions": [
-      "tests/test_two_lane_memory.py",
-      "tests/test_automatic_prompt_evaluation.py",
-      "tests/test_memory_context_transport.py",
-      "tests/test_assembled_prompts.py",
-      "tests/test_prompt_publication.py"
-    ],
-    "gaps": [
-      "No scored experiment items verified for the current pin"
-    ]
-  },
-  {
     "name": "memoir/skills/place-photo-research/discovery",
     "source": "skills/memoir-place-photo-research/prompts/discovery.md",
     "version": 1,
@@ -5207,7 +4883,7 @@
       {
         "path": "scripts/memoir_live_skill_cases.py",
         "symbol": "cases",
-        "line": 251
+        "line": 247
       }
     ],
     "targets": [

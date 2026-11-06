@@ -198,23 +198,3 @@ def test_updated_main_locality_uses_source_roles_without_inflating_delivery(tmp_
     assert all(d['status'] == 'integrated_prerequisite' for d in receipt['upstream_dependencies'])
     assert row['witnesses']['standalone_diagnostics'][0]['candidates'] == (0 if foreign else 1)
     assert 'photo-locality' in (tmp_path / 'report.md').read_text()
-
-
-def test_place_extraction_is_embedded_in_one_real_timeline_packet(tmp_path):
-    from scripts.memoir_skill_scenarios import place
-    requests = []
-    class Timeline:
-        async def call(self, request):
-            requests.append(request)
-            assert request['skill'] == 'memoir-author-timeline'
-            assert request['execution'] == 'embedded'
-            assert 'window_contract' in request['input']
-            assert 'gold' not in request and 'rubric' not in request
-            places = [place('Sydney', 'en-AU'), place('Perth', 'en-AU')]
-            places = [dict(p, research=None) for p in places]
-            return dict(output=dict(events=[], place_journeys=places),
-                        response_id='timeline-fixture', model='controlled-model', usage=None)
-    receipt = asyncio.run(suite.run(suite.plan(case=[
-        'memoir-place-journey/two-cities/en-AU']), tmp_path, skill=Timeline()))
-    assert receipt['results'][0]['contract']['status'] == 'pass', receipt['results'][0]
-    assert len(requests) == receipt['budgets']['skill']['dispatched'] == 1

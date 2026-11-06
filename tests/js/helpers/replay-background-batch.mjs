@@ -21,7 +21,6 @@ for (const locale of ['en-AU','zh-CN']) {
   const final=state.chat[2];
   const grouped=final.trace.filter(step=>step.batch_id && step.coverage_start===2 && step.coverage_end===3);
   assert.equal(grouped.length,2);
-  assert.ok(final.trace.some(step=>step.skill==='memoir-place-groups'));
   const html=context.renderAgentTrace(final.trace,'live');
   assert.ok(html.includes(messages.Memoir.trace.groupedConversations));
   for (const step of grouped) {

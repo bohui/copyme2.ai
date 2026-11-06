@@ -883,11 +883,11 @@ events, groups their locations by city, and uses each city's earliest event
 start and latest event end for its card. Sourced before and after relations
 preserve the journey when estimates overlap.
 
-The place journey and place groups skills are deprecated. Their existing data
-and routes support compatibility and photo research. The grouping route resolves
-public geography through the configured geocoder without a model call. A city's
-suburbs, towns, and districts share its map with independent pins. The map can
-reuse cached coordinates and photographs for the same published location.
+Pending Place Journey source windows resume through Author Timeline. Saved
+place data supports photo and news research. The map service resolves public
+geography through the configured geocoder. A city's suburbs, towns, and
+districts share its map with independent pins. The map can reuse cached
+coordinates and photographs for the same published location.
 
 Choose the provider with `MEMOIR_GEO_PROVIDER` in the API environment. The flag selects both public-place geocoding and map tiles; Cesium keeps rendering the globe, flight and final map. Google remains the default when the flag is absent or blank. Changing the flag requires restarting/recreating the API service and reloading the browser.
 
@@ -957,7 +957,7 @@ make install_skill
 The target validates each `skills/*/SKILL.md` with the standard skill packager,
 rebuilds the API and private `codex-worker` images, recreates those services so
 their cached skill loaders reload, and removes the temporary ZIPs. Use
-`SKILLS="memoir-place-journey"` only when debugging one skill. Generated
+`SKILLS="memoir-author-timeline"` only when debugging one skill. Generated
 archives remain temporary, so `dist/` stays ignored.
 
 Memoir's default story-game builder uses the separate NovelToGame Git submodule at

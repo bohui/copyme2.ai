@@ -27,7 +27,7 @@ def test_catalog_covers_current_inventory_and_keeps_gold_outside_input():
 def test_current_target_campaigns_can_use_the_shared_dataset_publisher():
     from scripts.run_memoir_skill_evaluation import publish_datasets
     from scripts.langfuse_dataset_names import dataset_target
-    case = next(c for c in catalog() if c['id'] == 'skills/memoir-place-groups/alias/en-AU')
+    case = next(c for c in catalog() if c['id'] == 'skills/memoir-memory-context/explicit-profile/en-AU')
     definitions = evaluation.dataset_rows([case])
     stored, metadata = {}, {}
     def create_dataset(**value):
@@ -191,7 +191,7 @@ def test_bilingual_scenario_variants_share_calibration_split():
 
 @pytest.mark.parametrize('mutation', ['none', 'input', 'gold', 'output', 'missing_score', 'missing_item', 'duplicate'])
 def test_hosted_readback_verifies_actual_evidence_and_scores(mutation):
-    case = next(c for c in catalog() if c['id'] == 'skills/memoir-place-groups/alias/en-AU')
+    case = next(c for c in catalog() if c['id'] == 'skills/memoir-memory-context/explicit-profile/en-AU')
     rows = next(iter(evaluation.dataset_rows([case]).values()))
     result = dict(case_id=case['id'], skill=case['skill'], status='pass', checks=dict(actual_check=True), elapsed_seconds=1.25, semantic=None)
     item = SimpleNamespace(input=deepcopy(rows[0]['input']), expected_output=deepcopy(rows[0]['expected_output']),

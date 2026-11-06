@@ -216,7 +216,7 @@ async def _extract(page,worker):
             if selected is not None:
                 if 'memoir-author-timeline' not in selected and any(raw.get(field) for field in ('events','continuity_updates','event_places')):
                     raise ValueError('Unselected timeline output')
-                if 'memoir-place-journey' not in selected and raw.get('place_journeys'):
+                if raw.get('place_journeys'):
                     raise ValueError('Unselected place output')
             if grouped_timeline and any(
                     draft.get('existing_id') or draft.get('candidate_ids') or draft.get('correction')
@@ -375,10 +375,9 @@ async def _execute_lifetime_lane(job,worker,*,page_quantum=8):
         phase='summarize' if page.get('memory_summary') is not None else 'extract' if page['skill']=='timeline' else page['skill']
         names=['memoir-author-timeline' if page['skill']=='timeline' else 'memoir-composer']
         if phase=='extract' and selected is not None:
-            names=[name for name in ('memoir-author-timeline','memoir-place-journey') if name in selected]
+            names=[name for name in names if name in selected]
         with ExitStack() as spans:
-            attempts=[spans.enter_context(trace_skill_execution(name,phase,
-                embedded=name=='memoir-place-journey' and 'memoir-author-timeline' in names)) for name in names]
+            attempts=[spans.enter_context(trace_skill_execution(name,phase)) for name in names]
             try:
                 result=await (_summarize(page,worker) if page.get('memory_summary') is not None else
                     _extract(page,worker) if page['skill']=='timeline' else _compose(page,worker))

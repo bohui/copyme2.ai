@@ -16,7 +16,7 @@ DRAFT_CONFLICT = 'Drafts for the same event disagree'
 
 
 def uses_reconciliation(selected):
-    return selected is not None and 'memoir-author-timeline' in selected and 'memoir-place-journey' not in selected
+    return selected is not None and 'memoir-author-timeline' in selected
 
 
 class PublishedOrder(BaseModel):

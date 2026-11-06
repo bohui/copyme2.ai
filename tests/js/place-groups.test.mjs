@@ -130,7 +130,7 @@ test('background checks prioritise each new mention and ignore superseded correc
 });
 
 for (const failed of [false,true]) {
-test(`city grouping reports its actual ${failed?'failed':'completed'} skill call`, async () => {
+test(`city grouping reports its actual ${failed?'failed':'completed'} service call`, async () => {
   const steps=[];
   let finish;
   const context=vm.createContext({state:{project:{id:'p'},chat:[],showThinkingSteps:true},profile:()=>({memory_places:[city]}),
@@ -140,7 +140,8 @@ test(`city grouping reports its actual ${failed?'failed':'completed'} skill call
   });
   for(const name of ['publicPlaceFields','resolvePlaceGroups']) vm.runInContext(extract(name),context);
   context.resolvePlaceGroups(city,{onProgress:step=>steps.push(step)});
-  assert.equal(steps[0].skill,'memoir-place-groups');
+  assert.equal(steps[0].kind,'progress');
+  assert.equal(steps[0].skill,undefined);
   assert.equal(steps[0].status,'running');
   finish();
   await new Promise(resolve=>setImmediate(resolve));
