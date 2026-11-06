@@ -292,6 +292,39 @@ test('one-event city views retain large intercity footprints even when the other
   }
 });
 
+test('a return trip between the same cities draws a single trail and keeps both visit cards', t=>{
+  const events=[event('Birth',chengde,1983,'baby'),event('University',shanghai,2007,'young_adulthood')];
+  const {cards,footprints,zoom,refresh}=mapFixture(t,false,[],events);
+  zoom(chengde);
+  const outbound=footprints.slice();
+  assert.ok(outbound.length);
+  events.push(event('Return',chengde,2015,'young_adulthood'));
+  refresh();
+  zoom(chengde);
+  assert.deepEqual(footprints,outbound);
+  assert.match(cards.innerHTML,/Birth/);
+  assert.match(cards.innerHTML,/Return/);
+});
+
+test('near-parallel legs at a shared city show one trail until the overview', t=>{
+  const events=[event('Before',shanghai,1983,'baby'),event('Visit',chengde,2007,'young_adulthood')];
+  let overview=false;
+  const radians = degrees => degrees*Math.PI/180;
+  const settings={computeViewRectangle:()=>overview ? {west:0,east:Math.PI,south:-Math.PI/2,north:Math.PI/2} : {
+    west:radians(117.9),east:radians(118),south:radians(40.9),north:radians(41)}};
+  const {footprints,zoom,refresh}=mapFixture(t,false,[],events,true,settings);
+  zoom(chengde);
+  const incoming=footprints.slice();
+  assert.ok(incoming.length);
+  events.push(event('Onward',sydney,2015,'young_adulthood'));
+  refresh();
+  zoom(chengde);
+  assert.equal(footprints.length,incoming.length);
+  overview=true;
+  zoom(chengde,200000);
+  assert.ok(footprints.length>incoming.length);
+});
+
 test('local footprints connect chronological city events across an intervening visit to another city', t=>{
   const school={...chengde,place:'School',granularity:'suburb',hierarchy:[...chengde.hierarchy,'School'],
     longitude:chengde.longitude+.1,latitude:chengde.latitude+.1};

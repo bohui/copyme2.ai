@@ -50,37 +50,38 @@ function harness() {
   return {context,state,requests,timers,renders,nextTimer,now:() => now,mapReads:()=>mapReads};
 }
 
-test('background extraction completion refreshes the map event feed once', async () => {
+test('readiness waits for an Atlas notification even while extraction is pending', async () => {
   const h=harness();
-  const pending=h.context.refreshStageReadiness();
-  h.requests[0](stage(10,true));await settle();
+  await h.context.refreshStageReadiness(stage(10,true));
   assert.equal(h.mapReads(),0);
-  await h.nextTimer();
-  h.requests[1](stage(20,false));await pending;
+  assert.equal(h.timers.size,0);
+  const map_events={project_id:'p', events:[{id:'memory'}]};
+  await h.context.refreshStageReadiness({...stage(20), event_revision:1, map_events});
+  assert.equal(h.requests.length,0);
   assert.equal(h.mapReads(),1);
 });
 
-test('active interview polling follows pending profile work and replaces saved or withdrawn facts', async () => {
+test('Atlas updates replace saved or withdrawn profile facts', async () => {
   const h = harness();
   h.state.project.profile = {name:'Withdrawn', avatar_style:'male', photo_memories:{selected:'keep'},
     profile_automation:{revision:1}};
   const pending = h.context.refreshStageReadiness();
   h.requests[0]({...stage(10, true), profile:{birth_year:1960, avatar_style:'female', profile_automation:{revision:2}}});
-  await settle();
+  await pending;
   assert.equal(h.state.project.profile.birth_year, 1960);
   assert.equal(h.state.project.profile.avatar_style, 'female');
   assert.equal(Object.hasOwn(h.state.project.profile, 'name'), false);
   assert.equal(h.state.project.profile.photo_memories.selected, 'keep');
-  await h.nextTimer();
+  const update = h.context.refreshStageReadiness();
   h.requests[1]({...stage(10), profile:{profile_automation:{revision:3}}});
-  await pending;
+  await update;
   assert.equal(Object.hasOwn(h.state.project.profile, 'birth_year'), false);
   assert.equal(Object.hasOwn(h.state.project.profile, 'avatar_style'), false);
   assert.equal(h.state.project.profile.profile_automation.revision, 3);
   assert.equal(h.timers.size, 0);
 });
 
-test('a profile poll started before a newer UI confirmation cannot overwrite it', async () => {
+test('a profile read started before a newer UI confirmation cannot overwrite it', async () => {
   const h = harness();
   h.state.project.profile = {name:'Automatic', profile_automation:{revision:1}};
   const pending = h.context.refreshStageReadiness();
@@ -92,7 +93,7 @@ test('a profile poll started before a newer UI confirmation cannot overwrite it'
   assert.equal(h.state.project.profile.profile_automation.revision, 3);
 });
 
-for (const recording of ['recording', 'storyRecording', 'voiceMode']) test(`profile polling does not rebuild the composer during ${recording}`, async () => {
+for (const recording of ['recording', 'storyRecording', 'voiceMode']) test(`profile updates do not rebuild the composer during ${recording}`, async () => {
   const h = harness();
   h.state[recording] = true;
   h.state.audioTranscript = 'An unfinished voice answer';
@@ -122,10 +123,9 @@ test('background catch-up requests photos for both locations with their separate
   assert.deepEqual(calls,[['承德市','1980s'],['悉尼','']]);
 });
 
-test('saved-project Begin replaces the cancelled poll before its resume greeting finishes', async () => {
+test('saved-project Begin refreshes readiness before its resume greeting finishes', async () => {
   const h = harness();
   const old = h.context.refreshStageReadiness();
-  h.requests[0](stage(10,true)); await settle();
   const previousJob = h.state.stageReadinessRefresh;
   let finishGreeting;
   h.context.startCodexConversation = () => new Promise(resolve => {finishGreeting = resolve;});
@@ -134,10 +134,10 @@ test('saved-project Begin replaces the cancelled poll before its resume greeting
   assert.equal(h.requests.length, 2, 'Resume must restart recovery without waiting for the greeting');
   assert.equal(h.state.stageReadinessRefresh.scope.generation, h.state.navigationGeneration);
   h.requests[1](stage(10,true)); await settle();
-  await h.nextTimer();
+  const update = h.context.refreshStageReadiness();
   h.requests[2](stage(30)); await settle();
   assert.equal(h.state.stageReadiness.childhood.percent, 30);
-  finishGreeting(); await Promise.all([old,resume]);
+  finishGreeting(); await Promise.all([old,resume,update]);
   assert.equal(h.timers.size, 0);
 });
 
@@ -234,8 +234,7 @@ test('the streamed save receipt refreshes before the optional workspace tail fin
   h.requests[0](stage(10)); await settle();
   assert.equal(h.state.stageReadiness.childhood.percent, 10);
   finish({conversation_saved:true,reply:'Saved reply.'}); await turn;
-  assert.equal(h.requests.length, 2);
-  h.requests[1](stage(10)); await settle();
+  assert.equal(h.requests.length, 1,'The final response must not repeat the streamed save read');
 });
 
 for (const transition of ['project','owner','navigation']) test(`late readiness cannot cross a ${transition} transition`, async () => {
@@ -286,69 +285,29 @@ test('a new save during progress pagination discards the older private snapshot'
   assert.equal(h.state.project.profile.name,'Current');
 });
 
-test('pending extraction refreshes when stage evidence becomes ready', async () => {
+test('readiness updates with the same map revision leave the event feed alone', async () => {
   const h = harness();
-  const pending = h.context.refreshStageReadiness();
-  h.requests[0](stage(0,true)); await settle();
-  await h.nextTimer();
-  assert.equal(h.requests.length, 2);
-  h.requests[1](stage(15.7)); await pending;
-  assert.equal(h.state.stageReadiness.childhood.percent, 15.7);
-  assert.equal(h.timers.size, 0);
+  const revision = {policy_epoch:1, source_revision:2, event_revision:3};
+  h.state.memoryEventPage = {project_id:'p', ...revision};
+  const first = h.context.refreshStageReadiness();
+  h.requests[0]({...stage(10), ...revision}); await first;
+  assert.equal(h.mapReads(), 0);
+  const second = h.context.refreshStageReadiness();
+  h.requests[1]({...stage(20,true), ...revision, event_revision:4, map_events:{events:[]}}); await second;
+  assert.equal(h.mapReads(), 1);
 });
 
-test('a supported 240-second extraction is observed without another turn or reload', async () => {
-  const h = harness();
-  const pending = h.context.refreshStageReadiness();
-  for (let index = 0; index < 40; index++) {
-    h.requests[index](stage(h.now() >= 240_000 ? 50 : 0, h.now() < 240_000)); await settle();
-    if (!h.timers.size) break;
-    await h.nextTimer();
-  }
-  await pending;
-  assert.equal(h.state.stageReadiness.childhood.percent, 50);
-  assert.ok(h.now() >= 240_000 && h.now() <= 300_000);
-  assert.ok(h.requests.length <= 25, 'Backoff must avoid busy polling');
-  assert.equal(h.timers.size, 0);
-});
-
-test('a failed final-save read preserves recovery from the older healthy streamed-save poll', async () => {
-  const h = harness();
-  const streamed = h.context.refreshStageReadiness();
-  h.requests[0](stage(10,true)); await settle();
-  const finalSave = h.context.refreshStageReadiness(); await settle();
-  assert.equal(h.requests.length, 2);
-  h.requests[1].reject(fenceError(503)); await settle();
-  assert.equal(h.state.stageReadiness.childhood.percent, 10);
-  await h.nextTimer();
-  assert.equal(h.requests.length, 3, 'A failed newer read must not discard recovery');
-  h.requests[2](stage(50)); await Promise.all([streamed,finalSave]);
-  assert.equal(h.state.stageReadiness.childhood.percent, 50);
-  assert.equal(h.timers.size, 0);
-});
-
-for (const status of [409,503]) test(`a revision-fenced ${status} read retries without erasing the last good ring`, async () => {
+for (const status of [409,503]) test(`a revision-fenced ${status} read preserves the last ring until another update`, async () => {
   const h = harness();
   h.state.stageReadiness = stage(10).stages;
   const pending = h.context.refreshStageReadiness();
-  h.requests[0].reject(fenceError(status)); await settle();
+  h.requests[0].reject(fenceError(status)); await pending;
   assert.equal(h.state.stageReadiness.childhood.percent, 10);
-  await h.nextTimer();
-  h.requests[1].reject(fenceError(status)); await settle();
-  await h.nextTimer();
-  h.requests[2](stage(50)); await pending;
+  assert.equal(h.timers.size, 0);
+  const update = h.context.refreshStageReadiness();
+  h.requests[1](stage(50)); await update;
   assert.deepEqual(h.renders.map(value => value.childhood.percent), [50]);
   assert.equal(h.timers.size, 0);
-});
-
-test('navigation aborts a queued recovery timer immediately', async () => {
-  const h = harness();
-  const pending = h.context.refreshStageReadiness();
-  h.requests[0](stage(0,true)); await settle();
-  h.context.invalidateProjectNavigation(); await settle();
-  assert.equal(h.timers.size, 0);
-  await pending;
-  assert.equal(h.requests.length, 1);
 });
 
 test('navigation aborts an in-flight read; a later project cannot paint its late result', async () => {
@@ -364,37 +323,18 @@ test('navigation aborts an in-flight read; a later project cannot paint its late
   assert.equal(h.timers.size, 0);
 });
 
-test('a hung read is aborted and retried; its late response cannot overwrite fresh progress', async () => {
+test('a hung read is aborted and a later update can still paint fresh progress', async () => {
   const h = harness();
   const pending = h.context.refreshStageReadiness();
   await h.nextTimer();
   assert.equal(h.requests[0].signal?.aborted, true);
-  assert.ok(h.now() <= 10_000, 'A hung read cannot consume the extraction recovery window');
-  await h.nextTimer();
-  h.requests[1](stage(50)); await pending;
+  assert.ok(h.now() <= 10_000);
+  await pending;
+  assert.equal(h.requests.length, 1);
+  const update = h.context.refreshStageReadiness();
+  h.requests[1](stage(50)); await update;
   h.requests[0](stage(10)); await settle();
   assert.deepEqual(h.renders.map(value => value.childhood.percent), [50]);
-});
-
-test('persistent pending work or transient failures stop at a finite five-minute deadline', async () => {
-  for (const failure of [false,true]) {
-    const h = harness();
-    const pending = h.context.refreshStageReadiness();
-    let index = 0;
-    while (index < 40) {
-      if (h.requests[index]) {
-        if (failure) h.requests[index].reject(fenceError());
-        else h.requests[index](stage(0,true));
-        index++; await settle();
-      }
-      if (!h.timers.size) break;
-      await h.nextTimer();
-    }
-    await pending;
-    assert.ok(h.now() >= 240_000 && h.now() <= 300_000);
-    assert.ok(h.requests.length <= 25);
-    assert.equal(h.timers.size, 0);
-  }
 });
 
 test('permanent authentication failure stops recovery without discarding saved progress', async () => {
@@ -404,27 +344,5 @@ test('permanent authentication failure stops recovery without discarding saved p
   h.requests[0].reject(Object.assign(new Error('Session unavailable'), {status:401}));
   await pending;
   assert.equal(h.state.stageReadiness.childhood.percent, 10);
-  assert.equal(h.timers.size, 0);
-});
-
-test('a later explicit save receives a full supported recovery window', async () => {
-  const h = harness();
-  const first = h.context.refreshStageReadiness();
-  let index = 0;
-  while (h.now() < 240_000) {
-    h.requests[index++](stage(0,true)); await settle();
-    await h.nextTimer();
-  }
-  const savedAt = h.now();
-  const later = h.context.refreshStageReadiness();
-  for (; index < 50; index++) {
-    const ready = h.now() >= savedAt + 240_000;
-    h.requests[index](stage(ready ? 50 : 0, !ready)); await settle();
-    if (!h.timers.size) break;
-    if (h.requests.length <= index + 1) await h.nextTimer();
-  }
-  await Promise.all([first,later]);
-  assert.equal(h.state.stageReadiness.childhood.percent, 50);
-  assert.ok(h.now() >= savedAt + 240_000 && h.now() <= savedAt + 300_000);
   assert.equal(h.timers.size, 0);
 });

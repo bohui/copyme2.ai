@@ -48,7 +48,6 @@ MOBILE_OPERATIONS = {
     '/v1/user/attachments': ('post',),
     '/v1/story/plans': ('get',),
     '/v1/story/state': ('get',),
-    '/v1/story/readiness': ('get',),
     '/v1/story/private-draft': ('get',),
     '/v1/story/private-draft/page': ('get',),
     '/v1/story/private-draft/section': ('get',),

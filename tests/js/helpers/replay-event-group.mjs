@@ -5,7 +5,7 @@ import {createPlaceWorkspace} from '../../../apps/web/client/memoir/place-worksp
 import {cityEventCards, memoryEventCardMarkup, memoryTrailLegs} from '../../../apps/web/client/memoir/map-memory-journey.mjs';
 import {translateWith} from '../../../apps/web/client/i18n.js';
 
-const {project,feed,locations,orders,end} = JSON.parse(readFileSync(0,'utf8'));
+const {project,feed,locations,end} = JSON.parse(readFileSync(0,'utf8'));
 const city = (place,country,latitude,longitude) => ({place,hierarchy:['Earth',country,place],
   granularity:'city',latitude,longitude});
 const memory_places = [city('Porto','Portugal',41.1496,-8.6109), city('Hobart','Australia',-42.8821,147.3272),
@@ -16,9 +16,10 @@ globalThis.window = {addEventListener(){}};
 const context = {state,captureProjectScope:()=>project,isCurrentProjectScope:id=>id===project,render(){},
   storyApi:async path=>{
     const url = new URL(path,'https://fixture.invalid');
-    if (url.pathname === '/v1/story/map-events') return structuredClone(feed);
+    if (url.pathname === '/v1/story/atlas-events') return structuredClone(feed);
     const [id,kind] = url.pathname.split('/').slice(-2);
-    return structuredClone((kind === 'places' ? locations : orders)[id]);
+    assert.equal(kind,'places');
+    return structuredClone(locations[id]);
   }};
 await createFamilyWorkspace(context).refreshFamilyContext();
 assert.ok(state.timeline.every(event=>event.canonical));

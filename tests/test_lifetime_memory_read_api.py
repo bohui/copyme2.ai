@@ -74,12 +74,11 @@ def mapped(monkeypatch, tmp_path):
     ('/v1/story/private-draft/page?project_id=read-project&snapshot_id=aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa', 'read_lifetime_private_draft_page'),
     ('/v1/story/private-draft/section?project_id=read-project&snapshot_id=aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa&partition_id=selected', 'read_workspace_draft_section'),
     ('/v1/story/events?project_id=read-project', 'read_lifetime_collection_page'),
-    ('/v1/story/map-events?project_id=read-project', 'read_lifetime_collection_page'),
+    ('/v1/story/atlas-events?view=map&project_id=read-project', 'read_lifetime_collection_page'),
     ('/v1/story/map-photos?project_id=read-project', 'read_lifetime_map_photos'),
-    ('/v1/story/map-events/read-project/event/places', 'read_lifetime_event_places'),
-    ('/v1/story/map-events/read-project/event/order', 'read_lifetime_collection_page'),
+    ('/v1/story/atlas-events/read-project/event/places', 'read_lifetime_event_places'),
     ('/v1/story/sources?project_id=read-project', 'read_lifetime_collection_page'),
-    ('/v1/story/readiness?project_id=read-project', 'read_lifetime_stage_readiness'),
+    ('/v1/story/atlas-events?project_id=read-project', 'read_lifetime_collection_page'),
 ])
 def test_mapped_story_gets_capture_before_rpc_and_guard_actual_send(mapped, path, operation):
     client, _, calls, _ = mapped
@@ -91,13 +90,51 @@ def test_mapped_story_gets_capture_before_rpc_and_guard_actual_send(mapped, path
     assert names[-2:] == [operation, 'actual_send_guard']
 
 
+def test_atlas_stream_delivers_fenced_workspace_only_to_the_owner(mapped, monkeypatch):
+    import json
+    from apps.api.atlas_updates import AtlasUpdates
+    client, storage, calls, result = mapped
+    result.update(project_id='read-project', stages={}, events=[dict(id='a', status='active', title='Memory')])
+    rpc = storage.lifetime_rpc
+    storage.lifetime_rpc = lambda name, **kw: rpc(name, **kw) if kw['p_project_id'] == 'read-project' else None
+    monkeypatch.setenv('MEMOIR_PUBLICATION_DATABASE_URL', 'fixture-dsn')
+
+    async def events(self, dsn, owner, project, *, expires_in):
+        assert dsn == 'fixture-dsn'
+        assert str(owner) == FENCE['identity']['owner_id'] and project == 'read-project'
+        assert 0 < expires_in <= 3600
+        yield True
+        yield False
+
+    monkeypatch.setattr(AtlasUpdates, 'events', events)
+    headers = {'Accept': 'text/event-stream'}
+    assert client.get('/v1/story/atlas-events?project_id=other', headers=headers).status_code == 404
+    response = client.get('/v1/story/atlas-events?project_id=read-project', headers=headers)
+    assert response.status_code == 200 and response.headers['content-type'].startswith('text/event-stream')
+    assert response.headers['cache-control'] == 'no-store, no-transform'
+    event, heartbeat = response.text.strip().split('\n\n')
+    assert event.startswith('event: atlas-update\ndata: ') and heartbeat == ': heartbeat'
+    snapshot = json.loads(event.split('\ndata: ', 1)[1])
+    assert snapshot['stages'] == {} and snapshot['map_events']['events'][0]['title'] == 'Memory'
+    assert [name for name, _ in calls][-4:] == ['capture_lifetime_read_fence',
+        'read_lifetime_stage_readiness', 'read_lifetime_collection_page', 'actual_send_guard']
+
+
+def test_retired_interview_reads_return_not_found(mapped):
+    client, _, calls, _ = mapped
+    for path in ('readiness?project_id=read-project', 'map-events?project_id=read-project',
+                 'map-events/read-project/event/order', 'map-events/read-project/event/places'):
+        assert client.get(f'/api/v1/memoir/story/{path}').status_code == 404
+    assert calls == []
+
+
 @pytest.mark.parametrize('path', [
     '/v1/story/private-draft?project_id=read-project',
     '/v1/story/events?project_id=read-project',
-    '/v1/story/map-events?project_id=read-project',
+    '/v1/story/atlas-events?view=map&project_id=read-project',
     '/v1/story/map-photos?project_id=read-project',
     '/v1/story/sources?project_id=read-project',
-    '/v1/story/readiness?project_id=read-project',
+    '/v1/story/atlas-events?project_id=read-project',
     '/v1/agent/collection/read-project',
 ])
 def test_mapped_reads_remain_canonical_when_rollout_is_disabled(mapped, monkeypatch, path):
@@ -162,7 +199,7 @@ def test_map_cards_read_active_events_during_ordinary_recall_without_original_ev
         source_refs=[{'quote':'Original private testimony'}], include_in_print=True),
         dict(id='withheld', status='withdrawn', title='Withdrawn event')],
         complete=False, next_cursor='bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb')
-    response = client.get('/v1/story/map-events?project_id=read-project')
+    response = client.get('/v1/story/atlas-events?view=map&project_id=read-project')
     assert response.status_code == 200, response.text
     body = response.json()
     assert [event['id'] for event in body['events']] == ['birth']
@@ -181,7 +218,7 @@ def test_map_feed_retains_a_provisional_city_and_confidence_without_original_evi
     result.update(events=[dict(id='childhood', revision=1, status='active', title='School compound',
         location=location, locationConfidenceScore=.3, yearConfidenceScore=.3,
         location_basis=[dict(quote='Private birth evidence')], source_refs=[dict(quote='Private childhood memory')])])
-    response=client.get('/v1/story/map-events?project_id=read-project')
+    response=client.get('/v1/story/atlas-events?view=map&project_id=read-project')
     assert response.status_code==200
     event=response.json()['events'][0]
     assert event['location']==location
@@ -215,10 +252,10 @@ def test_map_feed_retains_a_provisional_city_and_confidence_without_original_evi
     ('I currently live in Sydney.', {'primary_source_refs':[{'quote':'I currently live in Sydney.', 'attribution':'father'}],
         'primary_evidence_complete':True}, False),
 ])
-@pytest.mark.parametrize('endpoint', ['map-events', 'events'])
+@pytest.mark.parametrize('endpoint', ['atlas-events', 'events'])
 def test_map_current_time_anchor_uses_complete_positive_evidence_without_exposing_it(mapped, quote, changes, present, endpoint):
     client, storage, calls, result = mapped
-    if endpoint == 'map-events':
+    if endpoint == 'atlas-events':
         storage.story_entitlement = lambda: None
     event = dict(id='home', revision=1, kind='period', status='active', title='Living in Sydney',
         life_stage='unplaced', temporal={'expression':'unknown', 'precision':'unknown', 'year_start':None},
@@ -228,12 +265,13 @@ def test_map_current_time_anchor_uses_complete_positive_evidence_without_exposin
     original = deepcopy(event)
     result.clear()
     result.update(events=[event], complete=True, next_cursor=None)
-    response = client.get(f'/v1/story/{endpoint}?project_id=read-project')
+    response = client.get(f'/v1/story/{endpoint}', params={'project_id': 'read-project',
+        **({'view': 'map'} if endpoint == 'atlas-events' else {})})
     assert response.status_code == 200
     saved, = response.json()['events']
     assert saved.get('temporal_anchor') == ('present' if present else None)
     assert saved['yearConfidenceScore'] == 0 and saved['temporal']['year_start'] is None
-    if endpoint == 'map-events':
+    if endpoint == 'atlas-events':
         assert 'source_refs' not in saved and 'evidence_complete' not in saved
         assert quote not in response.text
     assert event == original
@@ -249,7 +287,7 @@ def test_map_locations_keep_event_and_cursor_scope_without_exposing_passage_fiel
         place={'place':'Hobart', 'hierarchy':['Earth','Australia','Hobart'], 'granularity':'city'},
         source_id='source', source_version=1, char_start=0, char_end=20)], complete=True, next_cursor=None)
     cursor = 'bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb'
-    response = client.get(f'/v1/story/map-events/read-project/birth/places?cursor={cursor}')
+    response = client.get(f'/v1/story/atlas-events/read-project/birth/places?cursor={cursor}')
     assert response.status_code == 200, response.text
     assert set(response.json()['items'][0]) == {'key','role','status','place'}
     _, arguments = next(call for call in calls if call[0] == 'read_lifetime_event_places')
@@ -257,21 +295,21 @@ def test_map_locations_keep_event_and_cursor_scope_without_exposing_passage_fiel
     assert calls[-1][0] == 'actual_send_guard'
 
 
-def test_map_order_exposes_only_scoped_event_relations_without_original_evidence(mapped):
+def test_atlas_map_exposes_inline_order_without_original_evidence(mapped):
     client, storage, calls, result = mapped
     storage.story_entitlement = lambda: None
     result.clear()
-    result.update(details=[dict(kind='relations', value=dict(kind='before', event_id='sydney',
-        source_refs=[dict(quote='Original private testimony')])),
-        dict(kind='candidate_ids', value=['private-candidate'])],complete=False,
-        next_cursor='bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb')
-    response = client.get('/v1/story/map-events/read-project/shanghai/order')
+    relations = [dict(kind='before', event_id=f'event-{i}') for i in range(10)]
+    result.update(events=[dict(id='shanghai', status='active', candidate_ids=['private-candidate'],
+        relations=[dict(relation, source_refs=[dict(quote='Original private testimony')]) for relation in relations])],
+        complete=False, next_cursor='bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb')
+    response = client.get('/v1/story/atlas-events?view=map&project_id=read-project')
     assert response.status_code == 200, response.text
-    assert response.json()['relations'] == [dict(kind='before',event_id='sydney')]
+    assert response.json()['events'][0]['relations'] == relations
     assert 'Original private testimony' not in response.text and 'private-candidate' not in response.text
     assert response.json()['next_cursor'] == result['next_cursor']
     _, arguments = next(call for call in calls if call[0]=='read_lifetime_collection_page')
-    assert arguments == dict(p_project_id='read-project',p_kind='event_details',p_after=None,p_limit=8,p_event_id='shanghai')
+    assert arguments == dict(p_project_id='read-project',p_kind='events',p_after=None,p_limit=8,p_event_id=None)
     assert calls[-1][0] == 'actual_send_guard'
 
 
@@ -280,7 +318,7 @@ def test_map_estimates_retain_confidence_and_rationale_without_original_quotes(m
     storage.story_entitlement = lambda: None
     result.update(events=[dict(id='home',status='active',temporal_estimate=dict(year_start=2011,year_end=2026,
         confidence=.8,rationale='Fourteen years before the capture year.',basis=[dict(quote='Original private testimony')]))])
-    response=client.get('/v1/story/map-events?project_id=read-project')
+    response=client.get('/v1/story/atlas-events?view=map&project_id=read-project')
     assert response.status_code==200
     estimate=response.json()['events'][0]['temporal_estimate']
     assert estimate['year_start']==2011 and estimate['confidence']==.8
@@ -291,8 +329,8 @@ def test_page_parameter_bounds_reject_before_database(mapped):
     client, _, calls, _ = mapped
     assert client.get('/v1/story/private-draft/page?project_id=read-project&snapshot_id=not-uuid').status_code == 422
     assert client.get('/v1/story/events?project_id=read-project&limit=9').status_code == 422
-    assert client.get('/v1/story/map-events?project_id=read-project&limit=9').status_code == 422
-    assert client.get('/v1/story/map-events/read-project/birth/places?cursor=invalid').status_code == 422
+    assert client.get('/v1/story/atlas-events?view=map&project_id=read-project&limit=9').status_code == 422
+    assert client.get('/v1/story/atlas-events/read-project/birth/places?cursor=invalid').status_code == 422
     assert calls == []
 
 

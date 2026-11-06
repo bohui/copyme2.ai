@@ -34,26 +34,22 @@ export function createFamilyWorkspace({
     if (state.memoryEventProject !== context.project_id) state.timeline = Array.isArray(context.timeline) ? context.timeline : [];
   }
 
-  let memoryEventTimer = null;
   let memoryEventRequest = 0;
 
-  async function refreshFamilyContext(retry = true) {
+  async function refreshFamilyContext({mapSnapshot} = {}) {
     const scope = captureProjectScope();
     if (!state.project?.id || !state.supabase?.accessToken) return null;
     const request = ++memoryEventRequest;
     const projectId = state.project.id;
     const current = () => isCurrentProjectScope(scope) && request === memoryEventRequest;
-    const refreshLater = (retryNext = true) => {
-      clearTimeout(memoryEventTimer);
-      memoryEventTimer = setTimeout(() => { if (current()) void refreshFamilyContext(retryNext); }, 15000);
-    };
     try {
       const body = state.familyFeaturesEnabled
         ? await supabaseApi(`/v1/agent/family-context?project_id=${encodeURIComponent(projectId)}`) : null;
       if (!isCurrentProjectScope(scope) || request !== memoryEventRequest) return null;
       if (body?.family_features_enabled === true && body.family_context) applyPersistedFamilyContext(body.family_context);
-      const collection = state.familyFeaturesEnabled ? 'events' : 'map-events';
-      const snapshot = await storyApi(`/v1/story/${collection}?project_id=${encodeURIComponent(projectId)}`);
+      const snapshot = state.familyFeaturesEnabled
+        ? await storyApi(`/v1/story/events?project_id=${encodeURIComponent(projectId)}`)
+        : mapSnapshot ?? await storyApi(`/v1/story/atlas-events?project_id=${encodeURIComponent(projectId)}&view=map`);
       if (!isCurrentProjectScope(scope) || request !== memoryEventRequest) return null;
       if (Array.isArray(snapshot?.events)) {
         state.memoryEventProject = projectId;
@@ -64,38 +60,12 @@ export function createFamilyWorkspace({
           end_expression: event.temporal?.legacy_end_expression || event.temporal?.year_end?.toString() || "unknown",
           precision: event.temporal?.precision || "unknown", canonical: true })), state.project.profile);
         render();
-        if (memoryEventTimer) clearTimeout(memoryEventTimer);
-        if (snapshot.processing?.pending_inputs) refreshLater();
         const cursors = new Set();
-        while (snapshot.next_cursor && !snapshot.page_error && isCurrentProjectScope(scope)
+        while (snapshot.next_cursor && !snapshot.page_error && !snapshot.loading_page && isCurrentProjectScope(scope)
             && request === memoryEventRequest && state.memoryEventPage === snapshot) {
           if (cursors.has(snapshot.next_cursor)) { snapshot.page_error = true;render();break; }
           cursors.add(snapshot.next_cursor);
           await loadMoreMemoryEvents();
-        }
-        for (const event of state.timeline) {
-          if (!isCurrentProjectScope(scope) || request !== memoryEventRequest || state.memoryEventPage !== snapshot) break;
-          if (event.relations_complete !== false && event.details_complete !== false) continue;
-          const seen = new Set();
-          try {
-            let cursor;
-            const relations = [];
-            do {
-              const query = cursor ? `?cursor=${encodeURIComponent(cursor)}` : "";
-              const page = await storyApi(`/v1/story/map-events/${encodeURIComponent(projectId)}/${encodeURIComponent(event.id)}/order${query}`);
-              if (!isCurrentProjectScope(scope) || request !== memoryEventRequest || state.memoryEventPage !== snapshot) return null;
-              relations.push(...(page.relations || []));
-              cursor = page.next_cursor;
-              if (cursor && seen.has(cursor)) throw new Error("Repeated event order page");
-              seen.add(cursor);
-            } while (cursor);
-            event.relations = relations;
-            event.relations_complete = true;
-          } catch { event.relations_complete = false;snapshot.page_error = true; }
-        }
-        if (isCurrentProjectScope(scope) && request === memoryEventRequest && state.memoryEventPage === snapshot) {
-          state.timeline = chronologicalEvents(state.timeline,state.project.profile);
-          render();
         }
       }
       return body?.family_context || null;
@@ -110,8 +80,9 @@ export function createFamilyWorkspace({
         state.relationships = [];
         state.memoryEventEdit = null;
         render();
-      } else if (retry && [409,500,503].includes(failure.status)) {
-        refreshLater(false);
+      } else if (state.memoryEventPage) {
+        state.memoryEventPage.page_error = true;
+        render();
       }
       return null;
     }
@@ -318,7 +289,8 @@ export function createFamilyWorkspace({
     render();
     try {
       const query = new URLSearchParams({project_id: state.project.id, cursor: saved.next_cursor});
-      const collection = state.familyFeaturesEnabled ? 'events' : 'map-events';
+      const collection = state.familyFeaturesEnabled ? 'events' : 'atlas-events';
+      if (!state.familyFeaturesEnabled) query.set('view', 'map');
       const page = await storyApi(`/v1/story/${collection}?${query}`);
       if (!isCurrentProjectScope(scope) || state.memoryEventPage !== saved) return;
       const known = new Set(state.timeline.map(event => event.id));

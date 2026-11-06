@@ -5,7 +5,7 @@ import {createPhotoWorkspace} from '../../../apps/web/client/memoir/photo-worksp
 import {applyDerivedWorkspace} from '../../../apps/web/client/memoir/derived-workspace.mjs';
 import {matchesEventPlace} from '../../../apps/web/client/memoir/map-memory-journey.mjs';
 
-const {project_id,snapshot,redirect_snapshot,events,links,places,grouping}=JSON.parse(readFileSync(0,'utf8'));
+const {project_id,snapshot,redirect_snapshot,event_page,links,places,grouping}=JSON.parse(readFileSync(0,'utf8'));
 const expected=places.find(place=>matchesEventPlace(place,snapshot.current_active_location));
 const other=places.find(place=>place!==expected);
 assert.ok(expected,'The server must supply the story-owned active location');
@@ -53,7 +53,8 @@ for (const restore of ['live','refresh','reopen']) {
       longitude:places.find(candidate=>matchesEventPlace(candidate,place)).longitude}]}));
   state.placeJourney=state.project.profile.memory_places.find(place=>matchesEventPlace(place,other));
   state.selectedPlace=null;
-  state.timeline=events.map(event=>({...event,canonical:true,places:grouping ? links[event.id]
+  state.memoryEventPage=event_page;
+  state.timeline=event_page.events.map(event=>({...event,canonical:true,places:grouping ? links[event.id]
     : links[event.id].map(link=>({...link,place:{...link.place,...places.find(candidate=>matchesEventPlace(candidate,link.place))}}))}));
   map.sync(null);await new Promise(resolve=>setImmediate(resolve));
   const markup=workspace.workspaceMediaOverview();

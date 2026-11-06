@@ -52,7 +52,7 @@ def photo_page(request):
                 data=dict(id='photos',mode='self',profile=profile if route.request.headers.get('authorization')=='Bearer fixture-owner' else {},revision=1)
             elif path.endswith('/journey'): data=dict(active_session=None)
             elif path=='/story/state': data=dict(family_features_enabled=False,recall_status=dict(payment_required=False))
-            elif path=='/story/readiness': data=profile.get('readiness',{})
+            elif path=='/story/atlas-events': data=profile.get('readiness',{})
             elif path=='/user/conversations':data=dict(items=[])
             elif path=='/user/projects/photos/history':data=dict(project_id='photos',policy_epoch='1',items=profile.get('history',[]),next_cursor=None)
             elif path=='/story/transcriptions':data=dict(text='I caught insects with my parents.')
@@ -243,7 +243,7 @@ def test_referenced_image_keeps_activated_workspace_visible_after_empty_backgrou
     send(page,'We used jars to catch fish and shrimp near the garden.')
     cards=[dict(photo_id='reference:gate',kind='public_reference',title='Public gate reference',
         image_url='/static/reference-fixture.png',source_url='https://archive.example/gate')]
-    with page.expect_response(lambda response:'/story/readiness?' in response.url) as snapshot:
+    with page.expect_response(lambda response:'/story/atlas-events?' in response.url) as snapshot:
         page.evaluate('(data)=>finishTurn(data)',dict(reply='Who went fishing with you?',response_photos=cards,**receipt()))
     assert snapshot.value.json()['derived_workspace']['places']==[]
     expect(page.locator('.workspace-media-map')).to_have_count(0)

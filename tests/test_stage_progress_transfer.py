@@ -53,7 +53,7 @@ def test_login_and_cold_read_preserve_stage_progress_without_mapping(sql, existi
     mappings = sql('select row_to_json(c) from public.user_lifetime_conversation c order by user_id;').stdout
     with TestClient(create_app(MemoryStore(), story_storage_factory=lambda _: PostgresRest(sql, OTHER).storage())) as client:
         for _ in range(2):
-            response = client.get('/v1/story/readiness', params={'project_id': project})
+            response = client.get('/v1/story/atlas-events', params={'project_id': project})
             assert response.status_code == 200, response.text
             stages = response.json()['stages']
             assert stages['childhood'] == readiness(145)
@@ -111,8 +111,8 @@ def test_transferred_stage_ring_survives_browser_reload(sql, locale):
                 data = {'active_session': None}
             elif path == '/story/state':
                 data = {'recall_status': {'rounds_completed': 1, 'free_rounds': 20, 'payment_required': False}}
-            elif path == '/story/readiness':
-                response = client.get('/v1/story/readiness', params={'project_id': project})
+            elif path == '/story/atlas-events':
+                response = client.get('/v1/story/atlas-events', params={'project_id': project})
                 assert response.status_code == 200, response.text
                 data = response.json()
             elif path == '/agent/place-journey':

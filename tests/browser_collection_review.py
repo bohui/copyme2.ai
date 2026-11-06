@@ -51,7 +51,7 @@ def install_collection_startup(page, locale):
             elif path == '/story/state':
                 body = {'family_features_enabled': False, 'payment_status': 'paid', 'payment_features': [],
                     'recall_status': {'rounds_completed': 0, 'free_rounds': 20, 'paid': True, 'payment_required': False}}
-            elif path == '/story/readiness' and query == {'project_id': [COLLECTION_PROJECT]}:
+            elif path == '/story/atlas-events' and query == {'project_id': [COLLECTION_PROJECT]}:
                 body = {'stages': {}}
             elif path == '/story/private-draft' and query == {'project_id': [COLLECTION_PROJECT], 'language': [locale]}:
                 body = {'status': 'collecting', 'preview': None, 'updating': False, 'revision': 0}

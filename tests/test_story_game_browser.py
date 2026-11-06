@@ -94,7 +94,7 @@ def test_scene_selection_pauses_before_astra_then_opens_for_play_and_revokes(sql
             path = route.request.url.split('/api/v1/memoir')[-1]
             plain = path.split('?')[0]
             data = {}
-            if plain.startswith('/agent/projects/') or plain == '/story/readiness':
+            if plain.startswith('/agent/projects/') or plain == '/story/atlas-events':
                 requests.append((route.request.method, path))
                 response = conversation.client.request(route.request.method, '/v1' + path,
                     headers={'Authorization': 'Bearer fixture-only', 'Content-Type': 'application/json'},
@@ -274,7 +274,7 @@ def test_navigation_closes_game_and_aborts_requests_before_slow_or_failed_recove
             elif path == '/projects/' + project_id: data = dict(id=project_id, revision=1, mode='self', profile=profile)
             elif path.endswith('/journey'): data = {'active_session': None}
             elif path == '/story/state': data = {'recall_status': dict(rounds_completed=1, free_rounds=20, payment_required=False, paid=True)}
-            elif path == '/story/readiness': data = dict(pending=False, profile=profile, current_mode=dict(project_id=project_id, mode='shape'))
+            elif path == '/story/atlas-events': data = dict(pending=False, profile=profile, current_mode=dict(project_id=project_id, mode='shape'))
             elif path == '/agent/place-journey': data = {'place_journey': None}
             elif path.endswith('/story-game'): data = dict(eligibility=dict(available=True, reasons=[]),
                 formal={'edition': {'status': 'completed'}}, adaptation=dict(game_id=game['package_id'], status='published'))

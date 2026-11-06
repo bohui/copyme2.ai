@@ -450,7 +450,7 @@ def test_continuing_testimony_reuses_event_time_and_setting_without_another_jour
         assert later['items'][0]['event']['temporal'].get('year_start') is None
         assert later['items'][0]['event']['places'][0]['place']['place'] == 'Chengde'
         assert len([phase for phase, _ in conversation.admissions if phase == 'extract']) == 2
-        assert conversation.client.get('/v1/story/readiness', params={'project_id':conversation.project}).json()['derived_workspace']['places'] == []
+        assert conversation.client.get('/v1/story/atlas-events', params={'project_id':conversation.project}).json()['derived_workspace']['places'] == []
 
 
 def test_vague_yes_keeps_delivered_event_context_without_confirming_testimony(sql, tmp_path, monkeypatch):
@@ -463,7 +463,7 @@ def test_vague_yes_keeps_delivered_event_context_without_confirming_testimony(sq
         conversation.say('Please continue.', workspace_focus={'kind':'explore_memory',
             'event_id':event['id'], 'event_revision':event['revision']})
         conversation.drain()
-        before = conversation.client.get('/v1/story/readiness', params={'project_id':conversation.project}).json()['stages']
+        before = conversation.client.get('/v1/story/atlas-events', params={'project_id':conversation.project}).json()['stages']
         yes = conversation.say('Yes.')
         conversation.drain()
         readback = conversation.attribution(yes['accepted_source_id'])
@@ -471,7 +471,7 @@ def test_vague_yes_keeps_delivered_event_context_without_confirming_testimony(sq
         assert readback['items'][0]['disposition'] == 'unresolved'
         assert readback['items'][0]['event'] is None
         assert readback['items'][0]['context_event']['id'] == event['id']
-        after = conversation.client.get('/v1/story/readiness', params={'project_id':conversation.project}).json()['stages']
+        after = conversation.client.get('/v1/story/atlas-events', params={'project_id':conversation.project}).json()['stages']
         assert before == after
         assert len([phase for phase, _ in conversation.admissions if phase == 'extract']) == 1
 

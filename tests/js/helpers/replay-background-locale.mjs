@@ -9,7 +9,7 @@ globalThis.document={documentElement:{lang:locale}};
 const state={project:{id:project_id,profile},supabase:{accessToken:'fixture'},familyFeaturesEnabled:false,timeline:[]};
 const family=createFamilyWorkspace({state,render(){},captureProjectScope:()=>project_id,isCurrentProjectScope:()=>true,
   storyApi:async path=>{
-    assert.ok(path.startsWith('/v1/story/map-events?'));
+    assert.ok(path.startsWith('/v1/story/atlas-events?'));
     return structuredClone(feed);
   }});
 await family.refreshFamilyContext();

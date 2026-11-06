@@ -1,5 +1,6 @@
 """Source UI checks with synthetic auth, stages and saved private draft."""
 
+from browser_atlas_fixture import install_atlas_fixture
 from browser_supabase_fixture import install_supabase_fixture
 from browser_story_history_fixture import StoryHistoryFixture, STAGE_OWNER
 import json
@@ -48,7 +49,7 @@ def test_stage_rings_and_saved_private_draft(locale,mapped):
             data=project
         elif path=='/projects/stage-project/journey': data={'active_session':None}
         elif path=='/story/state': data={'recall_status':{'rounds_completed':rounds,'free_rounds':20,'payment_required':False,'paid':mapped},'family_features_enabled':False}
-        elif path=='/story/readiness': data={'project_id':'stage-project','stages':stages}
+        elif path=='/story/atlas-events': data={'project_id':'stage-project','stages':stages}
         elif path=='/story/private-draft':
             data={'status':'ready','preview':{'title':'The fixture garden','text':'A safe synthetic private draft.'},'covered_round':rounds,'milestone':rounds,'revision':1,'updating':False}
             if route.request.headers.get('accept') == 'application/x-ndjson':
@@ -130,7 +131,8 @@ def test_stage_rings_and_saved_private_draft(locale,mapped):
         browser.close()
 
 
-from test_lifetime_memory_postgres import sql, event_database, private_database, attachment_database, database, resolve
+from test_lifetime_memory_postgres import sql, event_database, private_database, attachment_database, resolve
+from test_lifetime_memory_publication import database
 
 
 @pytest.mark.parametrize('locale', ['en-AU', 'zh-CN'])
@@ -153,10 +155,7 @@ def test_canonical_stage_rings_render_saved_words_and_reload(sql, monkeypatch, l
     from test_agent_commit_postgres import OWNER
 
     project_id = resolve(sql)['project_id']
-    command = sql.command
-    port = f" port={command[command.index('-p')+1]}" if '-p' in command else ''
-    monkeypatch.setenv('MEMOIR_PUBLICATION_DATABASE_URL',
-        f"host={command[command.index('-h')+1]}{port} user=postgres dbname=postgres")
+    monkeypatch.setenv('MEMOIR_PUBLICATION_DATABASE_URL', sql.publication_dsn)
     client = TestClient(create_app(MemoryStore(), story_storage_factory=lambda _: PostgresRest(sql, OWNER).storage()))
     place = {'place':'Synthetic Garden','hierarchy':['Earth','Australia','Synthetic Garden'],
              'granularity':'city','life_stage':'childhood','latitude':-33.8,'longitude':151.2}
@@ -171,6 +170,19 @@ def test_canonical_stage_rings_render_saved_words_and_reload(sql, monkeypatch, l
         link_stage(sql, project_id, source, stage)
         # A completed synthetic extractor; no worker/provider is invoked.
         sql("update public.user_narrator_source set processing_status='succeeded';")
+
+    def read_snapshot():
+        if delayed['pending_seen'] and delayed['faults']:
+            delayed['sent'].append(delayed['faults'].pop(0))
+            return None
+        response = client.get('/v1/story/atlas-events', params={'project_id':project_id})
+        assert response.status_code == 200, response.text
+        assert response.headers['cache-control'] == 'no-store'
+        data = response.json()
+        reads.append(data)
+        if delayed['source'] and data.get('pending'):
+            delayed['pending_seen'] = True
+        return data
 
     def api(route):
         if history.serve(route):
@@ -188,20 +200,6 @@ def test_canonical_stage_rings_render_saved_words_and_reload(sql, monkeypatch, l
         elif path == '/story/state':
             data = {'recall_status':{'rounds_completed':1,'free_rounds':20,'payment_required':False,'paid':True},
                     'family_features_enabled':False}
-        elif path == '/story/readiness':
-            if delayed['pending_seen'] and delayed['faults']:
-                status = delayed['faults'].pop(0)
-                delayed['sent'].append(status)
-                return route.fulfill(status=status, content_type='application/json',
-                    headers={'X-Error-Code':'LIFETIME_READ_STALE' if status == 409 else 'LIFETIME_READ_UNAVAILABLE'},
-                    body=json.dumps({'detail':'Synthetic revision-fence change'}))
-            response = client.get('/v1/story/readiness', params={'project_id':project_id})
-            assert response.status_code == 200, response.text
-            assert response.headers['cache-control'] == 'no-store'
-            reads.append(response.json())
-            if delayed['source'] and response.json().get('pending'):
-                delayed['pending_seen'] = True
-            return route.fulfill(status=response.status_code, content_type='application/json', body=response.text)
         elif path == '/agent/place-journey':
             data = {'place_journey':place}
         elif path == '/agent/turn':
@@ -220,6 +218,7 @@ def test_canonical_stage_rings_render_saved_words_and_reload(sql, monkeypatch, l
         base = os.environ['MEMOIR_BROWSER_URL']
         context = browser.new_context(viewport={'width':1440,'height':1000})
         page = context.new_page()
+        install_atlas_fixture(page, read_snapshot)
         # All nonlocal requests are blocked except the synthetic SDK auth seam.
         page.route('**/*', lambda route: route.continue_() if route.request.url.startswith(base + '/') else route.abort())
         page.add_init_script("localStorage.setItem('memory-spark-project'," + json.dumps(project_id) + ");")
@@ -229,6 +228,7 @@ def test_canonical_stage_rings_render_saved_words_and_reload(sql, monkeypatch, l
             + "}}),getUser:async()=>({data:{user:" + json.dumps(user) + "}}),onAuthStateChange:()=>({})}})};")
         page.route('**/api/v1/memoir/**', api)
         page.goto(base + '/memoir/interview/' + project_id)
+        page.wait_for_load_state('networkidle')
         ring = lambda stage: page.locator(f'[data-life-stage-tab="{stage}"] .life-stage-readiness')
         expect(ring('childhood')).to_be_visible(timeout=30000)
         expect(ring('childhood')).to_have_attribute('style', '--readiness:0%')
@@ -263,29 +263,22 @@ def test_canonical_stage_rings_render_saved_words_and_reload(sql, monkeypatch, l
                 assert fraction == pytest.approx(percent / 100, abs=.04), (stage, fraction, percent)
 
         check_rings(expected)
-        if recovery == 'delayed-fences':
-            page.clock.install()
         page.locator('#chat-input').fill('A synthetic childhood memory.')
         page.locator('.send-button').click()
         expect(page.locator('.assistant-message').last).to_contain_text('A synthetic saved reply.')
+        page.evaluate('fixtureAtlas.update()')
         if recovery == 'delayed-fences':
             page.wait_for_load_state('networkidle')
             assert delayed['pending_seen'] and reads[-1]['pending']
-            with page.expect_response(lambda response: '/story/readiness?' in response.url and response.status == 409) as stale:
-                page.clock.fast_forward(120_000)
-            stale.value.finished()
+            page.evaluate('fixtureAtlas.update()')
             assert delayed['sent'] == [409]
             expect(ring('childhood')).to_have_attribute('style', '--readiness:10%')
-            with page.expect_response(lambda response: '/story/readiness?' in response.url and response.status == 503) as unavailable:
-                page.clock.fast_forward(120_000)
-            unavailable.value.finished()
+            page.evaluate('fixtureAtlas.update()')
             assert delayed['sent'] == [409,503]
             expect(ring('childhood')).to_have_attribute('style', '--readiness:10%')
             link_stage(sql, project_id, delayed['source'], 'childhood')
             sql("update public.user_narrator_source set processing_status='succeeded';")
-            with page.expect_response(lambda response: '/story/readiness?' in response.url and response.status == 200) as recovered:
-                page.clock.fast_forward(16_000)
-            recovered.value.finished()
+            page.evaluate('fixtureAtlas.update()')
         expected['childhood'] = (15.7,'red',(185,72,67))
         check_rings(expected)
         before_reload = reads[-1]['stages']

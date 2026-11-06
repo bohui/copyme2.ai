@@ -72,7 +72,7 @@ def test_resolved_language_reaches_background_skills_and_map_cards(sql,tmp_path,
         assert phases==['profile','extract','reconcile']
         profile=conversation.client.get('/v1/agent/profile').json()
         assert profile['preferred_language']==locale
-        response=conversation.client.get('/v1/story/map-events',params={'project_id':conversation.project})
+        response=conversation.client.get('/v1/story/atlas-events',params={'view':'map','project_id':conversation.project})
         assert response.status_code==200,response.text
         assert [event['title'] for event in response.json()['events']]==[title]
         replay=subprocess.run(['node',str(Path(__file__).parent/'js/helpers/replay-background-locale.mjs')],
@@ -183,20 +183,18 @@ def test_timeline_reconciles_and_revises_a_city_period(sql,tmp_path,monkeypatch)
         result = asyncio.run(worker.execute_background_agent(run))
         assert result['status'] == 'finished', result
         project = conversation.project
-        feed = conversation.client.get('/v1/story/map-events', params={'project_id':project}).json()
+        feed = conversation.client.get('/v1/story/atlas-events', params={'view':'map','project_id':project}).json()
         assert feed['map_source'] == 'published_events'
         assert sorted(event['title'] for event in feed['events']) == ['Hobart','Porto']
         by_title = {event['title']:event for event in feed['events']}
         earlier, later = by_title['Porto'], by_title['Hobart']
         locations = {}
-        orders = {}
         for event in feed['events']:
-            path = f'/v1/story/map-events/{project}/{event["id"]}'
+            path = f'/v1/story/atlas-events/{project}/{event["id"]}'
             locations[event['id']] = conversation.client.get(f'{path}/places').json()
-            orders[event['id']] = conversation.client.get(f'{path}/order').json()
-        assert orders[earlier['id']]['relations'] == [{'kind':'before','event_id':later['id']}]
+        assert earlier['relations'] == [{'kind':'before','event_id':later['id']}]
         replay = subprocess.run(['node',str(Path(__file__).parent/'js/helpers/replay-event-group.mjs')],
-            input=json.dumps(dict(project=project,feed=feed,locations=locations,orders=orders,end=end)),
+            input=json.dumps(dict(project=project,feed=feed,locations=locations,end=end)),
             text=True,capture_output=True,timeout=20)
         assert replay.returncode == 0, replay.stdout+replay.stderr
         return earlier
@@ -298,7 +296,7 @@ def test_foreground_keeps_replying_while_background_finishes_then_batches_queued
             ['I was born in Hobart.'],['We played in the school housing.','Our favourite game was hide-and-seek.']]
         assert [s['id'] for s in originals]==[first['accepted_source_id'],*[r['accepted_source_id'] for r in later]]
         last_turn=sql('select client_turn_id from public.user_narrator_source where sequence=3;').stdout.strip()
-        response=conversation.client.get('/v1/story/readiness',params={'project_id':conversation.project})
+        response=conversation.client.get('/v1/story/atlas-events',params={'project_id':conversation.project})
         progress=response.json()['skill_progress']['items']
         steps=[s for s in progress if s['phase']=='extract' and s['status']=='saved']
         grouped=[s for s in steps if s['coverage_start']==2 and s['coverage_end']==3]

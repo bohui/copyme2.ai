@@ -6,7 +6,7 @@ import {buildMapMemoryJourney,cityEventCards,memoryEventCardMarkup} from '../../
 import {groupPlaces} from '../../../apps/web/client/memoir/places.mjs';
 import {translateWith} from '../../../apps/web/client/i18n.js';
 
-const {project_id,pages,orders,locations,places,with_estimates}=JSON.parse(readFileSync(0,'utf8'));
+const {project_id,pages,locations,places,with_estimates}=JSON.parse(readFileSync(0,'utf8'));
 const state={project:{id:project_id,profile:{birth_year:1983}},supabase:{accessToken:'fixture'},
   familyFeaturesEnabled:false,timeline:[]};
 const requests=[];
@@ -14,13 +14,12 @@ const family=createFamilyWorkspace({state,captureProjectScope:()=>project_id,isC
   storyApi:async path=>{
     requests.push(path);
     const url=new URL(path,'https://fixture.invalid');
-    if (url.pathname==='/v1/story/map-events') return structuredClone(pages[url.searchParams.get('cursor') || 'first']);
-    const match=url.pathname.match(/\/map-events\/[^/]+\/([^/]+)\/order$/);
-    assert.ok(match,'Only the ordinary map read endpoints are authorized');
-    return orders[match[1]][url.searchParams.get('cursor') || 'first'];
+    assert.equal(url.pathname,'/v1/story/atlas-events','Inline chronology must not fan out to per-event order reads');
+    assert.equal(url.searchParams.get('view'),'map');
+    return structuredClone(pages[url.searchParams.get('cursor') || 'first']);
   }});
-await family.refreshFamilyContext();
-assert.equal(requests.filter(path=>path.includes('?project_id')).length,2,'All event pages must be loaded');
+await family.refreshFamilyContext({mapSnapshot:structuredClone(pages.first)});
+assert.equal(requests.length,1,'Only read the continuation after Atlas supplies the first page');
 assert.equal(state.timeline.length,4);
 assert.deepEqual(state.timeline.map(event=>event.title),['Birth','Growing up','Shanghai study and work','Sydney residence']);
 const enriched=state.timeline.map(event=>({...event,places:locations[event.id].items.map(link=>({...link,

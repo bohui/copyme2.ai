@@ -10,7 +10,7 @@ const state={project:{id:project_id,profile:{birth_year:1983}},supabase:{accessT
 let current=0;
 const family=createFamilyWorkspace({state,render(){},captureProjectScope:()=>project_id,isCurrentProjectScope:()=>true,
   storyApi:async path=>{
-    assert.ok(path.startsWith('/v1/story/map-events?'));
+    assert.ok(path.startsWith('/v1/story/atlas-events?'));
     return structuredClone(feeds[current]);
   }});
 for (const confidence of [.4,.9,1]) {

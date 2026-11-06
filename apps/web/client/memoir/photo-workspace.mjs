@@ -11,7 +11,7 @@ export function createPhotoWorkspace({
   let mapPhotoScope, mapPhotoRevision, privateMapPhotos = [];
   let mapPhotoError = false, mapPhotoLoading = false;
   const mapPhotoReadRevision = () => JSON.stringify([state.project?.id,state.supabase?.user?.id,state.navigationGeneration,
-    state.memoryEventPage?.policy_epoch,state.memoryEventPage?.source_revision,state.memoryEventPage?.event_revision,state.chat?.length]);
+    state.memoryEventPage?.policy_epoch,state.memoryEventPage?.source_revision,state.memoryEventPage?.event_revision]);
 
   function mapPhotos() {
     return mapPhotoRevision === mapPhotoReadRevision() ? privateMapPhotos : [];

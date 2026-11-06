@@ -131,8 +131,8 @@ const history=JSON.stringify(places), requests=[];
 const dependencies={state,profile:()=>state.project.profile,render(){},
   captureProjectScope:()=>state.project.id,isCurrentProjectScope:id=>id===state.project.id,
   lifeStageText:stage=>stage,storyApi:async path=>{
-    if (path.startsWith('/v1/story/map-events?')) return snapshot;
-    assert.ok(path.startsWith('/v1/story/map-events/'),'The recall map must use its authorised read endpoint');
+    if (path.startsWith('/v1/story/atlas-events?')) return snapshot;
+    assert.ok(path.startsWith('/v1/story/atlas-events/'),'The recall map must use its authorised read endpoint');
     const event=events.find(event=>path.includes(`/${event.id}/places`));
     assert.ok(event);return locations[event.id];
   },supabaseApi:async(path,options)=>{

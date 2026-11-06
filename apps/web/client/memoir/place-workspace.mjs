@@ -63,7 +63,7 @@ export function createPlaceWorkspace({
     getPage: () => state.memoryEventPage,
     getReadiness: () => state.stageReadiness || {},
     getCanAddMemory: () => !state.loading && !state.recallStatus?.payment_required,
-    readPlaces: (eventId, cursor) => storyApi(`/v1/story/map-events/${encodeURIComponent(state.project.id)}/${encodeURIComponent(eventId)}/places${cursor ? `?cursor=${encodeURIComponent(cursor)}` : ""}`),
+    readPlaces: (eventId, cursor) => storyApi(`/v1/story/atlas-events/${encodeURIComponent(state.project.id)}/${encodeURIComponent(eventId)}/places${cursor ? `?cursor=${encodeURIComponent(cursor)}` : ""}`),
     resolvePlaces: resolveMapMemoryPlaces,
     t: (key, values) => translateWith(`Memoir.workspace.${key}`, values),
     lifeStageText, onExplore: onExploreMapMemory, onAdd: onAddMapMemory, onLoadMore: onLoadMoreMapEvents,

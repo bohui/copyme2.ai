@@ -331,10 +331,11 @@ def test_postgres_correction_between_read_and_send_blocks_old_body(sql, change):
     async def scenario():
         messages = []
         async def send(message): messages.append(message)
-        with pytest.raises(PublicationUnavailable):
-            await ReadJSONResponse(snapshot, publisher=ReadPublication(dsn,
-                authenticated_owner=OWNER))(SCOPE, receive, send)
-        assert messages == []
+        await ReadJSONResponse(snapshot, publisher=ReadPublication(dsn,
+            authenticated_owner=OWNER))(SCOPE, receive, send)
+        assert messages[0]['status'] == 409
+        assert dict(messages[0]['headers'])[b'x-error-code'] == b'LIFETIME_READ_STALE'
+        assert b'previous private body' not in messages[1]['body']
     execute(scenario())
 
 

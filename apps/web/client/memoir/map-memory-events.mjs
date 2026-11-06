@@ -371,8 +371,27 @@ export function createMapMemoryEvents({getEvents, getGroups, getProfile, getScop
     const localNodes = journey.nodes.filter(node => node.groupKey === viewCity);
     const local = new Set(localNodes.map(node => node.event.id)).size > 1
       ? memoryTrailLegs(localNodes).map(projectLeg).filter(Boolean) : [];
-    const segments = local.length ? local : journey.legs.map(projectLeg).filter(Boolean);
     const size = local.length ? 10 : 16, spacing = local.length ? 18 : 30;
+    const segments = [...local], cityDirections = [], connectedCities = new Set();
+    for (const leg of local.length ? [] : journey.legs) {
+      if (leg.from.groupKey === leg.to.groupKey) continue;
+      const pair = JSON.stringify([leg.from.groupKey,leg.to.groupKey].sort());
+      if (connectedCities.has(pair)) continue;
+      const segment = projectLeg(leg);
+      if (!segment) continue;
+      const fromCity = leg.from.groupKey === viewCity;
+      if (visibleCityKeys.length === 1 && viewCity && (fromCity || leg.to.groupKey === viewCity)) {
+        const start = fromCity ? segment.from : segment.to;
+        const direction = (fromCity ? 1 : -1) / segment.distance;
+        const x = direction * segment.dx, y = direction * segment.dy;
+        // Near a shared city, two trails can follow the same visible corridor.
+        if (cityDirections.some(other => x * other.x + y * other.y > .98
+            && Math.hypot(start.x - other.start.x, start.y - other.start.y) < 2 * spacing)) continue;
+        cityDirections.push({start,x,y});
+      }
+      connectedCities.add(pair);
+      segments.push(segment);
+    }
     for (const {leg,from,to,dx,dy,distance,range} of segments) {
       const bend = Math.min(50, distance * .12), cx = (from.x + to.x) / 2 - dy / distance * bend,
         cy = (from.y + to.y) / 2 + dx / distance * bend;

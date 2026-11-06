@@ -13,7 +13,7 @@ const state={project:{id:project_id,profile:{birth_year:1991}},supabase:{accessT
 let current=0,selected;
 const family=createFamilyWorkspace({state,render(){},captureProjectScope:()=>project_id,isCurrentProjectScope:()=>true,
   storyApi:async path=>{
-    assert.ok(path.startsWith('/v1/story/map-events?'));
+    assert.ok(path.startsWith('/v1/story/atlas-events?'));
     return structuredClone(feeds[current].feed);
   }});
 const listeners={},cards={innerHTML:'',scrollTop:0,querySelectorAll:()=>[],getBoundingClientRect:()=>({top:0,bottom:700})};

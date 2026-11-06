@@ -4,6 +4,7 @@ import { createPhotoWorkspace } from "./photo-workspace.mjs";
 import { createPlaceWorkspace, PLACE_JOURNEY_PROJECT_STORAGE_KEY } from "./place-workspace.mjs";
 import { createFamilyWorkspace } from "./family-workspace.mjs";
 import { createPrivateDraft } from "./private-draft.mjs";
+import { createAtlasUpdates } from "./atlas-updates.mjs";
 import { createStoryGameDialog } from "./story-game.mjs";
 import { createStoryCheckout, FALLBACK_STORY_PLANS } from "./story-checkout.mjs";
 import { createConversationAudio } from "./conversation-audio.mjs";
@@ -157,6 +158,16 @@ state.photoTurns = createInterviewPhotoState({state, scope:captureProjectScope, 
 
 state.conversationInputs = createConversationInputs({scope:captureProjectScope, current:isCurrentProjectScope,
   run:processChatMessage, busy:loading => {state.loading = loading; render();}});
+
+state.atlasUpdates = createAtlasUpdates({
+  scope: () => state.supabase?.auth_mode !== 'test' && currentPath().startsWith(`${MEMOIR_ROUTES.interview}/`)
+    ? captureProjectScope() : null,
+  current: isCurrentProjectScope,
+  token: () => state.supabase?.accessToken,
+  url: projectId => memoirApiPath(`/v1/story/atlas-events?project_id=${encodeURIComponent(projectId)}`),
+  onUpdate: refreshStageReadiness,
+  onUnavailable: () => void refreshStageReadiness(),
+});
 
 const guestTransfer = createGuestConversationTransfer({
   getAuth: () => state.supabase,
@@ -401,6 +412,7 @@ function invalidateProjectNavigation() {
   state.conversationStreams?.clear();
   state.privateDraftStream?.controller.abort();
   state.privateDraftStream = null;
+  state.atlasUpdates?.stop();
   state.stageReadinessRefresh?.controller.abort();
   state.privateDraftExpanded = false;
   state.privateDraftThinkingExpanded = false;
@@ -516,8 +528,12 @@ async function loadSupabaseConfig() {
     cookieOptions: { path: "/", sameSite: "lax", secure: window.location.protocol === "https:" },
   });
   state.supabase = { ...config, client };
-  client.auth.onAuthStateChange((_event, session) => {
+  client.auth.onAuthStateChange((event, session) => {
+    const previousUser = state.supabase?.user?.id;
+    const previousToken = state.supabase?.accessToken;
     syncSupabaseSession(session);
+    if (previousToken !== state.supabase?.accessToken) state.atlasUpdates?.renew();
+    if (previousUser === session?.user?.id && event !== 'USER_UPDATED') return;
     // Do not await another Auth call inside its locked callback.
     setTimeout(() => { syncAccountUiLocale().catch(() => {}); }, 0);
     if (state.story && session) refreshStoryState().catch(() => {});
@@ -666,6 +682,7 @@ async function agentTurn(text, fallback = "", toolNames = ["memory.search"], lan
   const current = () => isCurrentProjectScope(scope) && !controller?.signal.aborted;
   const detached = () => ({ detached: true });
   let replyFinished = false;
+  let readinessStarted = false;
   const simulated = simulatedLoopTrace(toolNames);
   if (!state.supabase?.accessToken) return { reply: fallback || null, trace: simulated, traceMode: "simulated" };
   let streamedMessage = null;
@@ -842,7 +859,10 @@ async function agentTurn(text, fallback = "", toolNames = ["memory.search"], lan
         state.photoTurns?.accept(requestTurn, {...event.data, state:"conversation_saved"});
         if (Object.hasOwn(event.data,"workspace_focus")) state.workspaceFocus = event.data.workspace_focus;
         if (Object.hasOwn(event.data,"current_active_location")) applyCurrentActiveLocation(state,event.data.current_active_location);
-        void refreshStageReadiness();
+        if (!readinessStarted) {
+          readinessStarted = true;
+          if (!state.atlasUpdates?.receiving()) void refreshStageReadiness();
+        }
         if (state.project?.id === streamProjectId && state.supabase?.user?.id === ownerId) {
           await applyCommittedConversationLocale(event.data?.profile_updates);
         }
@@ -884,8 +904,10 @@ async function agentTurn(text, fallback = "", toolNames = ["memory.search"], lan
       if (Object.hasOwn(body,"workspace_focus")) state.workspaceFocus = body.workspace_focus;
       if (Object.hasOwn(body,"current_active_location")) applyCurrentActiveLocation(state,body.current_active_location);
       state.backgroundDraftTurn = requestTurn.id;
-      void refreshStageReadiness();
       void refreshPrivateDraft();
+    }
+    if (!readinessStarted && (body.conversation_saved || !serverAction) && !state.atlasUpdates?.receiving()) {
+      void refreshStageReadiness();
     }
     if (state.recallStatus && freeRecallFinished()) void ensureRecallPreview();
     if (state.recallStatus?.payment_required && state.voiceMode) stopVoiceMode({ silent: true });
@@ -1430,7 +1452,7 @@ async function refreshFamilyEntitlement() {
     if (!state.familyFeaturesEnabled) {
       state.familyContext = null;
     }
-    await refreshFamilyContext();
+    if (state.familyFeaturesEnabled) await refreshFamilyContext();
   } catch {
     if (!isCurrentProjectScope(scope)) return false;
     state.familyEntitlement = null;
@@ -2025,9 +2047,7 @@ async function startMemoirStory(mode = "self") {
       state.freshAnonymousSession = false;
       state.chatHistoryCollapsed = false;
       navigateTo(`${MEMOIR_ROUTES.interview}/${state.project.id}`);
-      // Navigation cancels the landing poll. Resume in the new scope without
-      // coupling extraction recovery to the optional greeting.
-      void refreshStageReadiness();
+      if (!state.atlasUpdates?.start()) void refreshStageReadiness();
       await startCodexConversation({ resume: true });
       return;
     }
@@ -2078,13 +2098,14 @@ async function startMemoirStory(mode = "self") {
     const backgroundSetup = Promise.all([
       api(`/v1/projects/${state.project.id}/consents`, { method: "POST", body: JSON.stringify({ purpose: "recording", granted: true, locale: currentUiLocale() }) }),
       ...(mode === "self" ? [api(`/v1/projects/${state.project.id}/consents`, { method: "POST", body: JSON.stringify({ purpose: "storyteller_assent", granted: true, locale: currentUiLocale() }) })] : []),
-      refreshProject(),
+      refreshProject({deferReadiness:true}),
       refreshFamilyEntitlement(),
     ]).catch((error) => {
       if (current()) toast(error.message);
     });
     await startCodexConversation();
     await backgroundSetup;
+    if (current() && !state.atlasUpdates?.start()) void refreshStageReadiness();
   } catch (error) {
     if (!current()) return;
     state.project = null;
@@ -2093,7 +2114,7 @@ async function startMemoirStory(mode = "self") {
   }
 }
 
-async function refreshProject() {
+async function refreshProject({deferReadiness = false} = {}) {
   const scope = captureProjectScope();
   const photoMemoryRevision = state.photoMemoryRevision || 0;
   // Both reads can begin before a successful photo command. Scope checks below
@@ -2149,10 +2170,10 @@ async function refreshProject() {
     state.people = people.items;
     state.relationships = relationships.items;
     state.timeline = timeline.items;
-    await refreshFamilyContext();
+    if (state.familyFeaturesEnabled) await refreshFamilyContext();
   }
   if (!isCurrentProjectScope(scope)) return;
-  void refreshStageReadiness();
+  if (!deferReadiness) void refreshStageReadiness();
   void refreshPrivateDraft();
 }
 
@@ -2557,43 +2578,21 @@ function lifeStageNavigator(showStages = true) {
   return `<section class="life-stage-navigator" aria-label="${t("lifeJourneyEyebrow")}"><div class="life-stage-tabs" role="group" aria-label="${t("lifeStageTabsLabel")}">${tabs}</div><button type="button" class="button button-secondary button-small workspace-add-memory" data-add-workspace-memory ${state.loading || state.recallStatus?.payment_required ? "disabled" : ""}>${activeId === "all" ? t("addMemory") : t("addMemoryToStage", {stage: lifeStageText(activeId, "label")})}</button></section>`;
 }
 
-async function refreshStageReadiness() {
-  const scope = captureProjectScope();
-  const projectId = state.project?.id;
-  if (!projectId || !state.supabase?.accessToken) return;
+async function refreshStageReadiness(snapshot = null, scope = captureProjectScope()) {
+  const projectId = scope.projectId;
+  if (!projectId || !state.supabase?.accessToken || !isCurrentProjectScope(scope)) return;
   const active = state.stageReadinessRefresh;
   if (active && !active.controller.signal.aborted && isCurrentProjectScope(active.scope)) {
-    // Streamed/final saves share recovery. A failed later read cannot cancel
-    // the healthy pending poll, and another save gets a full recovery window.
-    active.renew();
     active.requested = true;
-    active.wake?.();
+    if (snapshot) active.snapshot = snapshot;
     return active.ready;
   }
   active?.controller.abort();
-  const job = {scope, controller:new AbortController(), requested:false};
+  const job = {scope, controller:new AbortController(), requested:false, snapshot};
   state.stageReadinessRefresh = job;
   const current = () => state.stageReadinessRefresh === job && isCurrentProjectScope(scope)
-    && Boolean(state.supabase?.accessToken) && !job.controller.signal.aborted && Date.now() < job.deadline;
-  job.renew = () => {
-    clearTimeout(job.expiry);
-    // The supported extractor call can take 240s. Allow five minutes after
-    // the latest explicit save/reload, with 2/4/8/16s backoff between reads.
-    job.deadline = Date.now() + 300_000;
-    job.expiry = setTimeout(() => job.controller.abort(), 300_000);
-  };
-  const wait = delay => new Promise(resolve => {
-    const finish = () => {
-      clearTimeout(timer);
-      job.controller.signal.removeEventListener('abort', finish);
-      if (job.wake === finish) job.wake = null;
-      resolve();
-    };
-    const timer = setTimeout(finish, Math.min(delay, job.deadline - Date.now()));
-    job.wake = finish;
-    job.controller.signal.addEventListener('abort', finish, {once:true});
-  });
-  const read = async (path = `/v1/story/readiness?project_id=${encodeURIComponent(projectId)}`) => {
+    && Boolean(state.supabase?.accessToken) && !job.controller.signal.aborted;
+  const read = async (path = `/v1/story/atlas-events?project_id=${encodeURIComponent(projectId)}`) => {
     const request = new AbortController();
     const cancel = () => request.abort();
     job.controller.signal.addEventListener('abort', cancel, {once:true});
@@ -2614,58 +2613,52 @@ async function refreshStageReadiness() {
       job.controller.signal.removeEventListener('abort', cancel);
     }
   };
-  job.renew();
   job.ready = (async () => {
-    let delay = 2000;
     try {
-      while (current()) {
+      do {
         job.requested = false;
         try {
-          const result = await read();
-          if (!current()) return;
-          // Coalesce refreshes during a read into the next serialized read.
-          // A snapshot predating that save cannot repaint newer client state.
-          if (!job.requested) {
-            if (result.skill_progress) {
-              applyBackgroundSkillProgress(result.skill_progress);
-              let cursor=result.skill_progress.next_cursor;
-              while (cursor && current() && !job.requested) {
-                const older=await read(`/v1/story/skill-progress?project_id=${encodeURIComponent(projectId)}&cursor=${encodeURIComponent(cursor)}`);
-                if (!current() || job.requested) break;
-                applyBackgroundSkillProgress(older);
-                cursor=older.next_cursor;
-              }
+          const pushed = job.snapshot;
+          job.snapshot = null;
+          const result = pushed ?? await read();
+          if (!current() || (result.project_id && result.project_id !== projectId)) return;
+          if (job.requested) continue;
+          if (result.skill_progress) {
+            applyBackgroundSkillProgress(result.skill_progress);
+            let cursor = state.stageProgressScope && isCurrentProjectScope(state.stageProgressScope)
+              ? null : result.skill_progress.next_cursor;
+            while (cursor && current() && !job.requested) {
+              const older = await read(`/v1/story/skill-progress?project_id=${encodeURIComponent(projectId)}&cursor=${encodeURIComponent(cursor)}`);
+              if (!current() || job.requested) break;
+              applyBackgroundSkillProgress(older);
+              cursor = older.next_cursor;
             }
-            if (!current()) return;
-            if (job.requested) continue;
-            state.currentInterviewMode = result.current_mode || null;
-            state.stageReadiness = result.stages || {};
-            if (result.profile) state.project = {...state.project, profile:mergePrivateProfile(result.profile, profile())};
-            if (result.derived_workspace && applyDerivedWorkspace(state, result.derived_workspace)) {
-              // The existing bounded recovery poll owns workspace catch-up too.
-              // Do not persist background hints as profile/language authority.
-              if (state.placeJourney) {
-                rememberPlaceJourneyProject(projectId);
-                resolvePlaceMap(state.placeJourney);
-                for (const place of profile().memory_places || []) void loadPlacePictures(place, projectId);
-              }
-            }
-            if (state.recording || state.storyRecording || state.voiceMode) refreshProfileMenu();
-            else render();
-            if (!result.pending) { void refreshFamilyContext(); return; }
+            if (!cursor && current() && !job.requested) state.stageProgressScope = scope;
           }
-        } catch (error) {
-          if (!current() || [400,401,403,404,422].includes(error?.status)) return;
-          // Network errors and legitimate 409/503 revision-fence failures
-          // preserve the last good ring and retry within the same budget.
-        }
-        if (!current()) return;
-        if (!job.requested) await wait(delay);
-        delay = Math.min(delay * 2, 16_000);
-      }
+          if (!current()) return;
+          if (job.requested) continue;
+          state.currentInterviewMode = result.current_mode || null;
+          state.stageReadiness = result.stages || {};
+          if (result.profile) state.project = {...state.project, profile:mergePrivateProfile(result.profile, profile())};
+          if (result.derived_workspace && applyDerivedWorkspace(state, result.derived_workspace)) {
+            if (state.placeJourney) {
+              rememberPlaceJourneyProject(projectId);
+              resolvePlaceMap(state.placeJourney);
+              for (const place of profile().memory_places || []) void loadPlacePictures(place, projectId);
+            }
+          }
+          if (state.recording || state.storyRecording || state.voiceMode) refreshProfileMenu();
+          else render();
+          const page = state.memoryEventPage;
+          const mapChanged = page?.project_id !== projectId || page.policy_epoch !== result.policy_epoch
+            || page.source_revision !== result.source_revision || page.event_revision !== result.event_revision;
+          if (state.familyFeaturesEnabled && mapChanged) void refreshFamilyContext();
+          else if (result.map_events && (mapChanged || page.preference_revision !== result.preference_revision || page.page_error)) {
+            void refreshFamilyContext({mapSnapshot: {...result.map_events, preference_revision: result.preference_revision}});
+          }
+        } catch { /* Keep the last snapshot until another update or explicit refresh. */ }
+      } while (current() && job.requested);
     } finally {
-      clearTimeout(job.expiry);
-      job.wake?.();
       if (state.stageReadinessRefresh === job) state.stageReadinessRefresh = null;
     }
   })();
@@ -3377,7 +3370,6 @@ async function processChatMessage(message, delivery) {
     return {failed:true};
   }
   if (!current()) return;
-  void refreshFamilyContext();
   if (state.voiceMode) window.setTimeout(() => { if (current()) startVoiceModeTurn(); }, 260);
 }
 
@@ -3472,7 +3464,7 @@ async function boot() {
         state.freshAnonymousSession = false;
         state.chat = [];
         state.chatHistoryCollapsed = true;
-        await refreshProject();
+        await refreshProject({deferReadiness:true});
         if (!current() || state.project?.id !== saved || state.supabase?.user?.id !== ownerId) return;
         state.projectRecoveryBlocked = null;
         state.projectPrincipalId = state.supabase?.user?.id;
@@ -3499,6 +3491,7 @@ async function boot() {
         if (!current()) return;
         state.profileIntakePending = !profileHasContext(state.project.profile);
         if (currentPath() === MEMOIR_ROUTES.start) window.history.replaceState({}, "", `${MEMOIR_ROUTES.interview}/${saved}`);
+        if (!state.atlasUpdates?.start()) void refreshStageReadiness();
         recovery.failed = Boolean(state.projectRecoveryBlocked);
         recovery.finish(); // Do not couple start admission to subsequent opening-copy streaming.
         render();
@@ -3539,7 +3532,12 @@ window.addEventListener("popstate", () => {
     void boot();
   } else render();
 });
-window.addEventListener("pagehide", () => persistChatHistory());
+window.addEventListener("pagehide", () => {
+  state.atlasUpdates.stop();
+  state.stageReadinessRefresh?.controller.abort();
+  persistChatHistory();
+});
+window.addEventListener("pageshow", event => { if (event.persisted) state.atlasUpdates.start(); });
 window.addEventListener("copyme2:ui-locale-change", () => {
   closeProfileMenu();
   if (!refreshOpeningMessageLocale()) render();

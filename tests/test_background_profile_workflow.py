@@ -72,7 +72,7 @@ def test_active_interview_readiness_tracks_profile_work_and_authoritative_deleti
     page = read(sql, lane, base)
     with TestClient(create_app(MemoryStore(), story_storage_factory=lambda _: PostgresRest(sql, OWNER).storage())) as client:
         def readiness():
-            response = client.get('/v1/story/readiness', params={'project_id': identity['project_id']})
+            response = client.get('/v1/story/atlas-events', params={'project_id': identity['project_id']})
             assert response.status_code == 200, response.text
             return response.json()
 
@@ -85,7 +85,7 @@ def test_active_interview_readiness_tracks_profile_work_and_authoritative_deleti
         assert saved['pending'] is False
         assert saved['profile']['birth_year'] == 1960
         assert saved['profile']['profile_automation']['progress']['status'] == 'covered'
-        denied = client.get('/v1/story/readiness', params={'project_id': 'another-project'})
+        denied = client.get('/v1/story/atlas-events', params={'project_id': 'another-project'})
         assert denied.status_code >= 400 and '1960' not in denied.text
         rpc(sql, 'change_user_narrator_source',
             f"{literal(identity['project_id'])},'{sources[0]['id']}',1,'withdraw',null")
@@ -122,7 +122,7 @@ def test_active_profile_read_does_not_publish_a_fact_withdrawn_during_hydration(
         return storage
 
     with TestClient(create_app(MemoryStore(), story_storage_factory=storage_factory), raise_server_exceptions=False) as client:
-        response = client.get('/v1/story/readiness', params={'project_id': identity['project_id']})
+        response = client.get('/v1/story/atlas-events', params={'project_id': identity['project_id']})
         assert changed
         assert response.status_code >= 400 and '1960' not in response.text
 

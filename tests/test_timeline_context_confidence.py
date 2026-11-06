@@ -194,9 +194,9 @@ def test_childhood_location_candidates_reach_lane_a_and_confirmation_updates_the
     feeds = []
 
     def capture_map_feed():
-        feed=conversation.client.get('/v1/story/map-events',params={'project_id':conversation.project}).json()
+        feed=conversation.client.get('/v1/story/atlas-events',params={'view':'map','project_id':conversation.project}).json()
         locations={event['id']:conversation.client.get(
-            f'/v1/story/map-events/{conversation.project}/{event["id"]}/places').json() for event in feed['events']}
+            f'/v1/story/atlas-events/{conversation.project}/{event["id"]}/places').json() for event in feed['events']}
         feeds.append(dict(feed=feed,locations=locations))
         return feed
 
@@ -239,7 +239,7 @@ def test_childhood_location_candidates_reach_lane_a_and_confirmation_updates_the
         saved=next(event for event in feed['events'] if event['kind']=='period')
         assert saved['location']==CHENGDE
         assert len(feed['events'])==2 and saved['id']!=next(event['id'] for event in feed['events'] if event['kind']=='event')
-        places=conversation.client.get(f'/v1/story/map-events/{conversation.project}/{saved["id"]}/places').json()
+        places=conversation.client.get(f'/v1/story/atlas-events/{conversation.project}/{saved["id"]}/places').json()
         assert places['items']==[], 'A low-confidence candidate must not become a map location'
         conversation.say('I remember the playground clearly.')
         context=conversation.foreground[-1]
@@ -252,7 +252,7 @@ def test_childhood_location_candidates_reach_lane_a_and_confirmation_updates_the
         feed=capture_map_feed()
         updated=next(event for event in feed['events'] if event['id']==saved['id'])
         assert updated['temporal']['year_start']==1997
-        places=conversation.client.get(f'/v1/story/map-events/{conversation.project}/{saved["id"]}/places').json()
+        places=conversation.client.get(f'/v1/story/atlas-events/{conversation.project}/{saved["id"]}/places').json()
         assert [item['place']['place'] for item in places['items']]==['Sydney']
         replay=Path(__file__).parent/'js/helpers/replay-unlocated-memory-cards.mjs'
         result=subprocess.run(['node',str(replay)],input=json.dumps(dict(
@@ -297,7 +297,7 @@ def test_later_replies_upgrade_estimates_and_then_confirm_the_same_saved_event(s
         snapshots,feeds=[],[]
         for text in (first,later,confirmed):
             conversation.say(text);drain(conversation)
-            response=conversation.client.get('/v1/story/map-events',params={'project_id':conversation.project})
+            response=conversation.client.get('/v1/story/atlas-events',params={'view':'map','project_id':conversation.project})
             assert response.status_code==200,(text,response.text)
             events=response.json()['events']
             feeds.append(response.json())
@@ -341,10 +341,10 @@ def test_an_explicit_previous_city_and_year_can_ground_the_current_event(sql,tmp
     with conversation.client:
         conversation.say(first);drain(conversation)
         conversation.say(second);drain(conversation)
-        feed=conversation.client.get('/v1/story/map-events',params={'project_id':conversation.project}).json()
+        feed=conversation.client.get('/v1/story/atlas-events',params={'view':'map','project_id':conversation.project}).json()
         saved=next(event for event in feed['events'] if event['title']=='Starting work')
         assert saved['temporal']['year_start']==1997
-        places=conversation.client.get(f'/v1/story/map-events/{conversation.project}/{saved["id"]}/places').json()
+        places=conversation.client.get(f'/v1/story/atlas-events/{conversation.project}/{saved["id"]}/places').json()
         assert [item['place']['place'] for item in places['items']]==['Chengde']
 
 
@@ -366,7 +366,7 @@ def test_explicit_year_correction_also_saves_current_confidence_metadata(sql,tmp
     with conversation.client:
         conversation.say(first);drain(conversation)
         conversation.say(correction);drain(conversation)
-        saved=conversation.client.get('/v1/story/map-events',params={'project_id':conversation.project}).json()['events'][0]
+        saved=conversation.client.get('/v1/story/atlas-events',params={'view':'map','project_id':conversation.project}).json()['events'][0]
         assert saved['temporal']['year_start']==1998
         assert saved['yearConfidenceScore']==1 and saved['locationConfidenceScore']==0.95
 
@@ -394,8 +394,8 @@ def test_location_correction_clears_the_candidate_and_old_map_link(sql,tmp_path,
     conversation=Conversation(sql,tmp_path,monkeypatch,extract,family=False)
     with conversation.client:
         conversation.say(first);drain(conversation)
-        saved=conversation.client.get('/v1/story/map-events',params={'project_id':conversation.project}).json()['events'][0]
-        path=f'/v1/story/map-events/{conversation.project}/{saved["id"]}/places'
+        saved=conversation.client.get('/v1/story/atlas-events',params={'view':'map','project_id':conversation.project}).json()['events'][0]
+        path=f'/v1/story/atlas-events/{conversation.project}/{saved["id"]}/places'
         assert len(conversation.client.get(path).json()['items'])==1
         conversation.say(correction);drain(conversation)
         assert conversation.client.get(path).json()['items']==[]
@@ -418,8 +418,8 @@ def test_a_supported_suburb_refines_its_containing_city_on_the_map(sql,tmp_path,
     conversation=Conversation(sql,tmp_path,monkeypatch,extract,family=False)
     with conversation.client:
         conversation.say(text);drain(conversation)
-        saved=conversation.client.get('/v1/story/map-events',params={'project_id':conversation.project}).json()['events'][0]
-        places=conversation.client.get(f'/v1/story/map-events/{conversation.project}/{saved["id"]}/places').json()
+        saved=conversation.client.get('/v1/story/atlas-events',params={'view':'map','project_id':conversation.project}).json()['events'][0]
+        places=conversation.client.get(f'/v1/story/atlas-events/{conversation.project}/{saved["id"]}/places').json()
         assert [item['place']['place'] for item in places['items']]==['Shuangqiao']
 
 
@@ -439,8 +439,8 @@ def test_existing_city_refinement_keeps_the_card_but_sibling_conflicts_need_conf
     conversation=Conversation(sql,tmp_path,monkeypatch,extract,family=False)
     with conversation.client:
         conversation.say('I went to school in Chengde.');drain(conversation)
-        saved=conversation.client.get('/v1/story/map-events',params={'project_id':conversation.project}).json()['events'][0]
-        path=f'/v1/story/map-events/{conversation.project}/{saved["id"]}/places'
+        saved=conversation.client.get('/v1/story/atlas-events',params={'view':'map','project_id':conversation.project}).json()['events'][0]
+        path=f'/v1/story/atlas-events/{conversation.project}/{saved["id"]}/places'
         conversation.say('That school was in Shuangqiao, Chengde.');drain(conversation)
         assert [item['place']['place'] for item in conversation.client.get(path).json()['items']]==['Shuangqiao']
         conversation.say('It was in Shuangluan, Chengde.');drain(conversation)

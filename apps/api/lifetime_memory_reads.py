@@ -78,6 +78,14 @@ async def _settle(task):
         task.result()
 
 
+class ReadAdmissionFailure(PublicationUnavailable):
+    def __init__(self, *, stale=False):
+        self.status = 409 if stale else 503
+        self.code = 'LIFETIME_READ_STALE' if stale else 'LIFETIME_READ_UNAVAILABLE'
+        super().__init__('This view changed. Reload from the first page.' if stale
+                         else 'This saved view is temporarily unavailable')
+
+
 class ReadPublication:
     def __init__(self, dsn, *, authenticated_owner, send_timeout=2.0, lock_timeout=5.0):
         if not dsn:
@@ -128,10 +136,12 @@ class ReadPublication:
                 from .lifetime_memory_policy import PolicyUnavailable, is_policy_pending
                 if is_policy_pending(error):
                     raise PolicyUnavailable() from None
-                raise PublicationUnavailable('Read snapshot is unavailable or stale') from error
+                raise ReadAdmissionFailure(stale=error.sqlstate in {'40001', 'PT409'}) from error
+            except TimeoutError as error:
+                raise ReadAdmissionFailure() from error
             allowance = self.send_timeout if remaining is None else min(self.send_timeout, remaining - .1)
             if allowance <= 0:
-                raise PublicationUnavailable('Read snapshot expires too soon')
+                raise ReadAdmissionFailure(stale=True)
             async with asyncio.timeout(allowance):
                 yield recordings
         finally:
@@ -187,18 +197,22 @@ class ReadJSONResponse(JSONResponse):
                 await send({'type': 'http.response.start', 'status': self.status_code,
                             'headers': headers})
                 await send({'type': 'http.response.body', 'body': body})
-        except PolicyUnavailable:
+        except (PolicyUnavailable, ReadAdmissionFailure) as failure:
             if started:
                 raise
             # This fixed response is metadata only: never reuse snapshot bytes,
             # original headers, identifiers, or exception attributes.
-            pending = JSONResponse(
-                {'detail': 'Accepted conversation policy requires maintenance before private content can be used'},
-                status_code=503, headers={'X-Error-Code': PolicyUnavailable.code,
-                    'Retry-After': '60', 'Cache-Control': 'no-store'})
-            await send({'type': 'http.response.start', 'status': pending.status_code,
-                        'headers': pending.raw_headers})
-            await send({'type': 'http.response.body', 'body': pending.body})
+            headers = {'X-Error-Code': failure.code, 'Cache-Control': 'no-store'}
+            if isinstance(failure, PolicyUnavailable):
+                headers['Retry-After'] = '60'
+                detail = 'Accepted conversation policy requires maintenance before private content can be used'
+                status = 503
+            else:
+                detail, status = str(failure), failure.status
+            error_response = JSONResponse({'detail': detail}, status_code=status, headers=headers)
+            await send({'type': 'http.response.start', 'status': error_response.status_code,
+                        'headers': error_response.raw_headers})
+            await send({'type': 'http.response.body', 'body': error_response.body})
 
     async def __call__(self, scope, receive, send):
         if tuple(map(int, scope.get('asgi', {}).get('spec_version', '2.0').split('.'))) >= (2, 4):

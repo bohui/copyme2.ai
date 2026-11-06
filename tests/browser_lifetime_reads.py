@@ -71,7 +71,7 @@ def run(base, output):
                     elif path.endswith('/first-event/sources'): body={'source_refs':[{'quote':'Possibly 1964'}],'complete':True,'next_cursor':None}
                     elif path.endswith('/first-event/details'): body={'details':[{'kind':'temporal_accounts','value':{'expression':'1964','precision':'year'}}],'complete':True,'next_cursor':None}
                     elif path=='/agent/family-context': body={'family_features_enabled':True,'family_context':{'project_id':'lifetime-fixture','revision':1,'people':[],'relationships':[],'timeline':[]}}
-                    elif path=='/story/readiness': body={'stages':{},'heuristic':'narrator_context_volume_v1','maximum_percent':50}
+                    elif path=='/story/atlas-events': body={'stages':{},'heuristic':'narrator_context_volume_v1','maximum_percent':50}
                     elif path=='/agent/place-journey': body={'place_journey':None}
                     elif path=='/agent/turn': body={'reply':'Synthetic fixture opening.','conversation_saved':True}
                     elif path.endswith('/conversation-phase'): body={'conversation_phase':{'schema_version':1,'phase':'shape','selection':'explicit','preferred_phase':'shape','revision':1,'reason':'narrator_choice','source_turn_id':None}}

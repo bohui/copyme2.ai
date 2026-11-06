@@ -16,7 +16,6 @@ test("the labelled synthetic fixture matches actual current runtime DTOs", async
   );
   assert.equal((await api.storyState()).is_anonymous, true);
   assert.equal((await api.collection(fixtureProject)).sources?.length, 2);
-  await api.readiness(fixtureProject);
 });
 test("profile settings accepts the existing structured conversation language state", async () => {
   const api = createMemoirApi({

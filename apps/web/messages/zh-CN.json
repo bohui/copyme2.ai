@@ -229,6 +229,7 @@
       "operation": {
         "guidance": "准备下一轮访谈方向",
         "extract": "提取带来源的回忆",
+        "reconcile": "核对回忆与已保存的时间线",
         "profile": "检查自动资料目标",
         "summarize": "更新回忆背景",
         "prepare": "准备写作背景",
