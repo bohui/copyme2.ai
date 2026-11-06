@@ -25,8 +25,6 @@ SKILLS = {item.name: item for item in (
         gates=('canonical_activation','source_policy_fence','B_skill_selection'),recovery='durable_lane'),
     Skill('memoir-family-tree', None, 'model', 'relationship_evidence', 'unwired',
         gates=('family_entitlement','relationship_evidence','integration_required')),
-    Skill('memoir-place-groups', 'grouping', 'deterministic', 'place_change', 'deprecated',
-        gates=('owned_project','public_places','request_deduplication'),recovery='request'),
     Skill('memoir-story-game', 'game', 'model', 'game_button', modes=('shape',),
         gates=('current_delivered_A_shape','explicit_button','composer_chapters','canonical_timeline','adaptation_consent',
             'confirmed_scene_selection','higgsfield_websites','validated_webpage'),
@@ -37,8 +35,6 @@ SKILLS = {item.name: item for item in (
         gates=('SQL_due_milestone','extraction_complete_snapshot','composition_opt_in','canonical_publication'),recovery='durable_lane'),
     Skill('memoir-memory-context', 'timeline', 'model', 'accepted_source',
         gates=('B_skill_selection','manual_field_exclusions','automatic_profile_enabled','remaining_targets','source_policy_fence'),recovery='durable_lane'),
-    Skill('memoir-place-journey', None, 'model', 'place_evidence', 'deprecated',
-        gates=('B_skill_selection','source_grounded_geography','canonical_publication'),recovery='durable_lane'),
     Skill('memoir-place-photo-research', 'photos', 'provider', 'place_selection',
         gates=('owned_project','public_query','cursor_scope','cache','bounded_photo_capacity','optional_model_flag'),recovery='process_local_job_public_cache'),
 )}
@@ -46,10 +42,9 @@ SKILLS = {item.name: item for item in (
 
 def execution_map():
     from .recall import private_draft_cadence
-    return [{**asdict(item), 'lane':'B' if item.status != 'deprecated' and (item.runner or item.status in {'unwired','unavailable'}) else None,
+    return [{**asdict(item), 'lane':'B',
         'mode_independent':item.name != 'memoir-story-game',
-        'cadence':{'every_completed_rounds':private_draft_cadence()} if item.name=='memoir-composer' else None,
-        'compatibility':'flag_off_place_in_A' if item.name == 'memoir-place-journey' else None}
+        'cadence':{'every_completed_rounds':private_draft_cadence()} if item.name=='memoir-composer' else None}
         for item in SKILLS.values()]
 
 
@@ -94,11 +89,10 @@ def admit_lane(fence, phase):
         if phase not in {'extract','reconcile','summarize','profile'}:
             raise SkillUnavailable('phase_required')
         name = 'memoir-memory-context' if phase == 'profile' else 'memoir-author-timeline'
-        if (phase == 'extract' and fence.two_lane is not None and fence.two_lane.selected_skills is not None
-                and 'memoir-author-timeline' not in fence.two_lane.selected_skills):
-            name = 'memoir-place-journey'
-        if phase in {'extract','reconcile'} and fence.two_lane is not None and fence.two_lane.work_mode != 'extract':
-            raise SkillUnavailable('reply_only')
+        if phase in {'extract','reconcile'} and fence.two_lane is not None:
+            selected = fence.two_lane.selected_skills
+            if fence.two_lane.work_mode != 'extract' or selected is not None and name not in selected:
+                raise SkillUnavailable('reply_only')
         if phase == 'reconcile':
             from .timeline_reconciliation import uses_reconciliation
             if not fence.two_lane or not uses_reconciliation(fence.two_lane.selected_skills):
@@ -106,9 +100,6 @@ def admit_lane(fence, phase):
         if phase == 'profile' and (not fence.profile_context or fence.profile_context.get('work_mode') != 'extract'
                 or not fence.profile_context.get('targets')):
             raise SkillUnavailable('manual_or_no_targets')
-        # Pages admitted before the cutover still carry the old pinned selection.
-        if name == 'memoir-place-journey' and name in fence.two_lane.selected_skills:
-            return SKILLS[name]
     else:
         if fence.skill != 'composer' or phase not in {'prepare','draft','review'}:
             raise SkillUnavailable('phase_required')
@@ -146,8 +137,7 @@ async def _record(function, arguments, *, owner=None):
 class ServiceWork:
     """Request/claim-scoped progress, not durable resumption for optional jobs."""
     def __init__(self, name, trigger, owner, project_id, reference, *, client_turn_id=None, research_job_id=None):
-        # Existing clients can still resolve public geography through the compatibility route.
-        self.skill = SKILLS[name] if (name,trigger) == ('memoir-place-groups','place_change') else admit(name,trigger)
+        self.skill = admit(name,trigger)
         self.owner,self.project_id = owner,project_id
         self.client_turn_id = str(client_turn_id) if client_turn_id else None
         self.research_job_id = research_job_id
@@ -167,21 +157,6 @@ class ServiceWork:
                 self.timing = {key:timing.get(key) for key in ('started_at','finished_at')}
             self.previous = step
         return {**step,**self.timing}
-
-
-async def group_places(owner,project_id,places,*,client_turn_id=None,language=None):
-    from .place_groups import resolve_place_groups
-    if language not in (None,'en-AU','zh-CN'):
-        from fastapi import HTTPException
-        raise HTTPException(422,'Unsupported place display language')
-    work = ServiceWork('memoir-place-groups','place_change',owner,project_id,places,client_turn_id=client_turn_id)
-    await work.update('running')
-    try:
-        result = await asyncio.to_thread(resolve_place_groups,places,language=language)
-    except BaseException:
-        await work.update('failed')
-        raise
-    return {**result,'skill_progress':await work.update('completed')}
 
 
 async def photo_step(owner,project_id,result,*,client_turn_id=None):

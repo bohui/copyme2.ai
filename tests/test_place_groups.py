@@ -40,7 +40,7 @@ def test_city_children_group_without_destroying_place_identity(monkeypatch):
     assert len({record['city_key'] for record in result['places']}) == 1
     assert [record['pin']['place'] for record in result['places'][1:]] == ['双桥区', '大石庙镇']
     assert entries == before
-    assert result['skills'] == ['memoir-place-groups']
+    assert set(result) == {'schema_version', 'places', 'status'}
 
 
 def test_geocoder_city_membership_groups_different_paths_but_partial_matches_get_no_pin(monkeypatch):

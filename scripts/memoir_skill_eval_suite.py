@@ -1,4 +1,4 @@
-"""Ten-skill evaluation planning and evidence-bound offline execution.
+"""Memoir skill evaluation planning and evidence-bound offline execution.
 
 No credentials, SDK client or network transport is allocated here. External
 adapters must be supplied by a caller; the CLI runs available deterministic
@@ -27,7 +27,7 @@ from scripts.langfuse_dataset_names import skill_dataset, SKILL_TARGETS, WORKFLO
 ROOT = Path(__file__).resolve().parents[1]
 KNOWN = frozenset('memoir-' + name for name in (
     'interviewer', 'author-timeline', 'composer', 'family-tree', 'memory-context',
-    'place-journey', 'place-groups', 'place-photo-research', 'historical-news-research', 'story-game'))
+    'place-photo-research', 'historical-news-research', 'story-game'))
 PHASES = ('interview', 'extract', 'progressive', 'proposal', 'integration', 'review', 'group', 'discover', 'publish', 'play')
 JUDGES = ROOT / 'tests/evaluation/prompts/skill-judges'
 PHOTO_UPSTREAM_DEPENDENCIES = [
@@ -124,8 +124,8 @@ def definitions(skills):
 
 def plan(*, skill=None, phase=None, locale=None, case=None):
     catalog = inventory()
-    items = scenario_cases()
-    if len(items) != 160 or len({c['id'] for c in items}) != 160 or {c['skill'] for c in items} != set(catalog):
+    items = [item for item in scenario_cases() if item['skill'] in catalog]
+    if len(items) != 16 * len(catalog) or len({c['id'] for c in items}) != len(items):
         raise ValueError('incomplete_scenario_inventory')
     for name in catalog:
         subset = [c for c in items if c['skill'] == name]
@@ -180,9 +180,9 @@ def packet(item):
         instructions = reply_instructions()
         schema = governed_collector_schema(task['context'])
         payload = {**task['context'], 'reply_language': item['locale']}
-    elif skill in {'memoir-author-timeline', 'memoir-place-journey'}:
+    elif skill == 'memoir-author-timeline':
         from apps.api.lifetime_memory_lane_engine import lane_contract, EXTRACTION_WINDOW_CONTRACT
-        instructions, schema = lane_contract('extract', item['locale'], two_lane=skill == 'memoir-place-journey')
+        instructions, schema = lane_contract('extract', item['locale'])
         payload = dict(schema_version=1, sources=task.get('sources', [task['source']]),
             events=task.get('saved_events', []), interview_context={}, preferences=dict(language=item['locale']),
             coverage=dict(scope='source_window', snapshot_id=item['id'], source_high_water=1, complete=False),
@@ -198,8 +198,7 @@ def packet(item):
         schema, payload = ScenePool.model_json_schema(), task
     else:
         raise ValueError('requires_application_adapter')
-    return dict(item_id=item['id'], skill='memoir-author-timeline' if skill == 'memoir-place-journey' else skill,
-                evaluated_skill=skill, execution='embedded' if skill == 'memoir-place-journey' else 'model',
+    return dict(item_id=item['id'], skill=skill, evaluated_skill=skill, execution='model',
                 locale=item['locale'], instructions=instructions,
                 input=payload, schema=schema)
 

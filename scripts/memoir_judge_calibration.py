@@ -36,7 +36,8 @@ def digest(value):
 def judges():
     result={name:dict(kind='numeric',prompts=['memoir/evaluators/shared/'+name])
         for name in ('correctness','relevance','completeness','safety')}
-    for skill in sorted(KNOWN):
+    # Retain the original judges for the frozen shared answer key and past runs.
+    for skill in sorted(KNOWN | {'memoir-place-groups', 'memoir-place-journey'}):
         definition=judge_definition(skill)
         result[skill]=dict(kind='skill',prompts=[c['name'] for c in definition['components']])
     result.update({

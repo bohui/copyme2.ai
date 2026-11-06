@@ -15,7 +15,6 @@ MIRA = 'memoir/agents/mira/reply'
 @pytest.mark.parametrize('selector, expected_cases', [
     ('PROMPT_EVAL_NAME=' + MIRA, 70),
     ('SKILL_EVAL_NAME=author-timeline', 16),
-    ('SKILL_EVAL_NAME=place-journey', 16),
 ])
 def test_make_plan_selects_datasets_and_graders_without_credentials(selector, expected_cases):
     result = subprocess.run(['make', '--no-print-directory', 'prompt-eval-plan', selector,
@@ -49,7 +48,8 @@ def test_judge_prompt_automatically_selects_shared_answer_keys(monkeypatch):
 
 
 @pytest.mark.parametrize('args', [[], ['--name', 'agent.mira.reply'], ['--name', ''],
-    ['--skill', 'does-not-exist'], ['--name', MIRA, '--skill', 'author-timeline'],
+    ['--skill', 'does-not-exist'], ['--skill', 'place-journey'], ['--skill', 'place-groups'],
+    ['--name', MIRA, '--skill', 'author-timeline'],
     ['--name', MIRA, '--plan', '--execute']])
 def test_invalid_or_conflicting_selection_cannot_dispatch(args):
     with pytest.raises(SystemExit) as error:

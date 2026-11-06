@@ -1175,7 +1175,10 @@ async def _run_case(
         prior_place_count = len(storage.place_history())
         try:
             from apps.api.agent_storage import UserStorage
+            from apps.api.background_skills import SKILLS as background_skills
             from scripts.canonical_turn import canonical_turn
+            enabled_skills = [skill for skill in SKILLS if skill in background_skills or skill == 'memoir-interviewer']
+            available_tools = ['map-place-resolution','memoir-place-photo-research']
             async def on_delivered_event(event):
                 await on_event(event)
                 if event.get('type') == 'text_delta' and isinstance(event.get('text'), str):
@@ -1186,7 +1189,7 @@ async def _run_case(
                         'project_id':str(case['project_id']), 'language':str(case['locale']),
                         'client_turn_id':str(uuid4())}, evaluation=correlation,
                         on_event=on_delivered_event, trajectory=turn_trajectory,
-                        evaluation_context={'enabled_skills':list(SKILLS), 'available_tools':['memoir-place-groups','memoir-place-photo-research']})
+                        evaluation_context={'enabled_skills':enabled_skills, 'available_tools':available_tools})
                 return await runtime.turn(
                 storage,
                 text,
@@ -1196,7 +1199,7 @@ async def _run_case(
                 on_event=on_event,
                 evaluation=correlation,
                 include_trajectory=True,
-                evaluation_context={"enabled_skills": list(SKILLS), "available_tools": ["memoir-place-groups", "memoir-place-photo-research"]},
+                evaluation_context={'enabled_skills':enabled_skills, 'available_tools':available_tools},
                 trajectory=turn_trajectory,
                 )
             result = await asyncio.wait_for(deliver(), timeout=args.timeout + 30)

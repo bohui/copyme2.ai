@@ -207,8 +207,7 @@ def test_blocked_B_progress_is_late_correlated_and_does_not_block_A(sql,tmp_path
                 live=await asyncio.to_thread(progress,conversation)
                 step=next(item for item in live['skill_progress']['items'] if item['skill']=='memoir-author-timeline')
                 assert step['status']=='running' and not step['model_invoked']
-                place=next(item for item in live['skill_progress']['items'] if item['skill']=='memoir-place-journey')
-                assert place['status']=='running' and place['execution']=='embedded'
+                assert all(item['skill']!='memoir-place-journey' for item in live['skill_progress']['items'])
                 # A accepts/delivers another useful reply while B's provider is held.
                 reply=await asyncio.to_thread(conversation.say,'I later repaired that bicycle.')
                 assert reply['conversation_saved'] and reply['reply']
@@ -296,7 +295,8 @@ def test_slow_photo_runner_cannot_hold_A_or_memory_and_cache_is_not_a_new_call(s
             'client_turn_id':turn,'places':[{'place':'Hobart','hierarchy':['Earth','Australia','Hobart'],
                 'granularity':'city','latitude':-42.88,'longitude':147.33}]})
         assert groups.status_code==200,groups.text
-        assert groups.json()['skill_progress']['execution']=='deterministic'
+        assert groups.json()['places'][0]['city']['place']=='Hobart'
+        assert 'skill_progress' not in groups.json()
         assert [phase for phase,_ in conversation.admissions]==['profile','extract','extract']
 
 
@@ -319,9 +319,14 @@ def test_completed_optional_services_do_not_keep_readiness_pending(sql,tmp_path,
                 'places':[{'place':'Hobart','hierarchy':['Earth','Australia','Hobart'],
                     'granularity':'city','latitude':-42.88,'longitude':147.33}]})
         assert response.status_code==200,response.text
-        assert response.json()['skill_progress']['status']=='completed'
         view=progress(conversation)
-        assert any(item['phase']==service and item['status']=='completed' for item in view['skill_progress']['items'])
+        steps = [item for item in view['skill_progress']['items'] if item['phase']==service]
+        if service=='photos':
+            assert response.json()['skill_progress']['status']=='completed'
+            assert [item['status'] for item in steps]==['completed']
+        else:
+            assert 'skill_progress' not in response.json() and steps==[]
+            assert response.json()['places'][0]['pin']['latitude']==-42.88
         assert view['skill_progress']['pending'] is False
         assert view['pending'] is False
         conversation.say('I later painted the shed blue.')
@@ -341,18 +346,15 @@ def test_completed_optional_service_receipts_do_not_expire(sql,tmp_path,monkeypa
         turn=sql('select client_turn_id from public.user_narrator_source limit 1;').stdout.strip()
         photo=conversation.client.get(f'/v1/agent/places/{conversation.project}/photos',
             params={'place':'Hobart','period':'1980s'},headers={'X-Memoir-Progress-Turn':turn})
-        groups=conversation.client.post(f'/v1/agent/places/{conversation.project}/groups',json={
-            'client_turn_id':turn,'places':[{'place':'Hobart','hierarchy':['Earth','Australia','Hobart'],
-                'granularity':'city','latitude':-42.88,'longitude':147.33}]})
-        assert photo.status_code==groups.status_code==200
-        assert photo.json()['skill_progress']['status']==groups.json()['skill_progress']['status']=='completed'
+        assert photo.status_code==200
+        assert photo.json()['skill_progress']['status']=='completed'
         sql("update public.user_background_skill_work set updated_at=clock_timestamp()-interval '6 minutes';")
-        steps=[item for item in progress(conversation)['skill_progress']['items'] if item['phase'] in {'photos','grouping'}]
-        assert len(steps)==2
+        steps=[item for item in progress(conversation)['skill_progress']['items'] if item['phase']=='photos']
+        assert len(steps)==1
         assert all(item['status']=='completed' for item in steps),steps
         # Only genuinely unfinished optional work is an interrupted operation.
-        sql("update public.user_background_skill_work set status='running' where phase='grouping';")
-        interrupted=next(item for item in progress(conversation)['skill_progress']['items'] if item['phase']=='grouping')
+        sql("update public.user_background_skill_work set status='running' where phase='photos';")
+        interrupted=next(item for item in progress(conversation)['skill_progress']['items'] if item['phase']=='photos')
         assert interrupted['status']=='failed' and interrupted['reason']=='interrupted'
 
 
@@ -410,7 +412,7 @@ def test_end_users_cannot_forge_applied_skill_receipts(sql,tmp_path,monkeypatch)
             assert denied.returncode and 'permission denied' in denied.stderr
 
 
-def test_shared_place_pass_is_embedded_not_a_second_model_request(sql,tmp_path,monkeypatch):
+def test_timeline_compatibility_place_hints_use_one_model_request(sql,tmp_path,monkeypatch):
     monkeypatch.setenv('MEMORY_SPARK_SHOW_THINKING_STEPS','1')
     def extract(packet):
         return {**empty(packet),'events':[episode(packet,packet['sources'][0]['text'])],
@@ -421,11 +423,10 @@ def test_shared_place_pass_is_embedded_not_a_second_model_request(sql,tmp_path,m
         conversation.say('My father and I repaired a bicycle in Hobart.')
         conversation.drain()
         steps=progress(conversation)['skill_progress']['items']
-        embedded=next(item for item in steps if item['skill']=='memoir-place-journey')
-        assert embedded['status']=='saved' and embedded['execution']=='embedded'
-        assert not embedded['model_invoked'] and embedded['model_attempts']==0
         assert [phase for phase,_ in conversation.admissions]==['profile','extract']
-        assert all(item['skill']!='memoir-family-tree' for item in steps)
+        assert {item['skill'] for item in steps}=={'memoir-author-timeline','memoir-memory-context'}
+        places=conversation.client.get('/v1/agent/place-journey').json()
+        assert places['place_journey']['place']=='Hobart'
 
 
 @pytest.mark.parametrize('research_elapsed_seconds', [0, 47])
@@ -726,16 +727,14 @@ def test_restored_chengde_period_drives_both_photo_and_news_research(sql,tmp_pat
         assert result.returncode==0,result.stdout+result.stderr
 
 
-def test_shared_place_pass_reports_skipped_when_no_place_was_derived(sql,tmp_path,monkeypatch):
+def test_timeline_without_place_cues_does_not_report_a_place_skill(sql,tmp_path,monkeypatch):
     monkeypatch.setenv('MEMORY_SPARK_SHOW_THINKING_STEPS','1')
     conversation=Conversation(sql,tmp_path,monkeypatch,empty)
     with conversation.client:
         conversation.say('I repaired a bicycle in our shed.')
         conversation.drain()
         steps=progress(conversation)['skill_progress']['items']
-        place=next(item for item in steps if item['skill']=='memoir-place-journey')
-        assert place['status']=='skipped' and place['execution']=='embedded'
-        assert place['reason']=='no_place_cue' and not place['model_invoked']
+        assert {item['skill'] for item in steps}=={'memoir-author-timeline','memoir-memory-context'}
         assert [phase for phase,_ in conversation.admissions]==['profile','extract']
 
 
@@ -757,7 +756,6 @@ def test_failed_commit_and_fresh_worker_retry_do_not_leave_false_success(sql,tmp
         steps=progress(conversation)['skill_progress']['items']
         first=next(item for item in steps if item['skill']=='memoir-author-timeline' and item['phase']=='extract')
         assert first['status']=='failed' and first['model_invoked']
-        assert next(item for item in steps if item['skill']=='memoir-place-journey')['status']=='failed'
         assert conversation.client.get('/v1/story/skill-progress',params={'project_id':conversation.project},
             headers={'Authorization':'Bearer another-owner'}).status_code!=200
         conversation.retry()
@@ -785,13 +783,10 @@ def test_saved_writer_receipt_survives_missing_optional_invocation_telemetry(sql
         conversation.say('I remember our shed.')
         conversation.drain()
         steps=progress(conversation)['skill_progress']['items']
-        assert {item['skill'] for item in steps}=={'memoir-author-timeline','memoir-memory-context','memoir-place-journey'}
+        assert {item['skill'] for item in steps}=={'memoir-author-timeline','memoir-memory-context'}
         models=[item for item in steps if item['execution']=='model']
         assert all(item['status']=='saved' and item['reason']=='invocation_receipt_unavailable' for item in models)
         assert all(item['model_invoked'] is None and item['model_attempts'] is None for item in models)
-        place=next(item for item in steps if item['skill']=='memoir-place-journey')
-        assert place['status']=='skipped' and place['reason']=='no_place_cue'
-        assert place['model_invoked'] is False and place['model_attempts']==0
 
 
 def test_committed_page_replay_cannot_save_the_next_pages_work(sql,tmp_path,monkeypatch):

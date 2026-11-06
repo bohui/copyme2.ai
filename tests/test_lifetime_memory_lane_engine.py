@@ -140,13 +140,13 @@ def test_profile_attempt_is_visible_when_foreground_prevents_admission(monkeypat
 
 
 @pytest.mark.parametrize('commit_fails',[False,True])
-def test_shared_timeline_and_place_attempts_are_named_without_duplicate_extraction(monkeypatch,commit_fails):
+def test_timeline_attempt_records_one_extraction(monkeypatch,commit_fails):
     from types import SimpleNamespace
     from unittest.mock import AsyncMock
     from apps.api import llm_tracing, lifetime_memory_composer as composer
     from test_llm_tracing import FakeLangfuse
     current=page()
-    names=['memoir-author-timeline','memoir-place-journey']
+    names=['memoir-author-timeline']
     current['two_lane']={'work_mode':'extract','selected_skills':names,'profile_complete':True}
     client=FakeLangfuse()
     monkeypatch.setattr(llm_tracing,'_client_cache',client)
@@ -162,7 +162,6 @@ def test_shared_timeline_and_place_attempts_are_named_without_duplicate_extracti
     assert extraction.await_count==1
     assert [o.fields['name'] for o in client.observations]==[f'{name}.extract' for name in names]
     assert all(o.updates[-1]['metadata']['status']==('failed' if commit_fails else 'completed') for o in client.observations)
-    assert client.observations[1].updates[-1]['metadata']['execution']=='embedded'
 
 
 @pytest.mark.parametrize('reason',['PAGE_QUOTE','CHRONOLOGY_SCOPE','DATE_EXPRESSION','OUTPUT_SCHEMA'])

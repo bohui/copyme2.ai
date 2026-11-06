@@ -122,15 +122,9 @@ def test_direct_calls_keep_prompt_packet_schema_effort_budget_and_actual_send_gu
     (['memoir-author-timeline'],
      '11cee0707f9cd1f50a785d596a969322402c4b3d0169331926650d06e2e39865',
      '24062c3977930c74ed3e2c19520eb280d01c4281b072ae66b3ed01a121d29609'),
-    (['memoir-place-journey'],
-     '1b81a5625d4c4bf64e2e01835bd19c69f323495715f362912ceff543fe4c673f',
-     'da491183577d1e8f02fab900bd887c8a2fb6a0b07266dfddab9ce5466d1ab0b2'),
-    (['memoir-author-timeline', 'memoir-place-journey'],
-     'f0d069e7d1ce6e1b3ba42ab369502ae6f2e98b86aa1a47c37b7d5ec4761ad5a9',
-     'ddf5450e63574c9fa2fc8d6f832206137f5681ef00eb9978b0b00b1a19fada99'),
-    (['memoir-memory-context', 'memoir-place-journey'],
-     '1b81a5625d4c4bf64e2e01835bd19c69f323495715f362912ceff543fe4c673f',
-     'da491183577d1e8f02fab900bd887c8a2fb6a0b07266dfddab9ce5466d1ab0b2'),
+    (['memoir-author-timeline', 'memoir-memory-context'],
+     '11cee0707f9cd1f50a785d596a969322402c4b3d0169331926650d06e2e39865',
+     '24062c3977930c74ed3e2c19520eb280d01c4281b072ae66b3ed01a121d29609'),
 ])
 def test_selected_extraction_preloads_each_required_document_once(tmp_path, selected_skills, prompt_sha256, schema_sha256):
     from apps.api.lifetime_memory_lane_engine import lane_extraction_packet
@@ -143,16 +137,13 @@ def test_selected_extraction_preloads_each_required_document_once(tmp_path, sele
     run(tmp_path, prepared, publisher, provider)
     body, = provider.bodies
     instructions = body['instructions']
-    timeline = 'memoir-author-timeline' in selected_skills
     assert hashlib.sha256(instructions.encode()).hexdigest() == prompt_sha256
     schema = body['text']['format']['schema']
     assert hashlib.sha256(json.dumps(schema, sort_keys=True).encode()).hexdigest() == schema_sha256
-    primary = 'memoir/skills/' + ('author-timeline/extract' if timeline else 'place-journey/extract')
-    assert body['metadata']['langfuse_prompt_name'] == primary
+    assert body['metadata']['langfuse_prompt_name'] == 'memoir/skills/author-timeline/extract'
     assert 'memoir_read_skill' not in instructions
     assert not body['tools'] and body['tool_choice'] == 'none'
-    assert body['metadata']['generation_name'] == (
-        'memoir-author-timeline.extract' if timeline else 'memoir-place-journey.extract')
+    assert body['metadata']['generation_name'] == 'memoir-author-timeline.extract'
 
 
 @pytest.mark.parametrize('phase', PHASES)

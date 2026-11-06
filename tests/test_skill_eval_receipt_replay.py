@@ -49,8 +49,9 @@ def test_replayed_or_rebound_native_receipt_cannot_pass_a_fresh_run(tmp_path, pr
 
 @pytest.mark.parametrize('field', ['source_revision', 'source_content_sha256'])
 def test_hosted_contract_rejects_receipt_root_source_tampering(tmp_path, field):
-    planned = suite.plan(case=['memoir-place-groups/child-pin/en-AU'])
-    result = asyncio.run(suite.run(planned, tmp_path))
+    from test_skill_eval_suite import ControlledSkill
+    planned = suite.plan(case=['memoir-memory-context/explicit-profile/en-AU'])
+    result = asyncio.run(suite.run(planned, tmp_path, skill=ControlledSkill()))
     row, = result['results']; item, = planned['items']
     assert suite.hosted_contract(item, row['output'], row['binding'], result)['status'] == 'pass'
     stale = deepcopy(result); stale[field] = 'foreign-source'

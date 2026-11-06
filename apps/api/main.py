@@ -2508,15 +2508,8 @@ def create_app(
     async def place_groups(project_id: str, payload: dict[str, Any],
                      x_account_id: str | None = Header(default=None)) -> dict[str, Any]:
         _project(memory, project_id, _account_id(x_account_id))
-        from .place_journey import validate_event_location
-        from .background_skills import group_places
-        raw_places = payload.get('places')
-        if not isinstance(raw_places, list) or len(raw_places) > 1000:
-            raise HTTPException(status_code=422, detail='Invalid place group input')
-        places = [validate_event_location(place) for place in raw_places]
-        if any(place is None for place in places):
-            raise HTTPException(status_code=422, detail='Invalid place group input')
-        return await group_places(_account_id(x_account_id),project_id,places,language=payload.get('language'))
+        from .place_groups import resolve_map_place_groups
+        return await resolve_map_place_groups(payload)
 
     from .place_photo_pages import PhotoPages
     photo_pages = PhotoPages()

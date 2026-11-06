@@ -193,8 +193,9 @@ for (const name of ['privateDraftPreview','workspaceDetail','renderAgentTrace','
 state.showThinkingSteps=true;state.showDraftUpdates=true;state.privateDraft=packet.private_draft;
 Object.assign(context,{persistChatHistory() {},updateStreamingAssistantMessage() {}});
 for (const step of steps) context.recordWorkspaceSkillProgress(step);
-assert.ok(state.workspaceSkillProgress.items.some(step=>step.skill==='memoir-place-groups'),
-  'Replay real uncorrelated service progress through the production recorder');
+assert.ok(state.workspaceSkillProgress.items.some(step=>step.kind==='progress'
+  && step.id.startsWith('place-groups:') && step.status==='completed'),
+  'Replay completed map service progress through the production recorder');
 const workspace=context.workspaceDetail();
 assert.match(workspace,/workspace-media-overview/);
 assert.doesNotMatch(workspace,/agent-loop|data-step-id=/,

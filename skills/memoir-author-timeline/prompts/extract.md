@@ -239,12 +239,10 @@ Use it only for a supported change to those fields. For a wording or relationshi
 correction, update the existing event title/uncertainty with current source_refs
 and set correction=null; never invent a timeline placement to create a patch.
 {{#place_rules}}
-# memoir-place-journey: canonical two-lane extraction
+# Coarse place cues for older timeline requests
 
-Run the place-journey workflow within the same bounded timeline extraction pass.
-Return geographic cues in the required `place_journeys` JSON array, not as
-chat text or control markers. An empty array means this source has no clear
-place cue; do not omit the field.
+Return geographic cues in the required `place_journeys` JSON array. Use an empty
+array when the source has no clear place cue.
 
 Use only places explicitly named in the current narrator source. For each
 distinct clear country, region, city, suburb, town or named administrative

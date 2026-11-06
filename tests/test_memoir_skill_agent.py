@@ -82,7 +82,7 @@ def test_source_choice_requires_each_selected_skill_and_allows_an_explicit_empty
         async def process(names):
             choices.append(names)
             return {'status':'saved'}
-        names = ['memoir-author-timeline','memoir-place-journey','memoir-memory-context']
+        names = ['memoir-author-timeline','memoir-memory-context']
         tools = SkillTools(names,process_source=process,source_skills=names)
         assert not (await tools.call(params('memoir_process_source',skills=names)))['success']
         assert choices == []
@@ -90,21 +90,17 @@ def test_source_choice_requires_each_selected_skill_and_allows_an_explicit_empty
         for name in names:
             await tools.call(params('memoir_read_skill',skill=name))
         assert (await tools.call(params('memoir_process_source',skills=names[1:])))['success']
-        for invalid in (['memoir-story-game'],names+names,['memoir-author-timeline',None]):
+        for invalid in (['memoir-story-game'],['memoir-place-journey'],names+names,['memoir-author-timeline',None]):
             assert not (await tools.call(params('memoir_process_source',skills=invalid)))['success']
         assert choices == [[],names[1:]]
     asyncio.run(scenario())
 
 
-def test_selected_extraction_contract_loads_only_the_requested_skill_instructions():
+def test_selected_timeline_extraction_leaves_place_projection_to_reconciliation():
     from apps.api.two_lane_memory import extraction_contract
-    places, schema = extraction_contract(selected_skills=['memoir-place-journey'])
-    assert '# Memoir Author Timeline' not in places
-    assert 'canonical two-lane extraction' in places
-    assert schema['properties']['events']['maxItems'] == 0
     timeline, schema = extraction_contract(selected_skills=['memoir-author-timeline'])
     assert '# Memoir Author Timeline' in timeline
-    assert 'canonical two-lane extraction' not in timeline
+    assert 'Coarse place cues for older timeline requests' not in timeline
     assert schema['properties']['place_journeys']['maxItems'] == 0
 
 

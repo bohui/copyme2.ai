@@ -30,8 +30,10 @@ def validate(config, prompts):
         if spec['scope'] == 'code' and (spec['evaluated_prompts'] or not spec['validator']):
             raise ValueError('Deterministic target must declare its validator and no model prompt')
     for row in datasets:
-        if row['status'] not in {'active','historical','superseded'}:
+        if row['status'] not in {'active','historical','superseded','retired'}:
             raise ValueError('Unknown dataset status')
+        if row['status']=='retired' and (row['metrics'] or not row.get('retirement_reason')):
+            raise ValueError('Retired dataset must record a reason and have no current metrics')
         if row['status']=='superseded':
             replacement=by_name.get(row.get('superseded_by'))
             if not replacement or replacement['status']!='active' or row['metrics'] or not row.get('retirement_reason'):

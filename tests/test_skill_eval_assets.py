@@ -149,15 +149,16 @@ def test_numeric_score_readback_accepts_sdk_float_without_accepting_wrong_values
 
 
 def test_real_judge_adapter_handles_injection_as_data_and_draft_pin_gate(tmp_path):
+    from test_skill_eval_suite import ControlledSkill
     requests = []
     class Transport:
         async def complete(self, request):
             requests.append(request)
-            return dict(text=json.dumps(dict(status='pass', citations=['output'], rationale='The supplied grouping output is supported.',
+            return dict(text=json.dumps(dict(status='pass', citations=['output'], rationale='The supplied profile output is supported.',
                 critical_violations=[])), response_id='actual-transport-id', model='independent-fixture', usage=None)
     adapter = assets.IndependentJudgeAdapter(Transport(), controlled=True)
-    planned = suite.plan(skill=['memoir-place-groups'], locale=['en-AU'])
-    receipt = asyncio.run(suite.run(planned, tmp_path, sdk_judge=adapter, max_judge_calls=1))
+    planned = suite.plan(skill=['memoir-memory-context'], locale=['en-AU'])
+    receipt = asyncio.run(suite.run(planned, tmp_path, skill=ControlledSkill(), sdk_judge=adapter, max_judge_calls=1))
     assert receipt['results'][0]['quality']['status'] == 'pass'
     assert receipt['budgets']['judge']['dispatched'] == 1
     assert requests[0]['store'] is False
@@ -168,10 +169,11 @@ def test_real_judge_adapter_handles_injection_as_data_and_draft_pin_gate(tmp_pat
 
 
 def test_malformed_judge_text_and_missing_evidence_are_unavailable(tmp_path):
+    from test_skill_eval_suite import ControlledSkill
     class Transport:
         async def complete(self, request):
             return dict(text='not JSON', response_id='fixture', model='fixture')
-    receipt = asyncio.run(suite.run(suite.plan(skill=['memoir-place-groups']), tmp_path,
+    receipt = asyncio.run(suite.run(suite.plan(skill=['memoir-memory-context']), tmp_path, skill=ControlledSkill(),
         sdk_judge=assets.IndependentJudgeAdapter(Transport(), controlled=True), max_judge_calls=1))
     assert receipt['results'][0]['quality']['status'] == 'unavailable'
     assert receipt['results'][1]['quality']['reason'] == 'judge_budget_exhausted'
@@ -179,7 +181,7 @@ def test_malformed_judge_text_and_missing_evidence_are_unavailable(tmp_path):
 
 def test_scoped_execution_never_archives_unselected_items_and_shared_assets_are_nonempty():
     rows = assets.dataset_rows(suite.plan(skill=['memoir-interviewer'], locale=['en-AU']))
-    assert sum(len(items) for name, items in rows.items() if name in assets.SKILL_DATASETS) == 160
+    assert sum(len(items) for name, items in rows.items() if name in assets.SKILL_DATASETS) == 128
     assert len(rows['memoir/workflows/source-to-private-draft/golden/core']) == 2
     calibration = [items for name, items in rows.items() if name == assets.JUDGE_DATASET]
     assert len(calibration) == 1 and len(calibration[0]) == 80
@@ -190,8 +192,8 @@ def test_managed_rules_are_disabled_synthetic_only_and_sdk_does_not_schedule_jud
     planned = suite.plan()
     managed = assets.managed_assets(planned, executor='managed')
     sdk = assets.managed_assets(planned, executor='sdk')
-    assert len(managed['definitions']) == len(managed['rules']) == 20
-    assert len(sdk['rules']) == 10
+    assert len(managed['definitions']) == len(managed['rules']) == 16
+    assert len(sdk['rules']) == 8
     assert all(not r['enabled'] and r['synthetic_only'] and r['dataset'].startswith(assets.DATASET_PREFIX)
                for r in managed['rules'])
 

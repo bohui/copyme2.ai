@@ -554,7 +554,7 @@
         "conflicts": false,
         "output_language": "Australian English"
       },
-      "sha256": "b8966fd57dce317e72a0698b55944eb87dd70e2d0647b7aa5b6d4c3170c97936"
+      "sha256": "098620f5302f26fa7a3f25ef911c78182b4feaaee6ff45fcf266d54a0a2d6cb5"
     },
     {
       "name": "memoir/skills/author-timeline/extract",
@@ -569,7 +569,7 @@
         "conflicts": false,
         "output_language": "Australian English"
       },
-      "sha256": "9f72fd746e55bba3d54a37c1c205cf774d67e13bfbac64694aff45c1f0c9262b"
+      "sha256": "ea3dec19a4974048896d26480dc4b7bb1538be5e4d1879c70e1c8b2cbcc196d1"
     },
     {
       "name": "memoir/skills/author-timeline/extract",
@@ -584,7 +584,7 @@
         "conflicts": false,
         "output_language": "Australian English"
       },
-      "sha256": "7a72b239520359928e2796b2cdcbf05c348a067bee8de99a0d0757a25c014316"
+      "sha256": "a693eec4869a040bd6079849d0b6819a9acedea63c725dbee74edccb0bba3d8f"
     },
     {
       "name": "memoir/skills/author-timeline/extract",
@@ -599,7 +599,7 @@
         "conflicts": false,
         "output_language": "Australian English"
       },
-      "sha256": "115e2203b2cefb342b687cd0868b632590ea57ce6e3d6ecd772a639c3a8d914b"
+      "sha256": "55391ec05a733dc35be0c800dc01b434eec698a4a2a69180ceb59be0cee6a30b"
     },
     {
       "name": "memoir/skills/author-timeline/extract",
@@ -674,7 +674,7 @@
         "conflicts": true,
         "output_language": "Australian English"
       },
-      "sha256": "d231f6e3297ab6dc1980aca21d935de49c047f5ff93a35750ef3df2c1858eab4"
+      "sha256": "62c3659abdae8ef155d8afd671d8cc0f3f09a77403eb3ccac98999d5afb665d2"
     },
     {
       "name": "memoir/skills/author-timeline/extract",
@@ -689,7 +689,7 @@
         "conflicts": true,
         "output_language": "Australian English"
       },
-      "sha256": "cbe016fc16eb68ea995f8d2f4a0610f0ecb4fb19d599055618ae3dbcbc2287fe"
+      "sha256": "0fb929f726c249b7d952095392fbf08030787837837282ba7977c64bfd98cced"
     },
     {
       "name": "memoir/skills/author-timeline/extract",
@@ -704,7 +704,7 @@
         "conflicts": true,
         "output_language": "Australian English"
       },
-      "sha256": "c00e4892318c7d86412a5255de1a5c7bddc081e87cd5d6e13f1b0289809e68ed"
+      "sha256": "562b4e739862c46681de63590e03073faea83ed8259041b5243cb4299d172de2"
     },
     {
       "name": "memoir/skills/author-timeline/extract",
@@ -719,7 +719,7 @@
         "conflicts": true,
         "output_language": "Australian English"
       },
-      "sha256": "949c4bb5e73d07905a372e716247aeee9972b604f5decca9cfb1a4d31f693a96"
+      "sha256": "2f58606daa244a844aa4d98f8bf846211c27d5de54297f7edd1995206b0c3341"
     },
     {
       "name": "memoir/skills/author-timeline/extract",
@@ -794,7 +794,7 @@
         "conflicts": false,
         "output_language": "Simplified Chinese"
       },
-      "sha256": "8ad3da8cce09a9d0ef90175f80842dbd8507767d8d5c3d57b316592a9542e3ee"
+      "sha256": "28ec11e67a75b2c88f120b5eba3bbb95daab6fed40c894de35f0041488e608bb"
     },
     {
       "name": "memoir/skills/author-timeline/extract",
@@ -809,7 +809,7 @@
         "conflicts": false,
         "output_language": "Simplified Chinese"
       },
-      "sha256": "db5ec3c8fd55eb63f69c5684baa8f257b9df2e712e80e50a601c4bf28e466f2f"
+      "sha256": "7698ba67cc33f463a5563bfb568872d000629a1c94898ce6d3c2a32855392aa5"
     },
     {
       "name": "memoir/skills/author-timeline/extract",
@@ -824,7 +824,7 @@
         "conflicts": false,
         "output_language": "Simplified Chinese"
       },
-      "sha256": "77d8da470078169278658f03f14467426b6fc3706fbb6896985fc6e8f9055053"
+      "sha256": "004583ad78d3f2de58f7a78ff97ffb97f1ae7637038e26fec68b20e6792dc39e"
     },
     {
       "name": "memoir/skills/author-timeline/extract",
@@ -839,7 +839,7 @@
         "conflicts": false,
         "output_language": "Simplified Chinese"
       },
-      "sha256": "7664c676c26fa84e68bed90038a141b0d52f016740d62c369fec0914b286d743"
+      "sha256": "26221bbf58e733f4156179285a5d3129e4ff948c8cfa2600e4646aebe9bb6c0a"
     },
     {
       "name": "memoir/skills/author-timeline/extract",
@@ -914,7 +914,7 @@
         "conflicts": true,
         "output_language": "Simplified Chinese"
       },
-      "sha256": "b4aaea860a633d7fafd2adda2da4828d6696dc3624cba846038421ff555b30cd"
+      "sha256": "7b78b7186c50b172f5aeeb3e12e3044086aa0e2752c57ac6abfe38c6718fe415"
     },
     {
       "name": "memoir/skills/author-timeline/extract",
@@ -929,7 +929,7 @@
         "conflicts": true,
         "output_language": "Simplified Chinese"
       },
-      "sha256": "a51adea25f65ed4179b281588555c9a75d856690836fd9231ca03f6adc52e50e"
+      "sha256": "7c69944927c9d984fd7c3eb0a9dee19b583a53af3a581b77c7c489c8f1510fa1"
     },
     {
       "name": "memoir/skills/author-timeline/extract",
@@ -944,7 +944,7 @@
         "conflicts": true,
         "output_language": "Simplified Chinese"
       },
-      "sha256": "029542ac3e218b700d0bd735b7af81ed0e9ba3a37dfe7af38b19fc53769fcaf4"
+      "sha256": "e5a1e2dca3ffdc9a6dc4abc9d538854618ce3d2f617d9082e5528d90d2e704dd"
     },
     {
       "name": "memoir/skills/author-timeline/extract",
@@ -959,247 +959,7 @@
         "conflicts": true,
         "output_language": "Simplified Chinese"
       },
-      "sha256": "e0a6e0a977b91188ff458aaf3a64726e5072c23f425457fe7159e43e2d6eeee1"
-    },
-    {
-      "name": "memoir/skills/place-journey/extract",
-      "variables": {
-        "events_only": false,
-        "places": true,
-        "place_rules": true,
-        "attribution": false,
-        "continuity": false,
-        "batch": false,
-        "bounded": true,
-        "conflicts": false,
-        "output_language": "Australian English"
-      },
-      "sha256": "afff1feca9f842f5c023159a655debf0f580461fabc3b3057916db510b137748"
-    },
-    {
-      "name": "memoir/skills/place-journey/extract",
-      "variables": {
-        "events_only": false,
-        "places": true,
-        "place_rules": true,
-        "attribution": false,
-        "continuity": true,
-        "batch": false,
-        "bounded": true,
-        "conflicts": false,
-        "output_language": "Australian English"
-      },
-      "sha256": "1b81a5625d4c4bf64e2e01835bd19c69f323495715f362912ceff543fe4c673f"
-    },
-    {
-      "name": "memoir/skills/place-journey/extract",
-      "variables": {
-        "events_only": false,
-        "places": true,
-        "place_rules": true,
-        "attribution": true,
-        "continuity": false,
-        "batch": false,
-        "bounded": true,
-        "conflicts": false,
-        "output_language": "Australian English"
-      },
-      "sha256": "a2b15c08730e609df4bb184dd475380f544c7954d5c8bbd138124ac28488be1c"
-    },
-    {
-      "name": "memoir/skills/place-journey/extract",
-      "variables": {
-        "events_only": false,
-        "places": true,
-        "place_rules": true,
-        "attribution": true,
-        "continuity": true,
-        "batch": false,
-        "bounded": true,
-        "conflicts": false,
-        "output_language": "Australian English"
-      },
-      "sha256": "adeef442699a07122c572b83f0b7f5dc461f9f77f1e277209004a7294b5983c1"
-    },
-    {
-      "name": "memoir/skills/place-journey/extract",
-      "variables": {
-        "events_only": false,
-        "places": true,
-        "place_rules": true,
-        "attribution": false,
-        "continuity": false,
-        "batch": false,
-        "bounded": true,
-        "conflicts": true,
-        "output_language": "Australian English"
-      },
-      "sha256": "2d9f49507060b7dc453bc46297b8be0c841c22f25f5a1b3f50f962ebfd4d9cdd"
-    },
-    {
-      "name": "memoir/skills/place-journey/extract",
-      "variables": {
-        "events_only": false,
-        "places": true,
-        "place_rules": true,
-        "attribution": false,
-        "continuity": true,
-        "batch": false,
-        "bounded": true,
-        "conflicts": true,
-        "output_language": "Australian English"
-      },
-      "sha256": "5c837fe3595881ad7f293106d712cfb4155a4701f670a7bd9ad4548a734a2482"
-    },
-    {
-      "name": "memoir/skills/place-journey/extract",
-      "variables": {
-        "events_only": false,
-        "places": true,
-        "place_rules": true,
-        "attribution": true,
-        "continuity": false,
-        "batch": false,
-        "bounded": true,
-        "conflicts": true,
-        "output_language": "Australian English"
-      },
-      "sha256": "b860037c3d80868eac318d4c333c5c4fdb498a655f1b1caea0f541085c2b6427"
-    },
-    {
-      "name": "memoir/skills/place-journey/extract",
-      "variables": {
-        "events_only": false,
-        "places": true,
-        "place_rules": true,
-        "attribution": true,
-        "continuity": true,
-        "batch": false,
-        "bounded": true,
-        "conflicts": true,
-        "output_language": "Australian English"
-      },
-      "sha256": "1936bfd4dbc864555d7793429cb9b11a4814befc85feebb074af4bf0345af78a"
-    },
-    {
-      "name": "memoir/skills/place-journey/extract",
-      "variables": {
-        "events_only": false,
-        "places": true,
-        "place_rules": true,
-        "attribution": false,
-        "continuity": false,
-        "batch": false,
-        "bounded": true,
-        "conflicts": false,
-        "output_language": "Simplified Chinese"
-      },
-      "sha256": "927eb8a301c8ace7f740dc1ba748966d24eb0cd8c593aa9764d94e5dcfbee794"
-    },
-    {
-      "name": "memoir/skills/place-journey/extract",
-      "variables": {
-        "events_only": false,
-        "places": true,
-        "place_rules": true,
-        "attribution": false,
-        "continuity": true,
-        "batch": false,
-        "bounded": true,
-        "conflicts": false,
-        "output_language": "Simplified Chinese"
-      },
-      "sha256": "01be3fc9023c71a9c2738247502c8098be522beb10292d93345c81bb93a81ae6"
-    },
-    {
-      "name": "memoir/skills/place-journey/extract",
-      "variables": {
-        "events_only": false,
-        "places": true,
-        "place_rules": true,
-        "attribution": true,
-        "continuity": false,
-        "batch": false,
-        "bounded": true,
-        "conflicts": false,
-        "output_language": "Simplified Chinese"
-      },
-      "sha256": "bd79a5669f756a2c21201e27063f61f88c5cfe92b5b29981e3a7a6f23f84ca26"
-    },
-    {
-      "name": "memoir/skills/place-journey/extract",
-      "variables": {
-        "events_only": false,
-        "places": true,
-        "place_rules": true,
-        "attribution": true,
-        "continuity": true,
-        "batch": false,
-        "bounded": true,
-        "conflicts": false,
-        "output_language": "Simplified Chinese"
-      },
-      "sha256": "b1652d4d85c2ea220fb3cfc2937f4498f0fd3288739dec9fe0880671b95de47e"
-    },
-    {
-      "name": "memoir/skills/place-journey/extract",
-      "variables": {
-        "events_only": false,
-        "places": true,
-        "place_rules": true,
-        "attribution": false,
-        "continuity": false,
-        "batch": false,
-        "bounded": true,
-        "conflicts": true,
-        "output_language": "Simplified Chinese"
-      },
-      "sha256": "4abbd59fbc3e42ecf5d28dee1f1aef433300c2c8bb1bc7ce4a7abbe63ea73ca8"
-    },
-    {
-      "name": "memoir/skills/place-journey/extract",
-      "variables": {
-        "events_only": false,
-        "places": true,
-        "place_rules": true,
-        "attribution": false,
-        "continuity": true,
-        "batch": false,
-        "bounded": true,
-        "conflicts": true,
-        "output_language": "Simplified Chinese"
-      },
-      "sha256": "c1a0d62bf7fd736500dfc0e2f4277590c54df0f08092f24c1ad021b45e938fda"
-    },
-    {
-      "name": "memoir/skills/place-journey/extract",
-      "variables": {
-        "events_only": false,
-        "places": true,
-        "place_rules": true,
-        "attribution": true,
-        "continuity": false,
-        "batch": false,
-        "bounded": true,
-        "conflicts": true,
-        "output_language": "Simplified Chinese"
-      },
-      "sha256": "ad99bdfca7b4060f4e26fe4d9d0de7e898da55e197d27c2a3518aed538ab79b8"
-    },
-    {
-      "name": "memoir/skills/place-journey/extract",
-      "variables": {
-        "events_only": false,
-        "places": true,
-        "place_rules": true,
-        "attribution": true,
-        "continuity": true,
-        "batch": false,
-        "bounded": true,
-        "conflicts": true,
-        "output_language": "Simplified Chinese"
-      },
-      "sha256": "cfbfd6b70351aa6028431f8150de09e10a8ec885f25a3033e81a9672303a3e9c"
+      "sha256": "80a8d26fb12c10c588a7ee6ee9509894b65a296bdfec2a1ba7f8c2dfc8b1489d"
     },
     {
       "name": "memoir/skills/author-timeline/reconcile",

@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Plan and evaluate all ten Memoir skills; retain historical v2 helpers."""
+"""Plan and evaluate current Memoir skills and retain historical v2 helpers."""
 from __future__ import annotations
 
 import argparse
@@ -41,6 +41,7 @@ TRIGGERS = {
         'tests/test_background_skill_workflow.py::test_readiness_reports_saved_skill_with_actual_turn_and_source_coverage',
         'tests/test_background_skill_workflow.py::test_reply_only_is_skipped_not_model_applied_and_hidden_when_thinking_off',
         'tests/test_canonical_turn_publication.py::test_controlled_delivery_and_replay_keep_sql_authority_until_asgi_send',
+        'tests/test_memoir_background_agent_workflow.py::test_pending_place_journey_resumes_in_author_timeline',
     ],
     'memoir-composer': [
         'tests/test_background_skill_workflow.py::test_only_existing_profile_and_composer_schedules_advance_on_round_milestones',
@@ -63,16 +64,6 @@ TRIGGERS = {
         'tests/test_background_profile_postgres.py::test_manual_blank_locks_stop_latch_release_and_honest_skip',
         'tests/test_background_profile.py::test_no_model_profile_dispositions_do_not_load_the_skill',
         'tests/test_background_profile.py::test_profile_contract_limits_targets_and_never_targets_saved_manual_reference',
-    ],
-    'memoir-place-groups': [
-        'tests/test_place_groups.py',
-        'tests/test_background_skill_workflow.py::test_completed_optional_service_receipts_do_not_expire',
-    ],
-    'memoir-place-journey': [
-        'tests/test_background_skill_workflow.py::test_shared_place_pass_is_embedded_not_a_second_model_request',
-        'tests/test_background_skill_workflow.py::test_shared_place_pass_reports_skipped_when_no_place_was_derived',
-        'tests/test_place_journey.py::test_place_journey_marker_must_match_the_current_storyteller_message',
-        'tests/test_place_journey.py::test_explicit_place_uncertainty_blocks_mapping_even_when_a_city_is_named',
     ],
     'memoir-place-photo-research': [
         'tests/test_background_skill_workflow.py::test_slow_photo_runner_cannot_hold_A_or_memory_and_cache_is_not_a_new_call',

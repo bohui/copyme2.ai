@@ -30,7 +30,7 @@ from scripts.memoir_skill_eval_suite import Budget, digest, inventory, packet, v
 from scripts.run_memoir_live_skills import LiveProvider, native_search, save
 from scripts.langfuse_dataset_names import SKILL_TARGETS, target_dataset, score_name
 
-DIRECT_REPLAY_SKILLS={'memoir-author-timeline','memoir-memory-context','memoir-place-journey','memoir-place-groups'}
+DIRECT_REPLAY_SKILLS={'memoir-author-timeline','memoir-memory-context'}
 
 
 def evaluated_status(row,calls):
@@ -286,11 +286,7 @@ class Runner:
                         raise LookupError('canonical_family_runner_unwired')
                     if case['skill'] == 'memoir-story-game':
                         raise LookupError('game_requires_authority_and_browser_workflow; not certified by a prompt probe')
-                    if case['skill'] == 'memoir-place-groups':
-                        row['evidence_mode'] = 'deterministic_production_function'
-                        from apps.api.place_groups import resolve_place_groups
-                        value = resolve_place_groups(deepcopy(case['task']['places']), allow_provider=False)
-                    elif case['skill'] == 'memoir-composer':
+                    if case['skill'] == 'memoir-composer':
                         row['evidence_mode'] = 'live_composition_with_in_memory_checkpoints'
                         from scripts.memoir_skill_eval_workflows import composer
                         from scripts.memoir_skill_eval_suite import validate_workflow

@@ -540,25 +540,6 @@
         "evaluator_decision": "Retain contract checks and scoped judges; judge calibration and media quality remain explicit gaps, not passing scores. Reviewed the shared relevance clarification: three explicit score anchors remove interpolation; existing task cases and code checks remain suitable. This review does not imply a new model-quality result. Reuse the production contract graders and shared judge calibration. The unified command adds exact requested-pin observation scores; unused components cannot inherit a passing workflow result."
       }
     },
-    "memoir/probes/skills/place-groups/group": {
-      "use": "probe",
-      "scenario": "Isolated live-skill/native-search evaluation instructions; production place grouping stays deterministic.",
-      "consumers": [
-        "scripts/memoir_live_skill_cases.py:cases",
-        "scripts/memoir_live_skill_cases.py:eval_fragment"
-      ],
-      "regressions": [
-        "tests/test_memoir_live_skills.py",
-        "tests/test_automatic_prompt_evaluation.py"
-      ],
-      "review": {
-        "prompt_sha256": "8608c7d241e54df1b460248bf12e26c373361f4b9f4b20f50a92324aecf447cc",
-        "datasets_sha256": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
-        "evaluators_sha256": "d3671546b3c824a7f3674ecfea66954bd82b77247bebe35f754a047ab962cc48",
-        "dataset_decision": "Reuse existing cases for retained bytes; missing direct/branch datasets are explicitly reported and require new fixtures before a quality claim. Automatic prompt/skill command selection reuses the same frozen production scenario inputs and gold; it does not choose historical datasets by name alone.",
-        "evaluator_decision": "Retain contract checks and scoped judges; judge calibration and media quality remain explicit gaps, not passing scores. Reviewed the shared relevance clarification: three explicit score anchors remove interpolation; existing task cases and code checks remain suitable. This review does not imply a new model-quality result. Reuse the production contract graders and shared judge calibration. The unified command adds exact requested-pin observation scores; unused components cannot inherit a passing workflow result."
-      }
-    },
     "memoir/probes/skills/story-game/brief": {
       "use": "probe",
       "scenario": "Isolated live-skill/native-search evaluation instructions; production place grouping stays deterministic.",
@@ -642,7 +623,7 @@
     },
     "memoir/skills/author-timeline/extract": {
       "use": "conditional",
-      "scenario": "Draft original timing, geography and same-response chronology in a bounded source window. Canonical identity choices are deferred to reconciliation. Already-admitted legacy requests retain their identity and place contracts.",
+      "scenario": "Draft original timing, geography and chronology in a bounded source window. Pending Place Journey windows are resumed here and use Timeline reconciliation. The unselected compatibility path still produces coarse place hints.",
       "consumers": [
         "apps/api/memory_events.py:extraction_instructions",
         "apps/api/two_lane_memory.py:extraction_contract"
@@ -658,14 +639,15 @@
         "tests/test_prompt_usage_link.py",
         "tests/test_memoir_background_agent_workflow.py::test_timeline_reconciles_and_revises_a_city_period",
         "tests/test_timeline_reported_places.py::test_map_city_chronology_preserves_skill_relations_across_paginated_api",
-        "tests/js/map-memory-journey.test.mjs"
+        "tests/js/map-memory-journey.test.mjs",
+        "tests/test_memoir_background_agent_workflow.py::test_pending_place_journey_resumes_in_author_timeline"
       ],
       "review": {
-        "prompt_sha256": "dee2b67275100aef548b4e3e324dc8d65582452daca8a1c2b293865b06cc7add",
-        "datasets_sha256": "5a0353966caf12a1b140560becc91bfdbe51c5e09e0cfc2d5ecb4fdf2a30682f",
-        "evaluators_sha256": "158f4d87b1ca0525c6afcb16232c6099d6b6c6b103125a07fc8842502c9c9a37",
-        "dataset_decision": "Reuse the bilingual source/gold cases reviewed for instruction preloading: exact and uncertain testimony, Unicode spans, manual values/blanks, other-person facts, place ambiguity and composer checkpoints. Output contracts are unchanged. New fixed-worker HTTP replays verify one request, selected documents and exact budgets; Higgsfield replays retain optional-reference and HTML validation checks. Registered the 5 November preloading recheck: 18 existing bilingual catalog cases, with unchanged gold, real hosted item IDs and verified experiment readback. Earlier datasets and experiments remain available. Reuse the reviewed bilingual testimony, manual-authority, privacy, attribution, continuity, geography and composer gold. The assembled-template parity matrix preserves the exact original fixed-worker instruction bytes for all 84 supported locale/optional-output variants. News and game stages retain their phase schemas and preloaded upstream documents. Source components remain explicit dependencies; archived historical experiment manifests retain their old pins. Development version 1 does not inherit a model-quality pass from deleted publication IDs. Reuse the existing source/gold cases for native usage linking: only content-free tracing metadata changes; instruction bytes, schema and model outputs are unchanged. For the one-file consolidation, reuse the reviewed scenario inputs and gold: all 26 published skill texts, 84 rendered variants and controlled extraction/composer requests retain their instruction bytes and schemas. Current bindings identify the actual operation rather than former source fragments. Historical experiment manifests remain unchanged. Reuse frozen exact testimony, uncertainty, privacy and bilingual overlapping residence cases. Add a controlled Porto to Hobart replay with a draft relation, duplicate event, independent end date and two compatible updates to a published event. Keep the legacy extraction cases and add a normal two-phase replay for new drafts and later updates.",
-        "evaluator_decision": "Reuse source/span, manual-authority, privacy, schema, geographic and prose-evidence graders. Check actual prompt manifests and request counts; instruction delivery no longer earns skill-reader credit on fixed workers. Controlled transport checks and unchanged pins alone do not establish model quality for the new assembly. All 18 production/gold scenario checks passed; four same-model advisory judgments retain their limited-witness and uncalibrated status. Execution credit remains conditional on each actual prompt manifest. Reuse the existing source/span, manual-authority, schema, geography, publication and game-outcome graders: output rules and supported actions are unchanged. Add whole-template publication, section validation, local-component provenance, primary-prompt linkage and scoped/idempotent history-reset checks. Hash parity and contract regressions establish assembly equivalence, not fresh model-quality or human acceptance. Fixed-worker provenance credits one published operation template and only active local source hashes. A shared grounding substring cannot earn execution credit for another operation template. Reuse the existing output gold and graders because request instruction bytes and schemas remain unchanged. Native usage-link regressions now verify that one worker request forwards its sole published prompt identity; the pinned gateway test maps it to the existing generation. Absent, ambiguous or invalid identities receive no link. Output graders are reused because the prompt and model contract are unchanged; counter verification is an observability check, not a new quality result. Reuse the current schema, attribution, continuity, geography, prose and stage graders: the consolidation changes source layout and provenance, not what the model must return. Standalone-template, exact-version, transport-hash and tool-document regressions cover the new wiring. These checks do not establish a new model-quality score. Reuse original-span, estimate and identity validation. The new replay checks canonical relation IDs, retained evidence, revised city dates and the footprint across worker, database, API and client. The host checks the draft-only identity schema, then independently validates reconciled event revisions and source links."
+        "prompt_sha256": "f7316012bbeda871ff2f62dd13d5dbdbeff1aa5594fcc7f98c15762e0f101816",
+        "datasets_sha256": "7d821a1f429f8e4e864890553c05633c8a9c5a60b6404c77db64d87f647a94fb",
+        "evaluators_sha256": "f70a9875838d8eceee035ff5dab5561c0311048f017d1cd14f3dbc635f10a9f5",
+        "dataset_decision": "Reuse the bilingual source/gold cases reviewed for instruction preloading: exact and uncertain testimony, Unicode spans, manual values/blanks, other-person facts, place ambiguity and composer checkpoints. Output contracts are unchanged. New fixed-worker HTTP replays verify one request, selected documents and exact budgets; Higgsfield replays retain optional-reference and HTML validation checks. Registered the 5 November preloading recheck: 18 existing bilingual catalog cases, with unchanged gold, real hosted item IDs and verified experiment readback. Earlier datasets and experiments remain available. Reuse the reviewed bilingual testimony, manual-authority, privacy, attribution, continuity, geography and composer gold. The assembled-template parity matrix preserves the exact original fixed-worker instruction bytes for all 84 supported locale/optional-output variants. News and game stages retain their phase schemas and preloaded upstream documents. Source components remain explicit dependencies; archived historical experiment manifests retain their old pins. Development version 1 does not inherit a model-quality pass from deleted publication IDs. Reuse the existing source/gold cases for native usage linking: only content-free tracing metadata changes; instruction bytes, schema and model outputs are unchanged. For the one-file consolidation, reuse the reviewed scenario inputs and gold: all 26 published skill texts, 84 rendered variants and controlled extraction/composer requests retain their instruction bytes and schemas. Current bindings identify the actual operation rather than former source fragments. Historical experiment manifests remain unchanged. Reuse frozen exact testimony, uncertainty, privacy and bilingual overlapping residence cases. Add a controlled Porto to Hobart replay with a draft relation, duplicate event, independent end date and two compatible updates to a published event. Keep the legacy extraction cases and add a normal two-phase replay for new drafts and later updates. Retain the existing Timeline chronology, location and evidence cases. Old place-skill dataset IDs are preserved for history and excluded from current skill runs. A persisted-source retry replay covers the routing change without changing frozen gold.",
+        "evaluator_decision": "Reuse source/span, manual-authority, privacy, schema, geographic and prose-evidence graders. Check actual prompt manifests and request counts; instruction delivery no longer earns skill-reader credit on fixed workers. Controlled transport checks and unchanged pins alone do not establish model quality for the new assembly. All 18 production/gold scenario checks passed; four same-model advisory judgments retain their limited-witness and uncalibrated status. Execution credit remains conditional on each actual prompt manifest. Reuse the existing source/span, manual-authority, schema, geography, publication and game-outcome graders: output rules and supported actions are unchanged. Add whole-template publication, section validation, local-component provenance, primary-prompt linkage and scoped/idempotent history-reset checks. Hash parity and contract regressions establish assembly equivalence, not fresh model-quality or human acceptance. Fixed-worker provenance credits one published operation template and only active local source hashes. A shared grounding substring cannot earn execution credit for another operation template. Reuse the existing output gold and graders because request instruction bytes and schemas remain unchanged. Native usage-link regressions now verify that one worker request forwards its sole published prompt identity; the pinned gateway test maps it to the existing generation. Absent, ambiguous or invalid identities receive no link. Output graders are reused because the prompt and model contract are unchanged; counter verification is an observability check, not a new quality result. Reuse the current schema, attribution, continuity, geography, prose and stage graders: the consolidation changes source layout and provenance, not what the model must return. Standalone-template, exact-version, transport-hash and tool-document regressions cover the new wiring. These checks do not establish a new model-quality score. Reuse original-span, estimate and identity validation. The new replay checks canonical relation IDs, retained evidence, revised city dates and the footprint across worker, database, API and client. The host checks the draft-only identity schema, then independently validates reconciled event revisions and source links. Keep Timeline contract graders and shared judge calibration. Check grouping through the deterministic map API-to-client replay. The retry test verifies extract and reconcile phases and preservation of source links. The compatibility instructions identify the coarse-place output as part of Timeline. The JSON fields and grounding criteria stay the same, so the existing output graders still apply."
       }
     },
     "memoir/skills/composer/draft": {
@@ -880,47 +862,6 @@
         "evaluators_sha256": "f3ebd76a891f9f5ab0d9b9e402911939646a0ce2dccf17b9d1ec1774f6b788a7",
         "dataset_decision": "Reuse the bilingual source/gold cases reviewed for instruction preloading: exact and uncertain testimony, Unicode spans, manual values/blanks, other-person facts, place ambiguity and composer checkpoints. Output contracts are unchanged. New fixed-worker HTTP replays verify one request, selected documents and exact budgets; Higgsfield replays retain optional-reference and HTML validation checks. Reuse the reviewed bilingual testimony, manual-authority, privacy, attribution, continuity, geography and composer gold. The assembled-template parity matrix preserves the exact original fixed-worker instruction bytes for all 84 supported locale/optional-output variants. News and game stages retain their phase schemas and preloaded upstream documents. Source components remain explicit dependencies; archived historical experiment manifests retain their old pins. Development version 1 does not inherit a model-quality pass from deleted publication IDs. For the one-file consolidation, reuse the reviewed scenario inputs and gold: all 26 published skill texts, 84 rendered variants and controlled extraction/composer requests retain their instruction bytes and schemas. Current bindings identify the actual operation rather than former source fragments. Historical experiment manifests remain unchanged.",
         "evaluator_decision": "Reuse source/span, manual-authority, privacy, schema, geographic and prose-evidence graders. Check actual prompt manifests and request counts; instruction delivery no longer earns skill-reader credit on fixed workers. Controlled transport checks and unchanged pins alone do not establish model quality for the new assembly. Reuse the existing source/span, manual-authority, schema, geography, publication and game-outcome graders: output rules and supported actions are unchanged. Add whole-template publication, section validation, local-component provenance, primary-prompt linkage and scoped/idempotent history-reset checks. Hash parity and contract regressions establish assembly equivalence, not fresh model-quality or human acceptance. Fixed-worker provenance credits one published operation template and only active local source hashes. A shared grounding substring cannot earn execution credit for another operation template. Reuse the existing output gold and graders because request instruction bytes and schemas remain unchanged; native gateway prompt-use links remain outside this cleanup. Reuse the current schema, attribution, continuity, geography, prose and stage graders: the consolidation changes source layout and provenance, not what the model must return. Standalone-template, exact-version, transport-hash and tool-document regressions cover the new wiring. These checks do not establish a new model-quality score."
-      }
-    },
-    "memoir/probes/skills/place-groups/instructions": {
-      "use": "probe",
-      "scenario": "Isolated live-skill/native-search evaluation instructions; production place grouping stays deterministic.",
-      "consumers": [
-        "scripts/memoir_live_skill_cases.py:cases",
-        "scripts/memoir_live_skill_cases.py:eval_fragment"
-      ],
-      "regressions": [
-        "tests/test_memoir_live_skills.py",
-        "tests/test_automatic_prompt_evaluation.py"
-      ],
-      "review": {
-        "prompt_sha256": "f03171f20d2c2d595b08e0fe579ed456a4da606da8e02c3555c27788e50fdda4",
-        "datasets_sha256": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
-        "evaluators_sha256": "92ca0360b50d5365b260b5c70c8527288485c8a09515f086a8d656c5510029fb",
-        "dataset_decision": "Reuse existing cases for retained bytes; missing direct/branch datasets are explicitly reported and require new fixtures before a quality claim. Automatic prompt/skill command selection reuses the same frozen production scenario inputs and gold; it does not choose historical datasets by name alone.",
-        "evaluator_decision": "Retain contract checks and scoped judges; judge calibration and media quality remain explicit gaps, not passing scores. Reviewed the shared relevance clarification: three explicit score anchors remove interpolation; existing task cases and code checks remain suitable. This review does not imply a new model-quality result. Reuse the production contract graders and shared judge calibration. The unified command adds exact requested-pin observation scores; unused components cannot inherit a passing workflow result."
-      }
-    },
-    "memoir/skills/place-journey/extract": {
-      "use": "shared",
-      "scenario": "Place cues share one preloaded structured timeline/place extraction request; place-only work uses the same bounded JSON contract.",
-      "consumers": [
-        "apps/api/two_lane_memory.py:extraction_contract",
-        "apps/api/memoir_skill_agent.py:skill_document"
-      ],
-      "regressions": [
-        "tests/test_two_lane_memory.py",
-        "tests/test_automatic_prompt_evaluation.py",
-        "tests/test_memory_context_transport.py",
-        "tests/test_assembled_prompts.py",
-        "tests/test_prompt_publication.py"
-      ],
-      "review": {
-        "prompt_sha256": "8d778ca5b24702a6e2ffc7cc13a8a02499a948a9beeb1b2cad23733dcbbb4251",
-        "datasets_sha256": "51dfe04733f7a3d5141b2e62e989017d35de78b090ff46216147f1c542a259a5",
-        "evaluators_sha256": "3a7e7a4e9a4bec8131e456e1b918a2fe8b57d801a91eb6295296022084c1044b",
-        "dataset_decision": "Reuse the bilingual source/gold cases reviewed for instruction preloading: exact and uncertain testimony, Unicode spans, manual values/blanks, other-person facts, place ambiguity and composer checkpoints. Output contracts are unchanged. New fixed-worker HTTP replays verify one request, selected documents and exact budgets; Higgsfield replays retain optional-reference and HTML validation checks. Registered the 5 November preloading recheck: 18 existing bilingual catalog cases, with unchanged gold, real hosted item IDs and verified experiment readback. Earlier datasets and experiments remain available. Reuse the reviewed bilingual testimony, manual-authority, privacy, attribution, continuity, geography and composer gold. The assembled-template parity matrix preserves the exact original fixed-worker instruction bytes for all 84 supported locale/optional-output variants. News and game stages retain their phase schemas and preloaded upstream documents. Source components remain explicit dependencies; archived historical experiment manifests retain their old pins. Development version 1 does not inherit a model-quality pass from deleted publication IDs. For the one-file consolidation, reuse the reviewed scenario inputs and gold: all 26 published skill texts, 84 rendered variants and controlled extraction/composer requests retain their instruction bytes and schemas. Current bindings identify the actual operation rather than former source fragments. Historical experiment manifests remain unchanged.",
-        "evaluator_decision": "Reuse source/span, manual-authority, privacy, schema, geographic and prose-evidence graders. Check actual prompt manifests and request counts; instruction delivery no longer earns skill-reader credit on fixed workers. Controlled transport checks and unchanged pins alone do not establish model quality for the new assembly. All 18 production/gold scenario checks passed; four same-model advisory judgments retain their limited-witness and uncalibrated status. Execution credit remains conditional on each actual prompt manifest. Reuse the existing source/span, manual-authority, schema, geography, publication and game-outcome graders: output rules and supported actions are unchanged. Add whole-template publication, section validation, local-component provenance, primary-prompt linkage and scoped/idempotent history-reset checks. Hash parity and contract regressions establish assembly equivalence, not fresh model-quality or human acceptance. Fixed-worker provenance credits one published operation template and only active local source hashes. A shared grounding substring cannot earn execution credit for another operation template. Reuse the existing output gold and graders because request instruction bytes and schemas remain unchanged; native gateway prompt-use links remain outside this cleanup. Reuse the current schema, attribution, continuity, geography, prose and stage graders: the consolidation changes source layout and provenance, not what the model must return. Standalone-template, exact-version, transport-hash and tool-document regressions cover the new wiring. These checks do not establish a new model-quality score."
       }
     },
     "memoir/skills/story-game/proposal": {
@@ -1420,6 +1361,21 @@
     "memoir/agents/mira/strategy-proposal": {
       "source": "apps/api/prompts/mira/strategy-proposal.md",
       "reason": "Retired guidance strategy proposal; current reply-v2 makes interviewing decisions in Mira and has no loader for this artifact.",
+      "archive": "docs/prompt-audit-retired.json"
+    },
+    "memoir/skills/place-journey/extract": {
+      "source": "skills/memoir-place-journey/prompts/extract.md",
+      "reason": "Author Timeline owns extraction and reconciliation for pending and new source windows.",
+      "archive": "docs/prompt-audit-retired.json"
+    },
+    "memoir/probes/skills/place-groups/group": {
+      "source": "tests/evaluation/prompts/live-skills/place-groups.md",
+      "reason": "The map resolver is a deterministic service and its API-to-client replay covers the result.",
+      "archive": "docs/prompt-audit-retired.json"
+    },
+    "memoir/probes/skills/place-groups/instructions": {
+      "source": "skills/memoir-place-groups/SKILL.md",
+      "reason": "Place grouping no longer has a skill entry or an instruction loader.",
       "archive": "docs/prompt-audit-retired.json"
     }
   }

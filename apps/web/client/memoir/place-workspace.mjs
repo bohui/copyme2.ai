@@ -105,12 +105,12 @@ export function createPlaceWorkspace({
       let restoredProgress = false;
       for (const message of state.chat || []) {
         if (message.role !== "assistant" || !message.sourceSequence
-            || message.trace?.some(step => step.skill === "memoir-place-journey")) continue;
+            || message.trace?.some(step => step.id === "place-journey" || step.phase === "place")) continue;
         const places = savedPlaces.filter(place => String(place.source_sequence) === String(message.sourceSequence));
         if (!places.length) continue;
         // Old turns have no execution log; describe this restoration, not an invented past call.
-        (message.trace ||= []).push({id:"place-journey", kind:"skill", skill:"memoir-place-journey",
-          label:"memoir-place-journey", status:"cached", lane:"B", execution:"cache", model_invoked:false,
+        (message.trace ||= []).push({id:"place-journey", kind:"progress",
+          label:translate("Memoir.trace.operation.place"), status:"cached", lane:"B", execution:"cache", model_invoked:false,
           detail:`${translate("Memoir.trace.placeJourneyRestored")} · ${places.map(place => place.place).join(" · ")}`});
         message.traceMode = "live";
         restoredProgress = true;
@@ -564,23 +564,21 @@ export function createPlaceWorkspace({
     if (placeGroupRequests.has(signature)) return;
     const scope = captureProjectScope();
     const progressTurn = (state.chat || []).findLast(item => item.role === "assistant")?.clientTurnId;
-    const report = (status, work = null) => {
+    const report = status => {
       if (!isCurrentProjectScope(scope)) return;
-      const skill = work?.skill || "memoir-place-groups";
-      recordWorkspaceSkillProgress({id:work?.id || `place-groups:${signature}`, replaces_id:work?.id ? `place-groups:${signature}` : null, kind:"skill", skill,
+      recordWorkspaceSkillProgress({id:`place-groups:${signature}`, kind:"progress",
         project_id:projectId, client_turn_id:progressTurn, lane:"B", execution:"deterministic", model_invoked:false,
-        label:skill, status,
-        ...(work ? {started_at:work.started_at,finished_at:work.finished_at} : {}),
+        label:translate("Memoir.trace.operation.grouping"), status,
         detail:`${translate(`Memoir.trace.placeGroups.${status}`)} · ${journey.place}`}, onProgress);
     };
     report("running");
     placeGroupLatest.set(projectId, signature);
     const request = (state.supabase?.accessToken ? supabaseApi(`/v1/agent/places/${projectId}/groups`, {
-      method:"POST",body:JSON.stringify({places:publicPlaces,language,...(progressTurn ? {client_turn_id:progressTurn} : {})}),
+      method:"POST",body:JSON.stringify({places:publicPlaces,language}),
     }) : api(`/v1/projects/${projectId}/place-groups`, {
       method: "POST", body: JSON.stringify({places: publicPlaces, language}),
     })).then(result => {
-      report("completed",result.skill_progress);
+      report("completed");
       if (state.project?.id !== projectId || placeGroupLatest.get(projectId) !== signature) return;
       for (const record of result.places || []) {
         const place = places[record.index];
