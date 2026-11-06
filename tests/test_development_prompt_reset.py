@@ -76,6 +76,17 @@ def test_reset_checks_uncertain_deletion_before_any_retry(reset_repo):
     assert len(client.deletes) == 1
 
 
+def test_reset_defers_declared_retirement_to_the_retirement_workflow(reset_repo, monkeypatch):
+    root, client, _ = reset_repo
+    coverage = root / 'config/prompt-coverage.json'
+    coverage.write_text(json.dumps({'retired': {NAME: {'source': TARGET}}}))
+    commit(root, 'Retire a previously reset prompt')
+    git(root, 'push', 'origin', 'main')
+    monkeypatch.setattr(cleanup, 'prompt_registry', lambda *args, **kwargs: {})
+    assert cleanup.reset(client, root=root, execute=True) == []
+    assert client.versions and not client.deletes
+
+
 @pytest.mark.parametrize('versions', [[1], [1, 2]])
 def test_reset_preserves_completed_baseline_and_later_versions(reset_repo, versions):
     root, client, manifest = reset_repo

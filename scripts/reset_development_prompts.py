@@ -99,10 +99,15 @@ def reset(client, *, root=ROOT, execute=False):
         raise ValueError('Development prompt recovery archive changed')
     records = {r['name']: r for r in json.loads(source)}
     registry = prompt_registry(root, include_unpublished=True)
+    coverage = root / 'config/prompt-coverage.json'
+    retired = json.loads(coverage.read_text()).get('retired', {}) if coverage.is_file() else {}
     plan = []
     # Validate the entire scoped archive before the first remote deletion.
     for name in [*manifest['remove'], *manifest['reset']]:
         removed_source = name in manifest['remove']
+        if not removed_source and name in records and name in retired and name not in registry:
+            # The retirement workflow owns the versions published after the development reset.
+            continue
         if name not in records or (name not in registry) != removed_source:
             raise ValueError('Development reset does not match the source catalog: ' + name)
         item = metadata(client, name)
