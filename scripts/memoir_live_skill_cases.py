@@ -10,7 +10,6 @@ from apps.api.background_profile import PROFILE_FIELDS, profile_contract, profil
 from apps.api.family_context import extract_family_tree_context
 from apps.api.lifetime_memory_lane_engine import EXTRACTION_WINDOW_CONTRACT
 from apps.api.memory_events import extraction_instructions, extraction_schema, validate_extraction
-from apps.api.place_journey import extract_place_journeys
 
 ROOT = Path(__file__).resolve().parents[1]
 
@@ -341,9 +340,5 @@ def validate_case(case, value):
         if not tree or not any(p['name'] == 'Mei' and p.get('family_title') == 'mother'
                                and 'bicycl' in p.get('introduction', '').lower() for p in tree['people']):
             raise ValueError('missing_grounded_mother')
-    elif kind == 'journey':
-        _, journeys = extract_place_journeys(value)
-        if [p['place'] for p in journeys] != ['Sydney', 'Perth']:
-            raise ValueError('place_coverage_or_grounding')
     else:
         raise ValueError('unknown_validator')

@@ -101,7 +101,7 @@ def test_selected_timeline_extraction_leaves_place_projection_to_reconciliation(
     timeline, schema = extraction_contract(selected_skills=['memoir-author-timeline'])
     assert '# Memoir Author Timeline' in timeline
     assert 'Coarse place cues for older timeline requests' not in timeline
-    assert schema['properties']['place_journeys']['maxItems'] == 0
+    assert 'place_journeys' not in schema['properties']
 
 
 def test_real_stdio_client_handles_skill_read_and_sends_its_body_back_to_harness(tmp_path,monkeypatch):

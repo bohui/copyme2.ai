@@ -1,6 +1,6 @@
 {
   "project_id": "cmut9t75w00071z02n8bdv7it",
-  "captured_at": "2026-11-05T23:13:24.132690+00:00",
+  "captured_at": "2026-11-06T00:32:54.757949+00:00",
   "scope": "Metadata, case hashes and score presence; no trace text, model calls or mutations",
   "prompts": [
     {
@@ -424,7 +424,8 @@
         2,
         3,
         4,
-        5
+        5,
+        6
       ],
       "labels": [
         "latest"
@@ -24967,7 +24968,7 @@
       "name": "memoir/skills/author-timeline/extract/golden/delivery-v3",
       "target": "memoir/skills/author-timeline/extract",
       "items": 8,
-      "content_sha256": "fb75ef27a4f0279e36f241e84c04c7f906680d04fd53f258a5a1932af47aa4ff",
+      "content_sha256": "8fb198c16b7f02ae5ccf71c419e53437edc9905a2e283eea46d225c5c12283ed",
       "source": "scripts/run_memoir_skill_evaluation.py:datasets"
     },
     {
@@ -24985,6 +24986,13 @@
       "source": "scripts/run_memoir_skill_evaluation.py:datasets"
     },
     {
+      "name": "memoir/skills/historical-news-research/discovery/golden/delivery-v3",
+      "target": "memoir/skills/historical-news-research/discovery",
+      "items": 2,
+      "content_sha256": "f4624ca752712645b2ab064d1364ebcbf0934a8efa5423c766793bd3fbe93307",
+      "source": "scripts/run_memoir_skill_evaluation.py:datasets"
+    },
+    {
       "name": "memoir/skills/memory-context/profile/golden/delivery-v3",
       "target": "memoir/skills/memory-context/profile",
       "items": 7,
@@ -24992,31 +25000,10 @@
       "source": "scripts/run_memoir_skill_evaluation.py:datasets"
     },
     {
-      "name": "memoir/skills/place-journey/extract/golden/delivery-v3",
-      "target": "memoir/skills/place-journey/extract",
-      "items": 1,
-      "content_sha256": "90e9b51713dfd5e9de9da29b8fd2196b3f1a0eaab50b95011329be38bd1f483c",
-      "source": "scripts/run_memoir_skill_evaluation.py:datasets"
-    },
-    {
-      "name": "memoir/skills/place-groups/group/golden/delivery-v3",
-      "target": "memoir/skills/place-groups/group",
-      "items": 1,
-      "content_sha256": "74c85c4bef7e41522e0e25ac91664c3f47c00674663e0450efdfed9d84c73815",
-      "source": "scripts/run_memoir_skill_evaluation.py:datasets"
-    },
-    {
       "name": "memoir/skills/place-photo-research/discovery/golden/delivery-v3",
       "target": "memoir/skills/place-photo-research/discovery",
       "items": 2,
       "content_sha256": "90048eec744b31cd2400bececcec515d605fba56c9c7dfbb8569f06b20f79df4",
-      "source": "scripts/run_memoir_skill_evaluation.py:datasets"
-    },
-    {
-      "name": "memoir/skills/historical-news-research/discovery/golden/delivery-v3",
-      "target": "memoir/skills/historical-news-research/discovery",
-      "items": 2,
-      "content_sha256": "f4624ca752712645b2ab064d1364ebcbf0934a8efa5423c766793bd3fbe93307",
       "source": "scripts/run_memoir_skill_evaluation.py:datasets"
     },
     {

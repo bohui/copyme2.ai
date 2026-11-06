@@ -1902,12 +1902,12 @@
       {
         "path": "scripts/memoir_live_skill_cases.py",
         "symbol": "cases",
-        "line": 248
+        "line": 247
       },
       {
         "path": "scripts/memoir_live_skill_cases.py",
         "symbol": "eval_fragment",
-        "line": 24
+        "line": 23
       }
     ],
     "targets": [
@@ -1940,12 +1940,12 @@
       {
         "path": "scripts/memoir_live_skill_cases.py",
         "symbol": "cases",
-        "line": 248
+        "line": 247
       },
       {
         "path": "scripts/memoir_live_skill_cases.py",
         "symbol": "eval_fragment",
-        "line": 24
+        "line": 23
       }
     ],
     "targets": [
@@ -1978,12 +1978,12 @@
       {
         "path": "scripts/memoir_live_skill_cases.py",
         "symbol": "cases",
-        "line": 248
+        "line": 247
       },
       {
         "path": "scripts/memoir_live_skill_cases.py",
         "symbol": "eval_fragment",
-        "line": 24
+        "line": 23
       }
     ],
     "targets": [
@@ -2016,12 +2016,12 @@
       {
         "path": "scripts/memoir_live_skill_cases.py",
         "symbol": "cases",
-        "line": 248
+        "line": 247
       },
       {
         "path": "scripts/memoir_live_skill_cases.py",
         "symbol": "eval_fragment",
-        "line": 24
+        "line": 23
       }
     ],
     "targets": [
@@ -2054,12 +2054,12 @@
       {
         "path": "scripts/memoir_live_skill_cases.py",
         "symbol": "cases",
-        "line": 248
+        "line": 247
       },
       {
         "path": "scripts/memoir_live_skill_cases.py",
         "symbol": "eval_fragment",
-        "line": 24
+        "line": 23
       }
     ],
     "targets": [
@@ -2463,8 +2463,8 @@
   {
     "name": "memoir/skills/author-timeline/extract",
     "source": "skills/memoir-author-timeline/prompts/extract.md",
-    "version": 5,
-    "sha256": "dee2b67275100aef548b4e3e324dc8d65582452daca8a1c2b293865b06cc7add",
+    "version": 6,
+    "sha256": "f7316012bbeda871ff2f62dd13d5dbdbeff1aa5594fcc7f98c15762e0f101816",
     "use": "conditional",
     "scenario": "Draft original timing, geography and chronology in a bounded source window. Pending Place Journey windows are resumed here and use Timeline reconciliation. The unselected compatibility path still produces coarse place hints.",
     "consumers": [
@@ -4883,7 +4883,7 @@
       {
         "path": "scripts/memoir_live_skill_cases.py",
         "symbol": "cases",
-        "line": 248
+        "line": 247
       }
     ],
     "targets": [

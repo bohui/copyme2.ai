@@ -24,15 +24,7 @@ if str(ROOT) not in sys.path:
 from scripts.langfuse_prompt_client import prompt_client
 from scripts.memoir_live_skill_cases import cases, validate_case
 from scripts.run_memoir_live_skills import LiveProvider, compose, manifest, native_search, save, evaluation_trace_metadata
-from scripts.langfuse_dataset_names import (SKILL_TASKS, SKILL_TARGETS, target_dataset, dataset_target, admission_dataset, delivery_target, score_name)
-
-# A dataset contains one target; batching is an execution concern.
-DATASET_PHASES = {
-    **{admission_dataset(s, 'triggers-v2'): 'triggers' for s in SKILL_TASKS if s != 'memoir-interviewer'},
-    **{target_dataset(delivery_target(dict(skill=s, kind='live_contract' if s != 'memoir-composer' else 'live_composer')),
-        suite='delivery-v3'): 'deliveries' for s in SKILL_TASKS if s != 'memoir-interviewer'},
-}
-
+from scripts.langfuse_dataset_names import (SKILL_TARGETS, target_dataset, dataset_target, admission_dataset, delivery_target, score_name)
 
 # These tests invoke production admission/scheduling code with controlled replies;
 # their passing status is never evidence of live model delivery.
@@ -72,6 +64,14 @@ TRIGGERS = {
     ],
     'memoir-story-game': ['tests/test_memoir_story_game.py', 'tests/test_story_game_runtime.py',
                          'tests/test_story_game_runtime_postgres.py'],
+}
+
+
+# A dataset contains one current target; batching is an execution concern.
+DATASET_PHASES = {
+    **{admission_dataset(s, 'triggers-v2'): 'triggers' for s in TRIGGERS},
+    **{target_dataset(delivery_target(dict(skill=s, kind='live_contract' if s != 'memoir-composer' else 'live_composer')),
+        suite='delivery-v3'): 'deliveries' for s in TRIGGERS},
 }
 
 
