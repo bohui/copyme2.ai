@@ -161,8 +161,10 @@ export function createMapPhotoAlbums({getAlbum, getAlbums, getProjectId, renderA
       if (collectionMode !== JSON.stringify([isMobile,detailed,getViewCity(),getVisibleCities()])) sync(sceneElement);
       layer.classList.toggle('is-desktop',!isMobile);
       for (const pin of pins) {
-        const label = viewer.entities.getById(pin.key)?.label;
-        if (label) label.show = !isMobile;
+        const entity = viewer.entities.getById(pin.key);
+        if (!entity) continue;
+        entity.show = pin.overviewOnly ? !detailed : detailed || !pin.isChild;
+        if (entity.label) entity.label.show = !isMobile;
       }
       layer.classList.remove('is-fallback');
       const projected = albums.filter(album => album.pinned).map(album => {
