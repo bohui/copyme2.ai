@@ -168,7 +168,7 @@ def test_chronological_active_city_and_explicit_redirect_replay_to_client(sql, t
             grouping[linked['place']['place']] = groups
         replay = Path(__file__).parent / 'js/helpers/replay-question-place-focus.mjs'
         checked = subprocess.run(['node', str(replay)], input=json.dumps(dict(project_id=conversation.project,
-            result=result, snapshot=initial, redirect_snapshot=later, events=page['events'], links=links,
+            result=result, snapshot=initial, redirect_snapshot=later, event_page=page, links=links,
             places=raw['place_journeys'], grouping=grouping)), text=True, capture_output=True, timeout=10)
         assert checked.returncode == 0, checked.stdout + checked.stderr
 
@@ -299,7 +299,7 @@ def test_followup_city_replays_to_map_photos_and_events(sql,tmp_path,monkeypatch
             for event in page['events']}
         replay=Path(__file__).parent/'js/helpers/replay-question-place-focus.mjs'
         checked=subprocess.run(['node',str(replay)],input=json.dumps(dict(project_id=conversation.project,
-            result=result,snapshot=snapshot,events=page['events'],links=links,places=locations)),text=True,capture_output=True,timeout=10)
+            result=result,snapshot=snapshot,event_page=page,links=links,places=locations)),text=True,capture_output=True,timeout=10)
         assert checked.returncode==0,checked.stdout+checked.stderr
         foreign=conversation.client.get('/v1/story/atlas-events',params=dict(project_id=conversation.project),headers={'authorization':'Bearer another-owner'})
         assert foreign.status_code != 200 and focus_city not in foreign.text
