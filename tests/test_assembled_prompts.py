@@ -31,6 +31,7 @@ def test_extraction_is_complete_and_keeps_named_examples_separate():
         assert place in examples
         assert place not in rules + conditional_rules
     assert 'locationConfidenceScore' in rules and 'temporal_estimate' in rules
+    assert 'Use null attribution on the event and its evidence' in rules
     assert 'passage_dispositions' in template
     assert 'continuity_updates' in template
     assert '{{#attribution}}' in template

@@ -133,7 +133,7 @@ def test_selected_extraction_preloads_each_required_document_once(tmp_path, sele
     run(tmp_path, prepared, publisher, provider)
     body, = provider.bodies
     instructions = body['instructions']
-    prompt_sha256 = '72e5ecaeb42f1319d85ad13d92b548de385cd6ba99a16babbc6e39e7728b590e'
+    prompt_sha256 = '99ac172e51c4db74860b92d971f8e1d7d7c84052c6bdda1fff18d62b8e464fa9'
     assert hashlib.sha256(instructions.encode()).hexdigest() == prompt_sha256
     schema = body['text']['format']['schema']
     assert hashlib.sha256(json.dumps(schema, sort_keys=True).encode()).hexdigest() == '151fb06553ed358e06bd8d511e9b3e9f4b0b4901f42cb8934df5ca30d718b2dc'

@@ -644,11 +644,11 @@
         "tests/test_memoir_background_agent_workflow.py::test_pending_place_journey_resumes_in_author_timeline"
       ],
       "review": {
-        "prompt_sha256": "426f3569fe7aed4e3d7b1f7ca0cdb861588f20d53dc5a24961f7395a25634d64",
+        "prompt_sha256": "34e54fd842569661f5d7d97844b229a92a2889129cbb224f28e027d778407bc8",
         "datasets_sha256": "7d821a1f429f8e4e864890553c05633c8a9c5a60b6404c77db64d87f647a94fb",
         "evaluators_sha256": "f70a9875838d8eceee035ff5dab5561c0311048f017d1cd14f3dbc635f10a9f5",
-        "dataset_decision": "Reuse the frozen bilingual event-grounding, temporal-placement, attribution and correction cases. The schema, intended outputs and downstream publication rules stay the same. The bounded live comparison includes English and Chinese originals, a residence sequence, a resumed correction, a held-out privacy case and the coarse-place compatibility branch.",
-        "evaluator_decision": "Retain the exact source, span, placement, chronology, attribution and publication validators, along with the shared judge calibration. The round compares live saved outputs to the frozen case expectations and verifies rendered instruction and schema hashes. The local candidate has no published version."
+        "dataset_decision": "Reuse the frozen bilingual event-grounding, temporal-placement, attribution and correction cases. The schema, intended outputs and downstream publication rules stay the same. The bounded live comparison includes English and Chinese originals, a residence sequence, a resumed correction, a held-out privacy case and the coarse-place compatibility branch. Add a fresh synthetic narrator-attribution holdout after the first candidate exposed a place-projection gap.",
+        "evaluator_decision": "Retain the exact source, span, placement, chronology, attribution and publication validators, along with the shared judge calibration. The round compares live saved outputs to the frozen case expectations and verifies rendered instruction and schema hashes. The local candidate has no published version. The final comparison also reads the active-place projection to catch narrator labels that the host cannot interpret."
       }
     },
     "memoir/skills/composer/draft": {
