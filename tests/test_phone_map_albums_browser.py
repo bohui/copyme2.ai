@@ -643,6 +643,21 @@ def test_desktop_event_chronology_photo_latitude_and_personal_photos_on_zoom(alb
     assert page.evaluate('document.documentElement.scrollWidth<=innerWidth')
 
 
+@pytest.mark.parametrize('album_page', ['events'], indirect=True)
+def test_phone_whole_journey_and_workspace_toggle_do_not_overlap(album_page):
+    page, _, _ = album_page
+    overview = page.locator('[data-memory-overview]')
+    toggle = page.locator('.workspace-media-map-header .workspace-toggle')
+    expect(overview).to_be_visible()
+    for width in (320, 390, 760):
+        page.set_viewport_size({'width': width, 'height': 844})
+        overview_box = overview.bounding_box()
+        toggle_box = toggle.bounding_box()
+        assert overview_box['x'] + overview_box['width'] < toggle_box['x'], (overview_box, toggle_box)
+        overview.tap(trial=True)
+        toggle.tap(trial=True)
+
+
 @pytest.mark.parametrize('album_page',['events'],indirect=True)
 def test_phone_city_expansion_and_zoom_keep_only_local_events_and_photos(album_page):
     page,_,_=album_page

@@ -776,7 +776,7 @@ h3 { line-height: 1.1; }
 .workspace-media-map { position: relative; display: flex; flex: 1 1 0; flex-direction: column; min-width: 0; min-height: 0; }
 .workspace-media-map-header { position: absolute; top: 10px; left: 10px; right: 10px; z-index: 4; display: flex; align-items: flex-start; justify-content: space-between; pointer-events: none; }
 .workspace-media-map-header > button { min-height: 44px; padding: 6px 12px; border: 1px solid var(--line); border-radius: 12px; background: var(--white); color: var(--green-dark); box-shadow: 0 2px 8px #233b2920; cursor: pointer; pointer-events: auto; font-size: 11px; font-weight: 700; }
-.workspace-media-map-header .workspace-toggle { width: 44px; height: 44px; }
+.workspace-media-map-header .workspace-toggle { width: 44px; height: 44px; margin-inline-start: auto; }
 .workspace-media-map:has(.map-memory-layer:not([hidden])) [data-all-places] { visibility: hidden; }
 .workspace-media-map .place-journey-card { position: relative; display: flex; flex: 1 1 0; flex-direction: column; min-height: 0; margin: 0; border: 0; }
 .workspace-media-map .place-journey-scene { flex: 1 1 0; min-height: 240px; height: 100%; margin: 0; border-radius: 0; }
