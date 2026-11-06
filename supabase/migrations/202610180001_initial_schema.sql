@@ -13944,6 +13944,7 @@ grant execute on function public.read_user_original_recording(uuid) to authentic
 
 CREATE TRIGGER count_recall_reply AFTER INSERT ON public.user_memory FOR EACH ROW EXECUTE FUNCTION public.count_recall_reply();
 
+-- Atlas workspace notifications
 CREATE FUNCTION public.notify_memoir_atlas_update() RETURNS trigger
     LANGUAGE plpgsql SET search_path TO '' AS $$
 begin
@@ -13971,6 +13972,8 @@ CREATE TRIGGER atlas_skill_progress AFTER INSERT OR UPDATE OF status ON public.u
 CREATE TRIGGER atlas_saved_reply AFTER INSERT ON public.user_memory
   FOR EACH ROW WHEN (new.kind='agent' AND new.project_id IS NOT NULL)
   EXECUTE FUNCTION public.notify_memoir_atlas_update('workspace');
+
+-- End Atlas workspace notifications
 
 CREATE TRIGGER formal_original_invalidation AFTER DELETE OR UPDATE ON public.user_narrator_source FOR EACH ROW EXECUTE FUNCTION public.invalidate_formal_memoir_authority();
 

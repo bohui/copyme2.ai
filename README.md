@@ -11,12 +11,13 @@ Customer-facing copy does not show the free-round allowance.
 
 The development database is defined by one fresh-install migration,
 `supabase/migrations/202610180001_initial_schema.sql`. It creates only the current
-schema, with no upgrade backfills or legacy import paths. After pulling this
-baseline replacement, reset your disposable database yourself with
-`supabase db reset --db-url "$SUPABASE_DB_URL" --yes`. Existing migration history
-is intentionally unsupported. `make migrate` still uses Supabase migration
-tracking for fresh databases. Until production deployment is explicitly announced,
-update this single baseline in place for every schema change. See
+schema, with no upgrade backfills or legacy import paths. `make migrate` uses
+Supabase migration tracking and installs missing Atlas notification triggers
+from this baseline, including on databases that already recorded it. This step
+uses the Python `lifetime-memory` extra. For other baseline changes, reset your
+disposable database with `supabase db reset --db-url "$SUPABASE_DB_URL" --yes`.
+Until production deployment is explicitly announced, update this single
+baseline in place for every schema change. See
 [the database design](docs/Database_Design.md) for retained tables and indexes.
 
 ## Product URLs
