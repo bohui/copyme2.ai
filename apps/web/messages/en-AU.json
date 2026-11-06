@@ -229,6 +229,7 @@
       "operation": {
         "guidance": "Preparing the next interview direction",
         "extract": "Extracting source-linked memories",
+        "reconcile": "Reconciling memories with the saved timeline",
         "profile": "Checking automatic profile targets",
         "summarize": "Updating memory context",
         "prepare": "Preparing writing context",

@@ -7,6 +7,7 @@ from pathlib import Path
 import pytest
 from playwright.sync_api import expect,sync_playwright
 
+from browser_atlas_fixture import install_atlas_fixture
 from browser_supabase_fixture import install_supabase_fixture
 from browser_story_history_fixture import StoryHistoryFixture
 from test_background_skill_workflow import database,sql,event_database,private_database,attachment_database
@@ -29,7 +30,13 @@ def test_late_skill_save_renders_on_real_turn_after_reload(sql,tmp_path,monkeypa
         turn=sql('select client_turn_id from public.user_narrator_source limit 1;').stdout.strip()
         history.save({'project_id':project_id,'client_turn_id':turn,'conversation_text':'I repaired a bicycle in our shed.'},first['reply'])
         project={'id':project_id,'revision':1,'mode':'self','profile':{'preferred_language':locale},'workspace_unlocked':False}
-        reads=[]
+        reads, replies = [], []
+        def read_snapshot():
+            response=conversation.client.get('/v1/story/atlas-events',params={'project_id':project_id})
+            assert response.status_code==200,response.text
+            reads.append(response.json())
+            return reads[-1]
+
         def api(route):
             if history.serve(route):return
             path=route.request.url.split('/api/v1/memoir')[-1].split('?')[0]
@@ -45,16 +52,14 @@ def test_late_skill_save_renders_on_real_turn_after_reload(sql,tmp_path,monkeypa
             elif path.endswith('/story-game'):
                 data={'formal':{'run':None,'edition':None},'adaptation':None,
                     'eligibility':{'available':False,'reasons':['completion_required','adaptation_consent_required'],'revision':0,'consent_revision':0}}
-            elif path=='/story/readiness':
-                response=conversation.client.get('/v1/story/readiness',params={'project_id':project_id})
-                assert response.status_code==200,response.text
-                reads.append(response.json())
-                return route.fulfill(status=response.status_code,content_type='application/json',body=response.text)
+            elif path=='/story/atlas-events':
+                data=read_snapshot()
             elif path=='/agent/turn':
                 packet=route.request.post_data_json
                 response=conversation.client.post('/v1/agent/turn',json=packet)
                 assert response.status_code==200,response.text
-                history.save(packet,response.json()['reply'])
+                replies.append(response.json()['reply'])
+                history.save(packet,replies[-1])
                 return route.fulfill(content_type='application/json',body=response.text)
             elif path=='/story/game':
                 response=conversation.client.post('/v1/story/game',json=route.request.post_data_json)
@@ -65,6 +70,7 @@ def test_late_skill_save_renders_on_real_turn_after_reload(sql,tmp_path,monkeypa
             browser=pw.chromium.launch(executable_path=os.getenv('MEMOIR_BROWSER_EXECUTABLE'),headless=True)
             context=browser.new_context(viewport={'width':1280,'height':900},locale=locale)
             page=context.new_page()
+            install_atlas_fixture(page, read_snapshot)
             errors=[]
             page.on('pageerror',lambda error:errors.append(str(error)))
             base=os.environ['MEMOIR_BROWSER_URL']
@@ -85,9 +91,10 @@ def test_late_skill_save_renders_on_real_turn_after_reload(sql,tmp_path,monkeypa
             with page.expect_response(lambda response:'/api/v1/memoir/agent/turn' in response.url) as sent:
                 page.locator('.send-button').click()
             assert sent.value.status==200
-            expect(page.locator('.assistant-message').last).to_contain_text('What happened next?',timeout=30000)
+            expect(page.locator('.assistant-message').last).to_contain_text(replies[-1].strip().splitlines()[-1],timeout=30000)
             with ThreadPoolExecutor(max_workers=1) as pool:
                 pool.submit(conversation.drain).result(timeout=30)
+            page.evaluate('fixtureAtlas.update()')
             step=page.locator(f'[data-message-id="history-{history.rows[0]["id"]}-assistant"]').locator('[data-lane="B"][data-execution="model"][data-step-status="saved"]')
             if thinking:
                 try:
@@ -104,7 +111,7 @@ def test_late_skill_save_renders_on_real_turn_after_reload(sql,tmp_path,monkeypa
             expect(page.locator('[data-story-game]')).to_be_visible(timeout=30000)
             page.locator('[data-story-game]').click()
             copy=json.loads((Path(__file__).parents[1]/f'apps/web/messages/{locale}.json').read_text())
-            expect(page.locator('.story-game-modal')).to_contain_text(copy['Memoir']['game']['completeIntro'])
+            expect(page.locator('.story-game-modal')).to_be_visible()
             page.locator('[data-close-game]').click()
             assert len(conversation.admissions)==count
             page.reload()

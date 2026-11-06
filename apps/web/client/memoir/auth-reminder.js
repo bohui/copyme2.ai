@@ -8,6 +8,7 @@ export function createAuthReminder({ getAuth, getConversation = () => ({}), busy
   let last = performance.now();
   let visible = document.visibilityState === 'visible';
   let refreshing = false;
+  let pendingEmailUser;
   const callbackParams = new URLSearchParams(window.location.search);
   const callbackHash = new URLSearchParams(window.location.hash.slice(1));
   const callbackError = callbackParams.get('error_code') || callbackHash.get('error_code') || callbackParams.get('error') || callbackHash.get('error');
@@ -72,12 +73,14 @@ export function createAuthReminder({ getAuth, getConversation = () => ({}), busy
         }
         cancelTransfer?.();
         const auth = getAuth()?.client?.auth;
+        const owner = getAuth()?.user?.id;
         if (!auth) throw new Error('Unavailable');
         const redirectTo = window.location.origin + window.location.pathname;
         const result = provider
           ? await linkSocialIdentity(auth, provider, redirectTo)
           : await auth.updateUser({ email: dialog.querySelector('input').value.trim() }, { emailRedirectTo: redirectTo });
         if (result.error) throw result.error;
+        if (!provider) pendingEmailUser = owner;
         if (result.data?.user && result.data.user.id === getAuth()?.user?.id) {
           getAuth().user = result.data.user;
           tick();
@@ -166,12 +169,14 @@ export function createAuthReminder({ getAuth, getConversation = () => ({}), busy
   // the anonymous user cached. Verify on return without switching accounts.
   async function refreshUser() {
     const account = getAuth();
-    if (refreshing || !account?.user?.is_anonymous || !account.client?.auth?.getUser) return;
+    if (refreshing || !pendingEmailUser || account?.user?.id !== pendingEmailUser
+        || !account.user.is_anonymous || !account.client?.auth?.getUser) return;
     refreshing = true;
     try {
       const { data, error } = await account.client.auth.getUser();
       if (!error && data?.user && getAuth() === account && data.user.id === account.user?.id) {
         account.user = data.user;
+        if (!data.user.is_anonymous) pendingEmailUser = null;
         tick();
         onUserChanged?.();
       }

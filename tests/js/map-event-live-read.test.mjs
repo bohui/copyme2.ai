@@ -28,19 +28,19 @@ test('ordinary recall reads saved Lane B events for map cards without Family leg
     supabaseApi:async()=>{throw new Error('Family context is unavailable during ordinary recall');},
     storyApi:async path=>{
       requests.push(path);
-      if (!path.startsWith('/v1/story/map-events?')) throw Object.assign(new Error('Premium timeline is unavailable'),{status:403});
+      if (!path.startsWith('/v1/story/atlas-events?')) throw Object.assign(new Error('Premium timeline is unavailable'),{status:403});
       return {project_id:'project',policy_epoch:1,source_revision:1,event_revision:1,events,complete:true,
         processing:{pending_inputs:0}};
     }});
   await workspace.refreshFamilyContext();
   assert.equal(state.timeline.length,3,'All saved Lane B events must reach the ordinary-recall map');
-  assert.deepEqual(requests,['/v1/story/map-events?project_id=project']);
+  assert.deepEqual(requests,['/v1/story/atlas-events?project_id=project&view=map']);
   const journey=buildMapMemoryJourney(state.timeline,groupPlaces([birth,sydney]),state.project.profile);
   assert.equal(cityEventCards(journey.nodes).length,2,'A saved event must render as a city card, not disappear behind the family gate');
   assert.equal(journey.unmapped,1,'An event without an explicit location must not inherit a nearby city');
 });
 
-test('entitlement hydration starts the map read during ordinary recall', async () => {
+test('entitlement hydration leaves the ordinary map to Atlas', async () => {
   let reads=0;
   const state={project:{id:'project'},showThinkingSteps:false,showDraftUpdates:false};
   const context=vm.createContext({state,captureProjectScope:()=> 'project',isCurrentProjectScope:()=>true,
@@ -48,7 +48,7 @@ test('entitlement hydration starts the map read during ordinary recall', async (
       recall_status:{rounds_completed:1,free_rounds:20}}),refreshFamilyContext:async()=>{reads++;}});
   vm.runInContext(declaration('refreshFamilyEntitlement'),context);
   await context.refreshFamilyEntitlement();
-  assert.equal(reads,1);
+  assert.equal(reads,0);
   assert.equal(state.familyFeaturesEnabled,false);
 });
 
@@ -73,7 +73,7 @@ test('restoring a stage-tagged place preserves the initial all-ages map', async 
   assert.equal(state.lifeStage,'all','Restoring a midlife city must not hide baby or unplaced events');
 });
 
-test('a pending Lane B extraction refreshes map events after they are saved', async t => {
+test('an unfinished Lane B extraction does not poll the map feed', async t => {
   t.mock.timers.enable({apis:['setTimeout']});
   const state={project:{id:'project'},supabase:{accessToken:'test'},familyFeaturesEnabled:false,timeline:[]};
   let reads=0;
@@ -83,13 +83,15 @@ test('a pending Lane B extraction refreshes map events after they are saved', as
       processing:{pending_inputs:reads===1 ? 1 : 0}})});
   await workspace.refreshFamilyContext();
   assert.equal(state.timeline.length,0);
-  t.mock.timers.tick(15000);
+  t.mock.timers.tick(60000);
   await new Promise(resolve=>setImmediate(resolve));
+  assert.equal(reads,1);
+  await workspace.refreshFamilyContext();
   assert.equal(state.timeline[0].id,'birth');
   assert.equal(reads,2);
 });
 
-test('a transient map read failure keeps the saved events and retries within the same project', async t => {
+test('a transient map read failure keeps the saved events until the next refresh', async t => {
   t.mock.timers.enable({apis:['setTimeout']});
   const saved={id:'birth',canonical:true}, state={project:{id:'project',profile:{}},supabase:{accessToken:'test'},
     familyFeaturesEnabled:false,timeline:[saved]};
@@ -103,8 +105,22 @@ test('a transient map read failure keeps the saved events and retries within the
   assert.deepEqual(state.timeline,[saved]);
   t.mock.timers.tick(15000);
   await new Promise(resolve=>setImmediate(resolve));
+  assert.equal(reads,1);
+  await workspace.refreshFamilyContext();
   assert.equal(reads,2);
   assert.equal(state.timeline[0].title,'Updated birth memory');
+});
+
+test('family chronology does not fetch unrelated event details', async () => {
+  const state={project:{id:'project'},supabase:{accessToken:'test'},familyFeaturesEnabled:true,timeline:[]};
+  const requests=[];
+  const workspace=createFamilyWorkspace({state,captureProjectScope:()=> 'project',isCurrentProjectScope:()=>true,
+    render(){},supabaseApi:async()=>null,storyApi:async path=>{
+      requests.push(path);
+      return {events:[{id:'event',status:'active',details_complete:false,relations:[]}],complete:true};
+    }});
+  await workspace.refreshFamilyContext();
+  assert.deepEqual(requests,['/v1/story/events?project_id=project']);
 });
 
 test('ordinary map pagination loads later events without Family access', async () => {
@@ -114,7 +130,7 @@ test('ordinary map pagination loads later events without Family access', async (
   const workspace=createFamilyWorkspace({state,captureProjectScope:()=> 'project',isCurrentProjectScope:()=>true,
     render(){},storyApi:async path=>{requests.push(path);return {events:[{id:'later',status:'active'}],complete:true};}});
   await workspace.loadMoreMemoryEvents();
-  assert.deepEqual(requests,['/v1/story/map-events?project_id=project&cursor=next']);
+  assert.deepEqual(requests,['/v1/story/atlas-events?project_id=project&cursor=next&view=map']);
   assert.deepEqual(state.timeline.map(event=>event.id),['earlier','later']);
 });
 

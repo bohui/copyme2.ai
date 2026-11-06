@@ -16,7 +16,7 @@ def reset_strategy(sql):
 
 
 def progress(conversation):
-    response=conversation.client.get('/v1/story/readiness',params={'project_id':conversation.project})
+    response=conversation.client.get('/v1/story/atlas-events',params={'project_id':conversation.project})
     assert response.status_code==200,response.text
     return response.json()
 
@@ -112,7 +112,7 @@ def test_readiness_reports_saved_skill_with_actual_turn_and_source_coverage(sql,
         turn = str(uuid4())
         saved = conversation.say('I had a bicycle accident in Chengde.',turn=turn)
         conversation.drain()
-        response = conversation.client.get('/v1/story/readiness',params={'project_id':conversation.project})
+        response = conversation.client.get('/v1/story/atlas-events',params={'project_id':conversation.project})
         assert response.status_code == 200,response.text
         steps = response.json()['skill_progress']['items']
         timeline = next(item for item in steps if item['skill'] == 'memoir-author-timeline')

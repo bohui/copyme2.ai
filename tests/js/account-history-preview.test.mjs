@@ -110,7 +110,7 @@ test('OAuth return loads saved account history into the main chat before renderi
     localStorage: { getItem: () => 'project', setItem() {}, removeItem() {} },
     ensureAuth: async () => {}, guestTransfer: { complete: async () => false },
     syncProfileUiLocale: async () => {}, refreshProject: async () => {},
-    hydratePlaceJourney: async () => {}, refreshFamilyEntitlement: async () => {},
+    hydratePlaceJourney: async () => {}, refreshFamilyEntitlement: async () => {}, refreshStageReadiness: async () => {},
     profileHasContext: () => true, currentPath: () => '/memoir/interview/project',
     render() {}, startCodexConversation: async () => {},
     restoreChatHistory: () => [{ role: 'assistant', text: 'Guest opening' }],

@@ -229,7 +229,7 @@ def run_case(browser, base_url: str, locale: str) -> None:
             )
         if path.startswith("/agent/family-context") and request.method == "GET":
             return fulfill(route, {"project_id": "progressive-browser-project", "family_features_enabled": True, "family_context": None, "family_context_update": None})
-        if path == "/story/readiness" and request.method == "GET":
+        if path == "/story/atlas-events" and request.method == "GET":
             return fulfill(route, {"project_id": "progressive-browser-project", "stages": {}})
         if path == '/story/events' and request.method == 'GET':
             return school_events(route, present=len(agent_requests) >= 3, completed_rounds=len(agent_requests))

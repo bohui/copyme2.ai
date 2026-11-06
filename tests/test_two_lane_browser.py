@@ -30,7 +30,7 @@ def test_saved_reply_precedes_background_workspace(locale,strategy):
         elif path in ('/agent/profile','/user/profile'):data=project['profile']
         elif path=='/user/flow':data={'flow':None}
         elif path=='/story/access':data={'allowed':True,'completed_rounds':0,'payment_required':False}
-        elif path=='/story/readiness':
+        elif path=='/story/atlas-events':
             reads.append(saved);data={'stages':{},'pending':not ready}
             if ready:
                 data['derived_workspace']={'project_id':project['id'],'source_revision':1,'policy_epoch':1,'places':[place],'authoritative':True}

@@ -129,15 +129,6 @@ export const fixtureFetch: FetchTransport = async (url, init) => {
     };
   else if (p === "/story/private-draft" || p === "/story/private-draft/retry")
     data = draft;
-  else if (p === "/story/readiness")
-    data = {
-      project_id: fixtureProject,
-      stages: {
-        childhood: { word_equivalents: 120, percent: 30, color: "green" },
-      },
-      heuristic: "narrator_context_volume_v1",
-      maximum_percent: 50,
-    };
   else if (p.startsWith("/agent/collection/"))
     data =
       init.method === "PUT"

@@ -31,7 +31,7 @@ test('an older failed recovery cannot clear the newer Back/Forward project or hi
     refreshProject: async () => { if (state.project.id === 'a') await a.promise; },
     restoreChatHistory: id => [{role: 'user', text: `${id} private history`}], rememberProject() {},
     hydrateAccountHistory: async () => {}, hydratePlaceJourney: async () => {},
-    refreshFamilyEntitlement: async () => {}, profileHasContext: () => true,
+    refreshFamilyEntitlement: async () => {}, refreshStageReadiness: async () => {}, profileHasContext: () => true,
     render() {}, renderLanding() {}, startCodexConversation: async () => {},
     persistChatHistory() {}, stopVoiceMode() {}, cancelDictation() {}, toast() {}, translate: x => x,
   });

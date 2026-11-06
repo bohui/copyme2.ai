@@ -10,12 +10,14 @@ from playwright.sync_api import expect, sync_playwright
 
 from apps.api.main import create_app
 from apps.api.store import MemoryStore
+from browser_atlas_fixture import install_atlas_fixture
 from browser_story_history_fixture import StoryHistoryFixture
 from browser_supabase_fixture import install_supabase_fixture
 from memoir_postgres_workflow import PostgresRest
 from stage_progress_fixture import save_stage_source
 from test_agent_commit_postgres import OWNER
-from test_lifetime_memory_postgres import sql, event_database, private_database, attachment_database, database, resolve
+from test_lifetime_memory_postgres import sql, event_database, private_database, attachment_database, resolve
+from test_lifetime_memory_publication import database
 from test_shared_memory_events_postgres import literal, rpc
 
 
@@ -24,7 +26,7 @@ ROOT = Path(__file__).resolve().parents[1]
 
 
 @pytest.mark.parametrize('locale', ['en-AU', 'zh-CN'])
-def test_saved_project_begin_keeps_pending_stage_recovery_alive(sql, monkeypatch, locale):
+def test_saved_project_begin_receives_atlas_updates_without_polling(sql, monkeypatch, locale):
     project_id = resolve(sql)['project_id']
 
     def extract(source):
@@ -38,18 +40,24 @@ def test_saved_project_begin_keeps_pending_stage_recovery_alive(sql, monkeypatch
 
     extract(save_stage_source(sql, project_id, '童' * 100))
     pending_source = save_stage_source(sql, project_id, '学' * 200)
-    command = sql.command
-    port = f" port={command[command.index('-p')+1]}" if '-p' in command else ''
-    monkeypatch.setenv('MEMOIR_PUBLICATION_DATABASE_URL',
-        f"host={command[command.index('-h')+1]}{port} user=postgres dbname=postgres")
+    monkeypatch.setenv('MEMOIR_PUBLICATION_DATABASE_URL', sql.publication_dsn)
     place = {'place':'Synthetic Garden', 'hierarchy':['Earth','Australia','Synthetic Garden'],
              'granularity':'city', 'life_stage':'childhood', 'latitude':-33.8, 'longitude':151.2}
     project = {'id':project_id, 'revision':1, 'mode':'self', 'workspace_unlocked':True,
                'profile':{'preferred_language':locale, 'memory_places':[place]}}
     history = StoryHistoryFixture(OWNER, project_id, 'fixture-only')
     reads = []
+    snapshot_requests = []
 
     with TestClient(create_app(MemoryStore(), story_storage_factory=lambda _: PostgresRest(sql, OWNER).storage())) as client:
+        def read_snapshot():
+            response = client.get('/v1/story/atlas-events', params={'project_id':project_id})
+            assert response.status_code == 200, response.text
+            assert response.headers['cache-control'] == 'no-store'
+            data = response.json()
+            reads.append(data)
+            return data
+
         def api(route):
             if history.serve(route):
                 return
@@ -66,12 +74,9 @@ def test_saved_project_begin_keeps_pending_stage_recovery_alive(sql, monkeypatch
             elif path == '/story/state':
                 data = {'recall_status':{'rounds_completed':2,'free_rounds':20,'payment_required':False,'paid':True},
                         'family_features_enabled':False}
-            elif path == '/story/readiness':
-                response = client.get('/v1/story/readiness', params={'project_id':project_id})
-                assert response.status_code == 200, response.text
-                assert response.headers['cache-control'] == 'no-store'
-                data = response.json()
-                reads.append(data)
+            elif path == '/story/atlas-events':
+                snapshot_requests.append(route.request.url)
+                data = read_snapshot()
             elif path == '/agent/place-journey':
                 data = {'place_journey':place}
             elif path == '/user/conversations':
@@ -86,6 +91,7 @@ def test_saved_project_begin_keeps_pending_stage_recovery_alive(sql, monkeypatch
             browser = pw.chromium.launch(executable_path=os.getenv('MEMOIR_BROWSER_EXECUTABLE'))
             base = os.environ['MEMOIR_BROWSER_URL']
             page = browser.new_page(viewport={'width':1440,'height':1000})
+            install_atlas_fixture(page, read_snapshot)
             page.route('**/*', lambda route: route.continue_() if route.request.url.startswith(base + '/') else route.abort())
             page.add_init_script("localStorage.setItem('memory-spark-project'," + json.dumps(project_id) + ");")
             user = {'id':OWNER, 'is_anonymous':False, 'user_metadata':{'ui_locale':locale}}
@@ -94,7 +100,7 @@ def test_saved_project_begin_keeps_pending_stage_recovery_alive(sql, monkeypatch
                 + "}}),getUser:async()=>({data:{user:" + json.dumps(user)
                 + "}}),onAuthStateChange:()=>({})}})};")
             page.route('**/api/v1/memoir/**', api)
-            with page.expect_response(lambda response: '/story/readiness?' in response.url) as boot_read:
+            with page.expect_response(lambda response: '/story/atlas-events?' in response.url) as boot_read:
                 page.goto(base + '/memoir')
             boot_read.value.finished()
             begin = page.locator('[data-action="start-story"][data-mode="self"]')
@@ -106,16 +112,21 @@ def test_saved_project_begin_keeps_pending_stage_recovery_alive(sql, monkeypatch
             ring = page.locator('[data-life-stage-tab="childhood"] .life-stage-readiness')
             expect(ring).to_have_attribute('style', '--readiness:10%')
             page.wait_for_load_state('networkidle')
+            assert page.evaluate('fixtureAtlas.connections') == 1
+            assert len(snapshot_requests) == 1, 'Only the landing page needs a standalone snapshot'
+            before = len(reads)
+            page.clock.install()
+            page.clock.fast_forward(240_000)
+            page.evaluate('fixtureAtlas.heartbeat()')
+            page.wait_for_load_state('networkidle')
+            assert len(reads) == before and page.evaluate('fixtureAtlas.connections') == 1
             extract(pending_source)  # Real extraction finishes after the resume navigation.
-            # Boot already scheduled native timers. Installing a fake clock
-            # here mixes timer implementations, and virtual jumps can expire
-            # the read timeout before real Auth/HTTP work finishes. Exercise
-            # the actual recovery timer with the same 60-second bound.
-            expect(ring).to_have_attribute('style', '--readiness:30%', timeout=60000)
+            page.evaluate('fixtureAtlas.update()')
+            expect(ring).to_have_attribute('style', '--readiness:30%')
+            assert len(reads) == before + 1
+            assert len(snapshot_requests) == 1
             after_resume = ring.get_attribute('style')
             after_color = ring.get_attribute('class')
-            # Characterize the failure completely: reload reads 30 immediately,
-            # even when the cancelled resume path never resumed polling.
             page.reload()
             expect(ring).to_have_attribute('style', '--readiness:30%')
             page.wait_for_load_state('networkidle')

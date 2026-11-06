@@ -94,13 +94,10 @@ places=createPlaceWorkspace({...dependencies,photos});
 Object.assign(context,photos,{api,saveProfileUpdates:dependencies.saveProfileUpdates,resolvePlaceMap:places.resolvePlaceMap,
   rememberPlaceJourneyProject:places.rememberPlaceJourneyProject});
 
-const refresh=context.refreshStageReadiness();
-await settle();
+await context.refreshStageReadiness();
 assert.equal(photoCalls.length,0,'No places are ready in the foreground reply');
-const wake=[...timers].sort((a,b)=>a[1].at-b[1].at)[0];
-assert.ok(wake,'Pending extraction must schedule recovery');
-timers.delete(wake[0]);now=wake[1].at;wake[1].callback();
-await refresh;
+assert.equal(timers.size,0,'Pending extraction must not schedule a browser read');
+await context.refreshStageReadiness(); // Atlas publishes the completed workspace.
 await Promise.all(loads);
 await settle();
 assert.deepEqual([...photoCalls].sort(),[['承德市','1980s'],['悉尼','']].sort());

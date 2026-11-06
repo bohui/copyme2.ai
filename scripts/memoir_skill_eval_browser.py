@@ -34,7 +34,7 @@ def exercise_game(conversation, sql, item, base, executable, folder, sources, re
         if history.serve(route): return
         path = route.request.url.split('/api/v1/memoir')[-1]
         plain = path.split('?')[0]
-        if plain.startswith('/agent/projects/') or plain == '/story/readiness':
+        if plain.startswith('/agent/projects/') or plain == '/story/atlas-events':
             response = conversation.client.request(route.request.method, '/v1' + path,
                 headers={'Authorization': 'Bearer fixture-only', 'Content-Type': 'application/json'},
                 content=route.request.post_data_buffer)

@@ -380,22 +380,6 @@ export const StoryStateSchema = z
   })
   .passthrough();
 export type StoryState = z.infer<typeof StoryStateSchema>;
-export const StageReadinessSchema = z
-  .object({
-    word_equivalents: SafeIntegerSchema,
-    percent: z.number().min(0).max(100),
-    color: z.string(),
-  })
-  .passthrough();
-export const ReadinessSchema = z
-  .object({
-    project_id: z.string(),
-    stages: z.record(z.string(), StageReadinessSchema),
-    heuristic: z.string(),
-    maximum_percent: z.number(),
-  })
-  .passthrough();
-export type Readiness = z.infer<typeof ReadinessSchema>;
 export const DraftPreviewSchema = z
   .object({ title: z.string(), text: z.string() })
   .passthrough();

@@ -44,7 +44,7 @@ _OPTIONAL = frozenset(('max_requests', 'public_asset_urls', 'allow_browser_turns
 _TERM_GRACE_SECONDS = 3
 _KILL_GRACE_SECONDS = 2
 _READ_PATHS = frozenset(('/agent/config', '/agent/profile', '/agent/place-journey',
-    '/agent/family-context', '/story/state', '/story/readiness', '/story/private-draft', '/story/private-draft/page',
+    '/agent/family-context', '/story/state', '/story/atlas-events', '/story/private-draft', '/story/private-draft/page',
     '/story/events', '/user/profile', '/user/projects'))
 
 

@@ -34,6 +34,9 @@ def read_mapped(storage, project_id, reader, legacy=lambda: None):
                     headers={'X-Error-Code': 'LIFETIME_CURSOR_INVALID'}) from None
             raise HTTPException(503, 'This saved view is temporarily unavailable',
                 headers={'X-Error-Code': 'LIFETIME_READ_UNAVAILABLE'}) from None
+        except httpx.RequestError:
+            raise HTTPException(503, 'This saved view is temporarily unavailable',
+                headers={'X-Error-Code': 'LIFETIME_READ_UNAVAILABLE'}) from None
     return legacy()
 
 
@@ -119,15 +122,18 @@ def map_event_page(storage, project_id, *, cursor=None, limit=8):
     page = collection_page(storage, project_id, kind='events', cursor=cursor, limit=limit)
     fields = {'id', 'revision', 'kind', 'life_stage', 'status', 'change_sequence', 'title',
               'temporal', 'temporal_estimate', 'temporal_anchor', 'uncertainty', 'assertion', 'timing_conflict',
-              'location', 'locationConfidenceScore', 'yearConfidenceScore'}
+              'location', 'locationConfidenceScore', 'yearConfidenceScore', 'relations'}
     events = []
     for event in page.get('events', []):
         if event.get('status') != 'active':
             continue
         item = {key: value for key, value in event.items() if key in fields}
+        item['relations'] = [{'kind': relation['kind'], 'event_id': relation['event_id']}
+                             for relation in item.get('relations') or []
+                             if relation.get('kind') in {'before', 'after'} and isinstance(relation.get('event_id'), str)]
         if isinstance(item.get('temporal_estimate'), dict):
             item['temporal_estimate'] = {key: value for key, value in item['temporal_estimate'].items() if key != 'basis'}
-        events.append({**item, 'relations_complete': event.get('details_complete', True)})
+        events.append(item)
     return {**page, 'events': events}
 
 
@@ -137,15 +143,6 @@ def map_event_places(storage, project_id, event_id, *, cursor=None, limit=8):
     fields = {'key', 'role', 'status', 'place'}
     return {**page, 'items': [{key: value for key, value in item.items() if key in fields}
                             for item in page.get('items', [])]}
-
-
-def map_event_order(storage, project_id, event_id, *, cursor=None, limit=8):
-    page = collection_page(storage, project_id, kind='event_details', cursor=cursor, limit=limit, event_id=event_id)
-    relations = [
-        {key: value for key, value in item['value'].items() if key in {'kind', 'event_id'}}
-        for item in page.get('details', []) if item.get('kind') == 'relations'
-        and item.get('value', {}).get('kind') in {'before', 'after'}]
-    return {**{key: value for key, value in page.items() if key != 'details'}, 'relations': relations}
 
 
 def canonical_collection(storage, project_id, *, cursor=None, task_cursor=None, limit=8):

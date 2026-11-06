@@ -182,11 +182,14 @@ def album_page(request):
                 if route.request.method == 'PATCH': profile.update(route.request.post_data_json.get('profile',{}))
                 data = {'id':'album-project','revision':1,'profile':profile,'mode':'self','workspace_unlocked':False}
             elif path == '/story/state': data = {'family_features_enabled':False,'recall_status':{'payment_required':False}}
-            elif path == '/story/readiness':
+            elif path == '/story/atlas-events' and 'view=map' not in route.request.url:
                 data = {'stages':{'baby':{'percent':30,'color':'amber','word_equivalents':300},
                                   'childhood':{'percent':10,'color':'red','word_equivalents':100},
                                   'midlife':{'percent':50,'color':'green','word_equivalents':1000}}}
                 if with_events:
+                    data.update(project_id='album-project', policy_epoch=1,
+                        source_revision=max(1,conversation_state['sequence']), event_revision=1,
+                        map_events=map_snapshot())
                     data['derived_workspace']=dict(project_id='album-project',authoritative=True,policy_epoch=1,
                         source_revision=max(1,conversation_state['sequence']),places=profile['memory_places'],
                         current_active_location=conversation_state['current'] if mode=='conversation-focus' else places[0],
@@ -204,31 +207,8 @@ def album_page(request):
                     current_active_location=conversation_state['current'],
                     workspace_focus=dict(place='学校家属院' if '学校家属院' in text else target['place'],source_sequence=sequence))
                 return route.fulfill(content_type='application/x-ndjson',body=json.dumps(dict(type='result',data=data))+'\n')
-            elif path == '/story/map-events' and with_events:
-                events=[dict(id=id,revision=1,kind='event',status='active',life_stage=stage,title=title,
-                    temporal={'expression':f'Age {age}','precision':'age'},
-                    places=[{'role':'setting','status':'supported','place':place}])
-                    for id,age,place,stage,title in [('return',40,places[2],'midlife','Return home'),
-                        ('school',6,places[1],'childhood','First school'),('birth',0,places[0],'baby','Birth'),
-                        ('move',20,places[-1],'young_adulthood','Move to Sydney')]]
-                if mode in ('estimated-events','overlap-events'):
-                    for event in events:
-                        if event['id']=='birth':
-                            event.update(title='Born in Chengde in April 1983',
-                                temporal=dict(expression='1983年4月',precision='month',year_start=1983),yearConfidenceScore=1)
-                        else:
-                            start,end,confidence={'school':(1988,1990,.6),'move':(2011,2026,.8),'return':(2023,2023,.7)}[event['id']]
-                            event.update(temporal=None,yearConfidenceScore=confidence,temporal_estimate=dict(
-                                year_start=start,year_end=end,age_start=start-1983,age_end=end-1983,confidence=confidence,
-                                rationale='Original duration and narrator birth anchors.'))
-                if mode=='overlap-events':
-                    residence=next(event for event in events if event['id']=='move')
-                    residence.update(life_stage='unplaced',temporal_anchor='present',yearConfidenceScore=.3,
-                        temporal_estimate=dict(year_start=1983,year_end=2026,age_start=0,age_end=43,confidence=.3,
-                            rationale='The residence start is unknown within this broad interval.'))
-                data={'project_id':'album-project','events':events,'policy_epoch':1,'source_revision':1,'event_revision':1,'complete':True}
-                if mode == 'expand-memory':
-                    data['map_source'] = 'published_events'
+            elif path == '/story/atlas-events' and with_events:
+                data = map_snapshot()
             elif path == '/story/map-photos':
                 data={'project_id':'album-project','photos':[dict(photo_id='upload:aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa',
                     kind='private_upload',title='My school photo',event_ids=['school'])] if mode in ('events','estimated-events','overlap-events') else []}
@@ -242,6 +222,35 @@ def album_page(request):
                 calls.append(route.request.url)
                 data = {'items':[], 'status':'UNAVAILABLE' if state_mode=='error' else 'NO_MATCH', 'searching':False}
             return route.fulfill(json=data)
+
+        def map_snapshot():
+            events=[dict(id=id,revision=1,kind='event',status='active',life_stage=stage,title=title,
+                temporal={'expression':f'Age {age}','precision':'age'},
+                places=[{'role':'setting','status':'supported','place':place}])
+                for id,age,place,stage,title in [('return',40,places[2],'midlife','Return home'),
+                    ('school',6,places[1],'childhood','First school'),('birth',0,places[0],'baby','Birth'),
+                    ('move',20,places[-1],'young_adulthood','Move to Sydney')]]
+            if mode in ('estimated-events','overlap-events'):
+                for event in events:
+                    if event['id']=='birth':
+                        event.update(title='Born in Chengde in April 1983',
+                            temporal=dict(expression='1983年4月',precision='month',year_start=1983),yearConfidenceScore=1)
+                    else:
+                        start,end,confidence={'school':(1988,1990,.6),'move':(2011,2026,.8),'return':(2023,2023,.7)}[event['id']]
+                        event.update(temporal=None,yearConfidenceScore=confidence,temporal_estimate=dict(
+                            year_start=start,year_end=end,age_start=start-1983,age_end=end-1983,confidence=confidence,
+                            rationale='Original duration and narrator birth anchors.'))
+            if mode=='overlap-events':
+                residence=next(event for event in events if event['id']=='move')
+                residence.update(life_stage='unplaced',temporal_anchor='present',yearConfidenceScore=.3,
+                    temporal_estimate=dict(year_start=1983,year_end=2026,age_start=0,age_end=43,confidence=.3,
+                        rationale='The residence start is unknown within this broad interval.'))
+            data={'project_id':'album-project','events':events,'policy_epoch':1,
+                'source_revision':max(1,conversation_state['sequence']),'event_revision':1,'complete':True}
+            if mode == 'expand-memory':
+                data['map_source'] = 'published_events'
+            return data
+
         context.route('**/api/v1/memoir/**', api)
         context.add_init_script("localStorage.setItem('memory-spark-project','album-project');sessionStorage.setItem('memory-spark-chat-history:album-project',JSON.stringify([{id:'opening',role:'assistant',text:'Synthetic memory recall conversation'}]));")
         if state_mode == 'loading':

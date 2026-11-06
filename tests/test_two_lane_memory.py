@@ -938,7 +938,7 @@ def test_complete_vertical_slice_background_hint_consumed_next_turn_and_replay_d
         guidance_lane=sql("select id from public.user_memoir_lane where skill='guidance';").stdout.strip()
         guided=canonical_service(sql,'claim_memoir_lane',f"'{guidance_lane}',300")
         assert asyncio.run(execute_lifetime_lane(guided,worker))['status']=='finished'
-        read=client.get('/v1/story/readiness',params={'project_id':project})
+        read=client.get('/v1/story/atlas-events',params={'project_id':project})
         assert read.status_code==200,read.text
         assert read.json()['derived_workspace']['places'][0]['place']=='Hobart'
         turn=str(uuid4());payload={'project_id':project,'client_turn_id':turn,'text':'I remember the water.'}

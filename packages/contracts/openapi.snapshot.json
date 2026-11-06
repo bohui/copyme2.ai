@@ -1146,9 +1146,9 @@
             "anyOf": [
               {
                 "enum": [
-                  "memoir/speech/default",
-                  "memoir/speech/en-AU",
-                  "memoir/speech/zh-CN"
+                  "memoir/workflows/speech/synthesis/default",
+                  "memoir/workflows/speech/synthesis/en-AU",
+                  "memoir/workflows/speech/synthesis/zh-CN"
                 ],
                 "type": "string"
               },
@@ -3450,53 +3450,6 @@
           },
           "required": true
         },
-        "responses": {
-          "200": {
-            "content": {
-              "application/json": {
-                "schema": {}
-              }
-            }
-          },
-          "422": {
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/HTTPValidationError"
-                }
-              }
-            }
-          }
-        }
-      }
-    },
-    "/api/v1/memoir/story/readiness": {
-      "get": {
-        "parameters": [
-          {
-            "in": "header",
-            "name": "authorization",
-            "required": false,
-            "schema": {
-              "anyOf": [
-                {
-                  "type": "string"
-                },
-                {
-                  "type": "null"
-                }
-              ]
-            }
-          },
-          {
-            "in": "query",
-            "name": "project_id",
-            "required": true,
-            "schema": {
-              "type": "string"
-            }
-          }
-        ],
         "responses": {
           "200": {
             "content": {

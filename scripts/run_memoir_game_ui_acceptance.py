@@ -60,18 +60,12 @@ def exercise(case, original, base, output, settings):
                         history.clear(); history.update(snapshot)
                 if '/story-game' in path:
                     result['game_responses'].append(dict(method=response.request.method, path=path, status=response.status))
-                if response.ok and (path.endswith('/story/readiness') or '/agent/places/' in path and path.endswith('/photos')):
+                if response.ok and '/agent/places/' in path and path.endswith('/photos'):
                     try:
                         body = response.json()
-                        if path.endswith('/story/readiness'):
-                            workspace = body.get('derived_workspace') or {}
-                            places = workspace.get('places') or []
-                            result['location_readback'] = dict(authoritative=workspace.get('authoritative') is True,
-                                places=len(places), coordinate_pairs=sum(p.get('latitude') is not None and p.get('longitude') is not None for p in places))
-                        else:
-                            photos = body.get('photos') or []
-                            result['photo_responses'].append(dict(status=body.get('status'), searching=body.get('searching'),
-                                photos=len(photos), attributed_sources=sum(bool(p.get('source_url')) for p in photos)))
+                        photos = body.get('photos') or []
+                        result['photo_responses'].append(dict(status=body.get('status'), searching=body.get('searching'),
+                            photos=len(photos), attributed_sources=sum(bool(p.get('source_url')) for p in photos)))
                     except (ValueError, TypeError, AttributeError):
                         result['readback_metadata_unavailable'] = True
                 if response.status >= 400 and '/api/v1/memoir/' in path:
@@ -106,6 +100,14 @@ def exercise(case, original, base, output, settings):
                     bool(item.get('narrator_text')) and not item.get('reply') for item in history['items'])
                 result['historical_clues_visible'] = page.locator('.historical-context').count()
                 result['photos_visible_in_history'] = page.locator('.assistant-message img').count()
+                snapshot = page.request.get(base + '/api/v1/memoir/story/atlas-events',
+                    params={'project_id':case['project_id']},
+                    headers={'Authorization':'Bearer ' + signed['access_token']}, timeout=10_000)
+                if snapshot.ok:
+                    workspace = snapshot.json().get('derived_workspace') or {}
+                    places = workspace.get('places') or []
+                    result['location_readback'] = dict(authoritative=workspace.get('authoritative') is True,
+                        places=len(places), coordinate_pairs=sum(p.get('latitude') is not None and p.get('longitude') is not None for p in places))
                 expect(page.locator('.private-draft-status')).to_contain_text('50', timeout=30000)
                 result['draft_round_50_visible'] = True
                 opener = page.locator('[data-story-game]').filter(visible=True).first

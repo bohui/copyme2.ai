@@ -46,7 +46,7 @@ _USER_READS = frozenset({'/v1/user/projects', '/v1/user/projects/{project_id}/hi
     '/v1/user/projects/{project_id}/sources/{source_id}', '/v1/user/profile'})
 _PROJECT_READS = frozenset({'/v1/projects/{project_id}', '/v1/projects/{project_id}/journey',
     *('/v1/projects/{project_id}/' + name for name in ('memories', 'sources', 'chapters', 'people', 'relationships', 'timeline'))})
-_STORY_READS = frozenset({'/v1/story/state', '/v1/story/readiness',
+_STORY_READS = frozenset({'/v1/story/state', '/v1/story/atlas-events',
     '/v1/story/private-draft', '/v1/story/private-draft/page', '/v1/story/events'})
 
 

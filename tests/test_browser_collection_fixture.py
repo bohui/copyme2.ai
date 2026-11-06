@@ -58,7 +58,7 @@ def test_startup_creates_and_hydrates_exact_project_with_consent(locale,explicit
         assert response['json']['purpose']==purpose and response['json']['granted'] is True
     assert call('/projects/'+COLLECTION_PROJECT+'/journey')['json']['active_session'] is None
     assert call('/story/state')['json']['recall_status']['payment_required'] is False
-    assert call('/story/readiness?project_id='+COLLECTION_PROJECT)['json']['stages']=={}
+    assert call('/story/atlas-events?project_id='+COLLECTION_PROJECT)['json']['stages']=={}
     assert call('/story/private-draft?project_id='+COLLECTION_PROJECT+'&language='+locale)['json']['preview'] is None
     assert state['created']==1 and set(state['consents'])=={'recording','storyteller_assent'}
     assert state['unexpected']==[]
@@ -66,7 +66,7 @@ def test_startup_creates_and_hydrates_exact_project_with_consent(locale,explicit
 
 @pytest.mark.parametrize('path,method',[
     ('/projects/foreign','GET'),('/projects','GET'),('/agent/turn','POST'),
-    ('/user/profile','POST'),('/story/readiness?project_id=foreign','GET'),
+    ('/user/profile','POST'),('/story/atlas-events?project_id=foreign','GET'),
 ])
 def test_unknown_or_wrong_method_api_never_gets_catchall_success(path,method):
     page=Page();state=install_collection_startup(page,'en-AU');route=Route(path,method,{})

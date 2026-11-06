@@ -9132,6 +9132,7 @@ declare owner uuid:=auth.uid(); identity public.user_lifetime_conversation%rowty
  cursor_row public.user_lifetime_read_cursor%rowtype; records jsonb; extra boolean; cursor_id uuid;
  boundary_sequence bigint:=0; boundary_key text:=''; row_key text; row_sequence bigint;
  source_key text; event_record public.user_memory_event%rowtype; evidence_page jsonb; primary_refs jsonb;
+ chronology_relations jsonb;
 begin
  if owner is null or p_limit is null or p_limit not between 1 and 8 or p_kind not in ('sources','events','event_sources','event_details') or
    (p_kind in ('event_sources','event_details') and (p_event_id is null or length(p_event_id)>128)) or (p_kind not in ('event_sources','event_details') and p_event_id is not null)
@@ -9180,9 +9181,13 @@ begin
    records:='[]';
    for event_record in select e.* from public.user_memory_event e where user_id=owner and project_id=p_project_id and status<>'withdrawn'
      and (change_sequence,id)>(boundary_sequence,boundary_key) order by change_sequence,id limit p_limit+1 loop
-     -- The complete evidence set is separately paginated; never aggregate all
-     -- source_refs or embed accumulated relationship/basis arrays in a list.
+     -- Evidence stays paginated. The map needs only distinct chronology edges.
      evidence_page:=public.read_lifetime_collection_page(p_project_id,'event_sources',null,1,event_record.id);
+     select coalesce(jsonb_agg(relation),'[]') into chronology_relations from (
+       select distinct jsonb_build_object('kind',value->>'kind','event_id',value->>'event_id') relation
+       from jsonb_array_elements(case when jsonb_typeof(event_record.data->'relations')='array'
+         then event_record.data->'relations' else '[]'::jsonb end)
+       where value->>'kind' in ('before','after') and jsonb_typeof(value->'event_id')='string') edges;
      primary_refs:=null;
      if event_record.kind='period' and event_record.data->'temporal'->>'year_start' is null then
        -- Date dependencies must not hide the period's one complete primary assertion.
@@ -9207,6 +9212,7 @@ begin
        'location',event_record.data->'location',
        'locationConfidenceScore',event_record.data->'locationConfidenceScore','yearConfidenceScore',event_record.data->'yearConfidenceScore',
        'timing_conflict',coalesce(event_record.data->'timing_conflict','false'),
+       'relations',chronology_relations,
        'details_complete',not exists(select 1 from unnest(array['temporal_accounts','relations','candidate_ids','supersedes','contradicts']) k
          where jsonb_typeof(event_record.data->k)='array' and jsonb_array_length(event_record.data->k)>0),
        'visibility',event_record.data->'visibility',
@@ -13898,6 +13904,34 @@ grant execute on function public.read_user_original_recording(uuid) to authentic
 
 
 CREATE TRIGGER count_recall_reply AFTER INSERT ON public.user_memory FOR EACH ROW EXECUTE FUNCTION public.count_recall_reply();
+
+CREATE FUNCTION public.notify_memoir_atlas_update() RETURNS trigger
+    LANGUAGE plpgsql SET search_path TO '' AS $$
+begin
+  perform pg_catalog.pg_notify('memoir_atlas_updates',pg_catalog.encode(pg_catalog.sha256(
+    pg_catalog.convert_to(new.user_id::text||':'||new.project_id,'UTF8')),'hex')||':'||TG_ARGV[0]);
+  return null;
+end $$;
+
+revoke all on function public.notify_memoir_atlas_update() from public,anon,authenticated,service_role;
+
+CREATE TRIGGER atlas_project_update AFTER UPDATE OF event_sequence, extraction_cursor, policy_epoch ON public.user_memoir_project
+  FOR EACH ROW WHEN ((old.event_sequence,old.extraction_cursor,old.policy_epoch) IS DISTINCT FROM
+                     (new.event_sequence,new.extraction_cursor,new.policy_epoch))
+  EXECUTE FUNCTION public.notify_memoir_atlas_update('workspace');
+
+CREATE TRIGGER atlas_lane_update AFTER UPDATE OF pending, attempts, successful_source, guidance_revision ON public.user_memoir_lane
+  FOR EACH ROW WHEN ((old.pending,old.attempts,old.successful_source,old.guidance_revision) IS DISTINCT FROM
+                     (new.pending,new.attempts,new.successful_source,new.guidance_revision))
+  EXECUTE FUNCTION public.notify_memoir_atlas_update('workspace');
+
+CREATE TRIGGER atlas_skill_progress AFTER INSERT OR UPDATE OF status ON public.user_background_skill_work
+  FOR EACH ROW WHEN (new.lane_id IS NOT NULL)
+  EXECUTE FUNCTION public.notify_memoir_atlas_update('progress');
+
+CREATE TRIGGER atlas_saved_reply AFTER INSERT ON public.user_memory
+  FOR EACH ROW WHEN (new.kind='agent' AND new.project_id IS NOT NULL)
+  EXECUTE FUNCTION public.notify_memoir_atlas_update('workspace');
 
 CREATE TRIGGER formal_original_invalidation AFTER DELETE OR UPDATE ON public.user_narrator_source FOR EACH ROW EXECUTE FUNCTION public.invalidate_formal_memoir_authority();
 

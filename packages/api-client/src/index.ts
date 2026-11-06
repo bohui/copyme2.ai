@@ -345,15 +345,6 @@ export function createMemoirApi(options: ApiClientOptions) {
       stream("/agent/greeting", C.GreetingInputSchema.parse(input), request),
     storyState: (request?: RequestOptions) =>
       json("/story/state", C.StoryStateSchema, "GET", undefined, request),
-    readiness: (projectId: string, request?: RequestOptions) =>
-      json(
-        "/story/readiness" +
-          query({ project_id: C.ProjectIdSchema.parse(projectId) }),
-        C.ReadinessSchema,
-        "GET",
-        undefined,
-        request,
-      ),
     privateDraft: (
       projectId: string,
       language?: C.Locale,
