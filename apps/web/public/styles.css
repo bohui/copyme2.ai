@@ -322,8 +322,16 @@ h3 { line-height: 1.1; }
 .cesium-place-journey .cesium-viewer-bottom { font-size: 8px; opacity: .82; }
 .place-journey-fallback { position: absolute; inset: 0; z-index: 2; display: flex; align-items: center; gap: 14px; padding: 18px; color: #dcebd8; background: radial-gradient(circle at 72% 34%, rgba(255,223,165,.8), transparent 22%), radial-gradient(circle at 23% 80%, rgba(130,174,156,.36), transparent 30%), linear-gradient(135deg, #173f45, #28675f 55%, #e29a71); transition: opacity .25s ease; }
 .is-cesium-live .place-journey-fallback { opacity: 0; pointer-events: none; }
-/* Cesium needs the opening map at its final size to load the right tiles. */
-.workspace-detail:has(.place-journey-scene.is-cesium-opening) { visibility: hidden; }
+/* Keep the map sized for its opening tiles while chat uses the whole layout. */
+.conversation-layout:has(> .workspace-detail .is-cesium-opening) { position: relative; }
+.conversation-layout:has(> .workspace-detail .is-cesium-opening) > .chat-main {
+  grid-area: 1 / 1 / 2 / -1;
+  width: min(900px, 100%);
+  margin: 0 auto;
+  border: 0;
+  background: transparent;
+}
+.workspace-detail:has(.place-journey-scene.is-cesium-opening) { grid-area: 1 / 2; visibility: hidden; }
 .is-cesium-opening .place-journey-fallback { transition: none; }
 .journey-earth { font-size: 70px; line-height: 1; text-shadow: 0 6px 18px rgba(0,0,0,.2); }
 .journey-fallback-line { flex: 1; color: rgba(255,255,255,.9); font-size: 12px; font-weight: 700; letter-spacing: .04em; }
@@ -1120,6 +1128,7 @@ body:has(.story-shell #chat-scroll) { overflow: hidden; }
   .story-shell:has(#chat-scroll) .story-topbar { min-height: 52px; padding-top: max(4px, env(safe-area-inset-top)); padding-bottom: 4px; }
   .story-shell:has(#chat-scroll) .story-topbar .brand-mark { width: 32px; height: 32px; }
   .story-shell:has(#chat-scroll) .workspace-detail:has(.workspace-media-overview) { flex: 0 1 44%; max-height: 44%; overflow: hidden; }
+  .story-shell:has(#chat-scroll) .workspace-detail:has(.is-cesium-opening) { position: absolute; inset: 0 0 auto; height: 100%; }
   .story-shell:has(#chat-scroll) .workspace-media-overview { display: flex; flex: 1 1 0; min-height: 0; height: 0; padding: 0; overflow: hidden; border: 0; }
   .story-shell:has(#chat-scroll) .workspace-media-map { position: relative; display: flex; flex: 1 1 0; flex-direction: column; min-height: 0; padding: 0; }
   .story-shell:has(#chat-scroll) .workspace-media-gallery { display: none; }

@@ -299,11 +299,20 @@ def test_slow_map_tiles_recover_after_the_opening_deadline_without_reload(album_
 def test_restored_overview_waits_for_imagery_without_a_city_flight(album_page, width):
     page, _, _ = album_page
     expect(page.locator('#workspace-detail')).to_be_hidden(timeout=1000)
+    layout = page.locator('.conversation-layout').bounding_box()
+    chat = page.locator('.chat-main').bounding_box()
+    assert chat['width'] == pytest.approx(min(900, layout['width']), abs=1)
+    assert chat['height'] == pytest.approx(layout['height'], abs=1)
+    canvas = page.locator('.cesium-place-journey canvas')
+    canvas_size = '(canvas) => [canvas.clientWidth, canvas.clientHeight]'
+    opening_size = canvas.evaluate(canvas_size)
+    assert min(opening_size) > 0
     assert page.evaluate('mapFlights.length') == 0
     assert page.evaluate('Cesium.Math.toDegrees(__mapViewer.camera.positionCartographic.longitude)') == pytest.approx(117.95, abs=0.1)
     page.evaluate('releaseMapTiles()')
     expect(page.locator('.place-journey-scene.is-cesium-map')).to_be_visible(timeout=30000)
     expect(page.locator('#workspace-detail')).to_be_visible()
+    assert canvas.evaluate(canvas_size) == pytest.approx(opening_size, abs=1)
     expect(page.locator('.place-journey-fallback')).to_have_css('opacity', '0')
     assert page.evaluate('mapFlights.length') == 0
     page.wait_for_function('__mapViewer.scene.globe.tilesLoaded')
