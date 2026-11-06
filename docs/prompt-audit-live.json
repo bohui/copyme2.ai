@@ -1,6 +1,6 @@
 {
   "project_id": "cmut9t75w00071z02n8bdv7it",
-  "captured_at": "2026-11-06T00:32:54.757949+00:00",
+  "captured_at": "2026-11-06T00:35:37.527574+00:00",
   "scope": "Metadata, case hashes and score presence; no trace text, model calls or mutations",
   "prompts": [
     {
@@ -425,7 +425,8 @@
         3,
         4,
         5,
-        6
+        6,
+        7
       ],
       "labels": [
         "latest"
@@ -24968,7 +24969,7 @@
       "name": "memoir/skills/author-timeline/extract/golden/delivery-v3",
       "target": "memoir/skills/author-timeline/extract",
       "items": 8,
-      "content_sha256": "8fb198c16b7f02ae5ccf71c419e53437edc9905a2e283eea46d225c5c12283ed",
+      "content_sha256": "fb75ef27a4f0279e36f241e84c04c7f906680d04fd53f258a5a1932af47aa4ff",
       "source": "scripts/run_memoir_skill_evaluation.py:datasets"
     },
     {

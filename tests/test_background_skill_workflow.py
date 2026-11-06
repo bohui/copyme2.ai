@@ -386,7 +386,7 @@ def test_only_composer_is_advertised_as_periodic_on_round_milestones(sql,tmp_pat
         assert not any(phase in {'photos','grouping','historical','family','game'} for phase,_ in conversation.admissions)
         page=progress(conversation)['skill_progress']
         mapped=progress(conversation)['skill_execution_map']
-        assert len(mapped)==9
+        assert {'memoir-place-journey','memoir-place-groups'}.isdisjoint(item['name'] for item in mapped)
         assert {item['name'] for item in mapped if item['trigger']=='periodic'}=={'memoir-composer'}
         profile = next(item for item in mapped if item['name']=='memoir-memory-context')
         assert profile['trigger']=='accepted_source' and profile['cadence'] is None

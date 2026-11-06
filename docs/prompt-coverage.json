@@ -2463,8 +2463,8 @@
   {
     "name": "memoir/skills/author-timeline/extract",
     "source": "skills/memoir-author-timeline/prompts/extract.md",
-    "version": 6,
-    "sha256": "f7316012bbeda871ff2f62dd13d5dbdbeff1aa5594fcc7f98c15762e0f101816",
+    "version": 7,
+    "sha256": "f3dac99ee1a349ffba988b8e0c6adec49fe214eda9a24b5dddc52a1ebef3ae99",
     "use": "conditional",
     "scenario": "Draft original timing, geography and chronology in a bounded source window. Pending Place Journey windows are resumed here and use Timeline reconciliation. The unselected compatibility path still produces coarse place hints.",
     "consumers": [
