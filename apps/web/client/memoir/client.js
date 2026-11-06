@@ -1943,12 +1943,7 @@ function renderPlatformLanding() {
               <button class="button button-primary" data-action="open-memoir">${t("begin")} <span>↗</span></button>
             </div>
           </article>
-          <article class="product-card product-card-muted">
-            <div class="product-kicker">${t("diaryKicker")}</div>
-            <h2>${t("diaryTitle")}</h2>
-            <p>${t("diaryBody")}</p>
-            <span class="product-status">${t("comingStatus")}</span>
-          </article>
+          <div class="platform-memoir-art" aria-hidden="true"></div>
         </section>
       </main>
     </div>`;

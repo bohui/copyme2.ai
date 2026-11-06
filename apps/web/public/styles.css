@@ -85,7 +85,7 @@ h3 { line-height: 1.1; }
 .agent-connect input { border: 1px solid var(--line); border-radius: 10px; padding: 10px 12px; background: var(--white); }
 .agent-auth-actions { display: flex; gap: 8px; flex-wrap: wrap; margin-top: 3px; }
 
-/* Platform landing: a simple identity question followed by the product cards. */
+/* Platform landing */
 .platform-landing { min-height: 100vh; overflow: visible; background: linear-gradient(145deg, var(--paper) 0%, #f1eadf 100%); }
 .platform-header, .platform-main { width: min(1120px, calc(100% - 44px)); margin: 0 auto; }
 .platform-header { padding-top: 28px; }
@@ -101,11 +101,8 @@ h3 { line-height: 1.1; }
 .product-card-primary p { color: rgba(255,255,255,.74); max-width: 420px; line-height: 1.55; margin-bottom: 26px; }
 .product-card-actions { width: 100%; display: flex; align-items: center; justify-content: flex-end; gap: 10px; flex-wrap: wrap; margin-top: auto; }
 .product-card-primary .button { margin-top: 0; }
-.product-card-muted { background: rgba(255,253,248,.62); }
-.product-card-muted h2 { font-size: 34px; margin: 15px 0 12px; }
-.product-card-muted p { color: var(--muted); line-height: 1.55; max-width: 270px; }
+.platform-memoir-art { border-radius: 24px; background: var(--paper-deep) url("/static/memoir-photo-album.webp") center / cover no-repeat; }
 .product-kicker { color: var(--green); text-transform: uppercase; letter-spacing: .14em; font-size: 10px; font-weight: 700; }
-.product-status { display: inline-flex; align-self: flex-end; margin-top: auto; color: var(--muted); background: var(--paper-deep); border-radius: 999px; padding: 8px 11px; font-size: 11px; font-weight: 700; }
 
 /* Conversation shell */
 .story-shell { min-height: 100vh; display: flex; flex-direction: column; background: var(--paper); }
@@ -526,6 +523,7 @@ h3 { line-height: 1.1; }
   .feature-row { margin-top: 45px; }
   .platform-main { padding-top: 58px; }
   .platform-products { grid-template-columns: 1fr; margin-top: 48px; }
+  .platform-memoir-art { aspect-ratio: 3 / 2; }
   .workspace-visible .conversation-layout { display: flex; flex-direction: column; }
   .context-visible .conversation-layout { display: flex; flex-direction: column; }
   .voice-floating.workspace-visible .conversation-layout, .voice-floating.context-visible .conversation-layout { display: flex; flex-direction: column; }

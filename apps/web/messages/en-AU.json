@@ -120,11 +120,7 @@
     "memoirKicker": "COPYME2 · MEMOIR",
     "memoirTitle": "Preserve the parts of you that matter.",
     "memoirBody": "Start with a memory, place, or thought; make a story your family can keep.",
-    "begin": "Begin my story",
-    "diaryKicker": "COPYME2 · DIARY",
-    "diaryTitle": "Keep the everyday close.",
-    "diaryBody": "A private place for the small moments, thoughts, and details you’ll want to remember.",
-    "comingStatus": "Coming soon"
+    "begin": "Begin my story"
   },
   "Memoir": {
     "recall": {
