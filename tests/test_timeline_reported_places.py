@@ -146,6 +146,7 @@ def test_chronological_active_city_and_explicit_redirect_replay_to_client(sql, t
             return response.json()['derived_workspace']
         initial = snapshot()
         assert initial['current_active_location']['place'] == '承德市'
+        assert initial['current_active_location'].get('latitude') is None
         assert sql("select journeys->0->>'place' from public.user_lifetime_place_journey;").stdout.strip() == '承德市'
         redirected = conversation.say(redirect, language='zh-CN')
         assert redirected['current_active_location']['place'] == '悉尼'
@@ -161,7 +162,10 @@ def test_chronological_active_city_and_explicit_redirect_replay_to_client(sql, t
             response = conversation.client.post(f'/v1/agent/places/{conversation.project}/groups',
                 json={'places':[linked['place']], 'language':'zh-CN'})
             assert response.status_code == 200, response.text
-            grouping[linked['place']['place']] = response.json()
+            groups = response.json()
+            if linked['place']['granularity'] == 'landmark':
+                assert groups['places'][0]['pin'] is None
+            grouping[linked['place']['place']] = groups
         replay = Path(__file__).parent / 'js/helpers/replay-question-place-focus.mjs'
         checked = subprocess.run(['node', str(replay)], input=json.dumps(dict(project_id=conversation.project,
             result=result, snapshot=initial, redirect_snapshot=later, events=page['events'], links=links,

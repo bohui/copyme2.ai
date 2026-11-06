@@ -107,18 +107,26 @@ def resolve_place_groups(places, *, allow_provider=True, language=None):
         # A provider can return only the city centre despite matching the query.
         # It remains a usable map target, never an independent child's position.
         city_identity = canonical_city_key if canonical_city_key is not None else _key(city)
-        if (pin and city_identity != _key(place)
+        place_key = _key(place)
+        if (pin and city_identity != place_key
                 and pin['latitude'] == city.get('latitude')
                 and pin['longitude'] == city.get('longitude')):
             pin = None
-        if pin is None and city_identity != _key(place) and city['granularity'] == 'city' and not _coordinates(city):
-            # Verify the city's own centre separately from the unresolved child.
-            centre = lookup(city)
-            match = _provider_city(centre)
-            if match and _key(match) == _key(city) and not centre.get('partial_match') and _coordinates(centre):
-                city.update(latitude=centre['latitude'], longitude=centre['longitude'])
+        if (pin and city_identity == place_key and city['granularity'] == 'city'
+                and _label(city['place']) == _label(place['place']) and not _coordinates(city)):
+            city.update(latitude=pin['latitude'], longitude=pin['longitude'])
         records.append({'index': index, 'city_key': _key(city), 'city': city, 'pin': pin,
                         'pin_status': 'READY' if pin else 'UNRESOLVED'})
+    # Spend remaining lookups on city centres after resolving individual pins.
+    for record, place in zip(records, places):
+        city = record['city']
+        if (record['pin'] is not None or record['city_key'] == _key(place)
+                or city['granularity'] != 'city' or _coordinates(city)):
+            continue
+        centre = lookup(city)
+        match = _provider_city(centre)
+        if match and _key(match) == record['city_key'] and not centre.get('partial_match') and _coordinates(centre):
+            city.update(latitude=centre['latitude'], longitude=centre['longitude'])
     # A coarse city mention can omit the state that a later mention supplies.
     # Complete it only when the same country/name has one unambiguous full path;
     # conflicting regional names remain separate. Source places and pins stay intact.

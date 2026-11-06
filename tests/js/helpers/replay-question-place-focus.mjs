@@ -27,6 +27,8 @@ for (const restore of ['live','refresh','reopen']) {
   const scene={isConnected:true,clientWidth:600,clientHeight:700,classList:{toggle(){},contains:()=>true},
     querySelector:selector=>selector==='.map-memory-layer' ? layer : selector==='.map-photo-album-layer' ? photoLayer : null};
   globalThis.document={documentElement:{lang:'zh-CN'},querySelector:()=>null};
+  let finishLandmark;
+  const pendingLandmark = grouping && restore==='live' ? new Promise(resolve=>{finishLandmark=resolve;}) : null;
   const dependencies={state,profile:()=>state.project.profile,render(){},lifeStageText:stage=>stage,
     captureProjectScope:()=>project_id,isCurrentProjectScope:()=>true,
     supabaseApi:async(path,{body})=>{
@@ -34,6 +36,7 @@ for (const restore of ['live','refresh','reopen']) {
       const {places:[place],language}=JSON.parse(body);
       assert.equal(language,'zh-CN');
       assert.ok(grouping[place.place]);
+      if (place.granularity==='landmark') await pendingLandmark;
       return grouping[place.place];
     }};
   let workspace;
@@ -72,6 +75,11 @@ for (const restore of ['live','refresh','reopen']) {
       y:350+(point.latitude-center.latitude)*500} : {x:300,y:350}}};
   map.attach(viewer,cesium);
   if (restore==='live') {
+    if (pendingLandmark) {
+      assert.equal(flights.length,0,'An earlier lookup for another city must not take over the active flight');
+      finishLandmark();
+      await new Promise(resolve=>setImmediate(resolve));
+    }
     assert.equal(flights.length,1,'null → chronological city needs one flight');
     assert.equal(flights[0].destination.latitude,expected.latitude);
     center=expected;viewer.camera.frustum={left:-6000,right:6000};flights[0].complete();
