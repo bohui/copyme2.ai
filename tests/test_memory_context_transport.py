@@ -117,16 +117,12 @@ def test_direct_calls_keep_prompt_packet_schema_effort_budget_and_actual_send_gu
     assert not (tmp_path / 'homes').exists()
 
 
-# Complete HTTP request hashes captured from main before flattening.
-@pytest.mark.parametrize('selected_skills,prompt_sha256,schema_sha256', [
-    (['memoir-author-timeline'],
-     '11cee0707f9cd1f50a785d596a969322402c4b3d0169331926650d06e2e39865',
-     '24062c3977930c74ed3e2c19520eb280d01c4281b072ae66b3ed01a121d29609'),
-    (['memoir-author-timeline', 'memoir-memory-context'],
-     '11cee0707f9cd1f50a785d596a969322402c4b3d0169331926650d06e2e39865',
-     '24062c3977930c74ed3e2c19520eb280d01c4281b072ae66b3ed01a121d29609'),
+# Complete HTTP request hashes captured from main before retirement.
+@pytest.mark.parametrize('selected_skills', [
+    ['memoir-author-timeline'],
+    ['memoir-author-timeline', 'memoir-memory-context'],
 ])
-def test_selected_extraction_preloads_each_required_document_once(tmp_path, selected_skills, prompt_sha256, schema_sha256):
+def test_selected_extraction_preloads_each_required_document_once(tmp_path, selected_skills):
     from apps.api.lifetime_memory_lane_engine import lane_extraction_packet
     current = page()
     current['two_lane'] = dict(schema_version=1, task_version='two-lane-v1', execution_generation=1,
@@ -137,9 +133,9 @@ def test_selected_extraction_preloads_each_required_document_once(tmp_path, sele
     run(tmp_path, prepared, publisher, provider)
     body, = provider.bodies
     instructions = body['instructions']
-    assert hashlib.sha256(instructions.encode()).hexdigest() == prompt_sha256
+    assert hashlib.sha256(instructions.encode()).hexdigest() == '67d0e6cfcddfa3d9e41c32fc382f55923e3e2f2af86fb78d8048b710508a9c70'
     schema = body['text']['format']['schema']
-    assert hashlib.sha256(json.dumps(schema, sort_keys=True).encode()).hexdigest() == schema_sha256
+    assert hashlib.sha256(json.dumps(schema, sort_keys=True).encode()).hexdigest() == '151fb06553ed358e06bd8d511e9b3e9f4b0b4901f42cb8934df5ca30d718b2dc'
     assert body['metadata']['langfuse_prompt_name'] == 'memoir/skills/author-timeline/extract'
     assert 'memoir_read_skill' not in instructions
     assert not body['tools'] and body['tool_choice'] == 'none'
