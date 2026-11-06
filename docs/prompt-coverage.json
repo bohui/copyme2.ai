@@ -2466,7 +2466,7 @@
     "version": 7,
     "sha256": "f3dac99ee1a349ffba988b8e0c6adec49fe214eda9a24b5dddc52a1ebef3ae99",
     "use": "conditional",
-    "scenario": "Draft original timing, geography and chronology in a bounded source window. Pending Place Journey windows are resumed here and use Timeline reconciliation. The unselected compatibility path still produces coarse place hints.",
+    "scenario": "Draft grounded events, period estimates, geography and narrated order in an authorized window. One general extraction contract and three worked examples cover distinct cases. The unselected compatibility branch also extracts coarse place cues.",
     "consumers": [
       {
         "path": "apps/api/memory_events.py",
@@ -2477,6 +2477,11 @@
         "path": "apps/api/two_lane_memory.py",
         "symbol": "extraction_contract",
         "line": 22
+      },
+      {
+        "path": "apps/api/lifetime_memory_lane_engine.py",
+        "symbol": "lane_contract",
+        "line": 212
       }
     ],
     "targets": [

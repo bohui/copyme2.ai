@@ -1,6 +1,6 @@
 {
   "project_id": "cmut9t75w00071z02n8bdv7it",
-  "captured_at": "2026-11-06T00:35:37.527574+00:00",
+  "captured_at": "2026-11-06T00:57:58.546577+00:00",
   "scope": "Metadata, case hashes and score presence; no trace text, model calls or mutations",
   "prompts": [
     {
@@ -345,26 +345,6 @@
       "tags": []
     },
     {
-      "name": "memoir/probes/skills/place-groups/group",
-      "versions": [
-        1
-      ],
-      "labels": [
-        "latest"
-      ],
-      "tags": []
-    },
-    {
-      "name": "memoir/probes/skills/place-groups/instructions",
-      "versions": [
-        1
-      ],
-      "labels": [
-        "latest"
-      ],
-      "tags": []
-    },
-    {
       "name": "memoir/probes/skills/place-photo-research/discovery",
       "versions": [
         1
@@ -547,16 +527,6 @@
     },
     {
       "name": "memoir/skills/memory-context/summary",
-      "versions": [
-        1
-      ],
-      "labels": [
-        "latest"
-      ],
-      "tags": []
-    },
-    {
-      "name": "memoir/skills/place-journey/extract",
       "versions": [
         1
       ],

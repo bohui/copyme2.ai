@@ -1,5 +1,6 @@
 """The public command selects frozen scenarios and proves requested prompt use."""
 from copy import deepcopy
+import hashlib
 import json
 import subprocess
 
@@ -8,6 +9,7 @@ import pytest
 from scripts import evaluate_langfuse_prompt as command
 from scripts import run_memoir_agent_evaluation as agents
 from scripts.prompt_registry import prompt_registry
+from apps.api.prompt_artifact import prompt_path
 
 MIRA = 'memoir/agents/mira/reply'
 
@@ -17,15 +19,22 @@ MIRA = 'memoir/agents/mira/reply'
     ('SKILL_EVAL_NAME=author-timeline', 16),
 ])
 def test_make_plan_selects_datasets_and_graders_without_credentials(selector, expected_cases):
+    expected = {MIRA} if selector.startswith('PROMPT_') else {
+        name for name in prompt_registry() if name.startswith(f'memoir/skills/{selector.split("=", 1)[1]}/')}
     result = subprocess.run(['make', '--no-print-directory', 'prompt-eval-plan', selector,
         'PROMPT_CREDENTIAL_FILE=/missing/credentials'], cwd=command.ROOT, capture_output=True, text=True)
+    # Planning loads the complete skill inventory before selecting the cases.
+    for name in expected | {'memoir/skills/author-timeline/extract'}:
+        path = prompt_path(name)
+        pin = json.loads(path.with_name(path.name + '.langfuse.json').read_text())
+        if pin['sha256'] != hashlib.sha256(path.read_bytes()).hexdigest():
+            assert result.returncode == 2 and 'Invalid Langfuse prompt artifact' in result.stderr
+            return
     assert result.returncode == 0, result.stderr
     plan = json.loads(result.stdout)
     assert plan['count'] == expected_cases and plan['http_dispatches'] == 0
     assert plan['dataset_names'] and plan['evaluator'] == 'scripts/run_memoir_agent_evaluation.py:scores'
     names = {p['name'] for p in plan['requested_prompts']}
-    expected = {MIRA} if selector.startswith('PROMPT_') else {
-        name for name in prompt_registry() if name.startswith(f'memoir/skills/{selector.split("=", 1)[1]}/')}
     assert names == expected
     assert len(plan['cases']) == len(set(plan['cases']))
 

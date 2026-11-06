@@ -117,7 +117,7 @@ def test_direct_calls_keep_prompt_packet_schema_effort_budget_and_actual_send_gu
     assert not (tmp_path / 'homes').exists()
 
 
-# Complete HTTP request hashes captured from main before retirement.
+# Reviewed extraction instruction hash with the existing strict schema.
 @pytest.mark.parametrize('selected_skills', [
     ['memoir-author-timeline'],
     ['memoir-author-timeline', 'memoir-memory-context'],
@@ -133,10 +133,11 @@ def test_selected_extraction_preloads_each_required_document_once(tmp_path, sele
     run(tmp_path, prepared, publisher, provider)
     body, = provider.bodies
     instructions = body['instructions']
-    assert hashlib.sha256(instructions.encode()).hexdigest() == '67d0e6cfcddfa3d9e41c32fc382f55923e3e2f2af86fb78d8048b710508a9c70'
+    prompt_sha256 = '72e5ecaeb42f1319d85ad13d92b548de385cd6ba99a16babbc6e39e7728b590e'
+    assert hashlib.sha256(instructions.encode()).hexdigest() == prompt_sha256
     schema = body['text']['format']['schema']
     assert hashlib.sha256(json.dumps(schema, sort_keys=True).encode()).hexdigest() == '151fb06553ed358e06bd8d511e9b3e9f4b0b4901f42cb8934df5ca30d718b2dc'
-    assert body['metadata']['langfuse_prompt_name'] == 'memoir/skills/author-timeline/extract'
+    assert body['metadata']['prompt_sha256'] == prompt_sha256
     assert 'memoir_read_skill' not in instructions
     assert not body['tools'] and body['tool_choice'] == 'none'
     assert body['metadata']['generation_name'] == 'memoir-author-timeline.extract'
