@@ -43,7 +43,13 @@ export function createPlaceWorkspace({
   });
 
   const mapMemoryEvents = createMapMemoryEvents({
-    getEvents: () => publishedMap() ? (state.timeline || []).filter(event => event.canonical) : state.timeline || [],
+    getEvents: () => {
+      const events = state.timeline || [];
+      if (!publishedMap()) return events;
+      const page = state.memoryEventPage;
+      if (!page || page.project_id !== state.project?.id || page.policy_epoch < state.derivedWorkspace?.policy_epoch) return [];
+      return events.filter(event => event.canonical);
+    },
     getGroups: mapMemoryPlaceGroups,
     getProfile: profile,
     getActiveLocation: () => state.currentActiveLocation,
@@ -174,7 +180,7 @@ export function createPlaceWorkspace({
 
   function placeWorkspaceSelection({allowUnmapped = false} = {}) {
     if (publishedMap()) {
-      const nodes = mapMemoryEvents.nodes();
+      const nodes = mapMemoryEvents.prepareNodes();
       const node = nodes.find(item => placeHistoryKey(item.location) === state.selectedPlace) || nodes[0];
       return node ? {...node.location, latitude:node.latitude, longitude:node.longitude} : null;
     }
@@ -317,18 +323,18 @@ export function createPlaceWorkspace({
     if (!journey) return "";
     const t = (key) => escapeHtml(translate(`Memoir.workspace.${key}`));
     const title = group?.city || journey;
-    const target = overviewPins ? {place:journey.place,latitude:0,longitude:18,height:20_000_000,pins:overviewPins}
-      : group ? groupMapFrame(group, placeMapTarget(group.city) || placeMapTarget(journey)) : placeMapTarget(journey);
+    const target = group ? groupMapFrame(group, placeMapTarget(group.city) || placeMapTarget(journey)) : placeMapTarget(journey);
     if (!target) return "";
     const parentFallback = !group && target.place && placeHistoryKey({place: target.place}) !== placeHistoryKey({place: journey.place});
     const latitude = Number.isFinite(target?.latitude) ? target.latitude : "";
     const longitude = Number.isFinite(target?.longitude) ? target.longitude : "";
     const duration = Number(journey.duration_ms) || 5200;
-    const pins = target.pins || (parentFallback ? [] : [{key:placeHistoryKey(journey),place:journey.place,latitude,longitude}]);
-    const pinData = ` data-cesium-scope="${escapeHtml(JSON.stringify([state.project?.id,state.supabase?.user?.id,state.derivedWorkspace?.policy_epoch,state.supabase?.geo_provider,currentUiLocale()]))}" data-cesium-unavailable="${unavailablePlaceMaps.has(placeMapRenderKey(journey))}" data-cesium-pins="${escapeHtml(JSON.stringify(pins))}" data-cesium-height="${target.height || ""}"`;
+    const pins = overviewPins || target.pins || (parentFallback ? [] : [{key:placeHistoryKey(journey),place:journey.place,latitude,longitude}]);
+    const unavailable = unavailablePlaceMaps.has(placeMapRenderKey(journey));
+    const pinData = ` data-cesium-scope="${escapeHtml(JSON.stringify([state.project?.id,state.supabase?.user?.id,state.derivedWorkspace?.policy_epoch,state.supabase?.geo_provider,currentUiLocale()]))}" data-cesium-unavailable="${unavailable}" data-cesium-pins="${escapeHtml(JSON.stringify(pins))}" data-cesium-height="${target.height || ""}"`;
     const legend = group && group.members.length > 1 ? `<ul class="place-map-pins">${group.members.filter(member => placeHistoryKey(member) !== placeHistoryKey(group.city)).map(member => `<li><span class="place-pin-dot" aria-hidden="true">●</span>${escapeHtml(member.place)}${pins.some(pin => pin.key === placeHistoryKey(member)) ? "" : `<small>${t("pinUnresolved")}</small>`}</li>`).join("")}</ul>` : "";
     const heading = variant === "workspace" ? "" : `<div class="place-journey-heading"><h2>${escapeHtml(title.place)}</h2></div>`;
-    return `<section class="place-journey-card place-journey-${variant}" aria-label="${escapeHtml(title.place)} · ${t("placeJourney")}">${heading}<div class="place-journey-scene" style="--journey-duration:${duration}ms"><div class="cesium-place-journey" data-place-key="${escapeHtml(overviewPins ? "all" : group ? group.key : placeHistoryKey(journey))}" data-cesium-place="${escapeHtml(target.place || journey.place)}" data-cesium-latitude="${latitude}" data-cesium-longitude="${longitude}" data-cesium-duration="${duration}"${pinData}></div><div class="place-journey-fallback"><span class="journey-earth" aria-hidden="true">◒</span><span class="journey-fallback-line">${t("mapPreview")}<small>${t("placeContextShown")}</small></span></div></div>${legend}</section>`;
+    return `<section class="place-journey-card place-journey-${variant}" aria-label="${escapeHtml(title.place)} · ${t("placeJourney")}">${heading}<div class="place-journey-scene${unavailable ? "" : " is-cesium-opening"}" style="--journey-duration:${duration}ms"><div class="cesium-place-journey" data-place-key="${escapeHtml(overviewPins ? "all" : group ? group.key : placeHistoryKey(journey))}" data-cesium-place="${escapeHtml(target.place || journey.place)}" data-cesium-latitude="${latitude}" data-cesium-longitude="${longitude}" data-cesium-duration="${duration}"${pinData}></div><div class="place-journey-fallback"><span class="journey-earth" aria-hidden="true">◒</span><span class="journey-fallback-line">${t("mapPreview")}<small>${t("placeContextShown")}</small></span></div></div>${legend}</section>`;
   }
 
   function placeJourneySurface() {
@@ -641,7 +647,7 @@ export function createPlaceWorkspace({
     }
     const hideUnavailableMap = () => {
       if (!container.isConnected || state.project?.id !== projectId) return;
-      unavailablePlaceMaps.add(mapKey);
+      unavailablePlaceMaps.add(placeMapRenderKey(placeWorkspaceSelection() || journey));
       render();
     };
     if (!Number.isFinite(latitude) || !Number.isFinite(longitude)) return;
@@ -686,25 +692,23 @@ export function createPlaceWorkspace({
           void loadPlacePictures(member, state.project?.id);
           render();
         }, cesium.ScreenSpaceEventType.LEFT_CLICK);
-        mapPhotoAlbums.sync(container.closest(".place-journey-scene"));
-        mapPhotoAlbums.attach(viewer, cesium, pins);
-        mapMemoryEvents.sync(container.closest(".place-journey-scene"));
-        mapMemoryEvents.attach(viewer, cesium);
+        const scene = container.closest(".place-journey-scene");
+        const fallback = container.parentElement.querySelector(".place-journey-fallback");
 
-        // Fit the whole Earth in the narrower dimension of this panel. Looking
-        // off-nadir at orbital altitude pushes the globe below the viewport.
         viewer.resize();
-        const frustum = viewer.camera.frustum;
-        const halfFov = Math.min(frustum.fovy / 2, Math.atan(Math.tan(frustum.fovy / 2) * frustum.aspectRatio));
-        const radius = viewer.scene.globe.ellipsoid.maximumRadius;
-        const startHeight = radius * (1.15 / Math.sin(halfFov) - 1);
-        viewer.scene.morphTo2D(0);
-        viewer.camera.setView({
-          destination: cesium.Cartesian3.fromDegrees(0, 18, startHeight),
+        const height = Number(container.dataset.cesiumHeight) || placeMapViewHeight(journey, placeMapTarget(journey));
+        const openingView = {
+          destination: cesium.Cartesian3.fromDegrees(longitude, latitude, height),
           orientation: { heading: 0, pitch: -Math.PI / 2, roll: 0 },
-        });
-        container.closest(".place-journey-scene")?.classList.add("is-cesium-live");
-        container.parentElement.querySelector(".place-journey-fallback")?.setAttribute("aria-hidden", "true");
+        };
+        viewer.scene.morphTo2D(0);
+        viewer.camera.setView(openingView);
+        mapPhotoAlbums.sync(scene);
+        mapPhotoAlbums.attach(viewer, cesium, pins);
+        mapMemoryEvents.sync(scene);
+        mapMemoryEvents.attach(viewer, cesium);
+        scene?.classList.add("is-cesium-live");
+        fallback?.setAttribute("aria-hidden", "true");
 
         let mapLayer;
         const showImageryFallback = () => {
@@ -716,12 +720,9 @@ export function createPlaceWorkspace({
           if (mapLayer) viewer.imageryLayers.remove(mapLayer);
           viewer.camera.cancelFlight();
           viewer.scene.morphTo3D(0);
-          viewer.camera.setView({
-            destination: cesium.Cartesian3.fromDegrees(0, 18, startHeight),
-            orientation: { heading: 0, pitch: -Math.PI / 2, roll: 0 },
-          });
-          container.closest(".place-journey-scene")?.classList.remove("is-cesium-live", "is-cesium-map");
-          container.parentElement.querySelector(".place-journey-fallback")?.removeAttribute("aria-hidden");
+          viewer.camera.setView(openingView);
+          scene?.classList.remove("is-cesium-live", "is-cesium-map");
+          fallback?.removeAttribute("aria-hidden");
           viewer.scene.requestRender();
           hideUnavailableMap();
           console.warn("Place map imagery unavailable.");
@@ -763,8 +764,10 @@ export function createPlaceWorkspace({
           viewer.scene.requestRender();
         };
         whenTilesLoaded(() => {
-          container.closest(".place-journey-scene")?.classList.add("is-cesium-map");
           stopOpening();
+          scene?.classList.add("is-cesium-map");
+          mapMemoryEvents.sync(scene);
+          if (scene?.classList.contains("is-cesium-map")) scene.classList.remove("is-cesium-opening");
           viewer.scene.requestRender();
         });
         loadPlaceImagery(cesium).then((layer) => {
@@ -791,13 +794,12 @@ export function createPlaceWorkspace({
             isCurrent:() => currentMap() && !mapLayerFailed,
             onPreparing:preparing => {
               if (!currentMap() || mapLayerFailed) return;
-              const scene = container.closest(".place-journey-scene");
-              const fallback = container.parentElement.querySelector(".place-journey-fallback");
               if (preparing) {
                 scene?.classList.remove("is-cesium-live", "is-cesium-map");
                 fallback?.removeAttribute("aria-hidden");
               } else {
                 scene?.classList.add("is-cesium-live", "is-cesium-map");
+                scene?.classList.remove("is-cesium-opening");
                 fallback?.setAttribute("aria-hidden", "true");
               }
             }});

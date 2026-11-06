@@ -13,7 +13,8 @@ for (const provider of ['google','geoapify']) {
     assert.equal(h.classes.has('is-cesium-map'),true);
     assert.equal(h.flights.length,0,'Loading a map is not an active-location change');
     assert.equal(h.viewer.scene.mode,2);
-    assert.ok(h.viewer.view.destination.height>1000000);
+    assert.equal(h.viewer.view.destination.longitude,117.93,'A map without a framed journey opens on its known place');
+    assert.equal(h.viewer.view.destination.latitude,40.97);
     assert.equal(h.viewer.scene.screenSpaceCameraController.enableInputs,true);
   });
 
@@ -40,7 +41,7 @@ for (const provider of ['google', 'geoapify']) for (const [mode, options] of [
     assert.equal(h.viewer.scene.screenSpaceCameraController.enableInputs,true);
     assert.equal(h.classes.has('is-cesium-map'),false,'Wait for destination tiles before declaring arrival');
     assert.equal(h.viewer.scene.mode,2);
-    assert.ok(h.viewer.view.destination.height>1000000);
+    assert.equal(h.viewer.view.destination.longitude,117.93);
     h.resolveImage({width:256,height:256});await pending;
     h.frame();h.frame();
     assert.equal(h.classes.has('is-cesium-map'),false,'A late first image must still wait for the destination queue');
@@ -158,7 +159,7 @@ for (const provider of ['google', 'geoapify']) {
   test(`${provider}: reduced-motion map waits for all destination tiles without a flight`, async () => {
     const h = await harness(provider);
     assert.equal(h.flights.length,0);
-    assert.ok(h.viewer.view.destination.height>1000000);
+    assert.equal(h.viewer.view.destination.longitude,117.93);
     assert.equal(h.classes.has('is-cesium-map'), false, 'An initialized provider is not a loaded tile');
     const pending = h.imagery.requestImage(0, 0, 0);
     assert.equal(h.classes.has('is-cesium-map'), false);

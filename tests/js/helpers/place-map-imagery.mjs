@@ -30,7 +30,8 @@ export async function harness(provider = 'geoapify', {
   const retry = {addEventListener: (event, listener) => retryHandlers.set(event, listener)};
   const fallback = {innerHTML:'', querySelector:() => retry,
     setAttribute: (key, value) => attributes.set(key, value), removeAttribute: key => attributes.delete(key)};
-  const sceneElement = {classList: {add: (...names) => names.forEach(name => classes.add(name)), remove: (...names) => names.forEach(name => classes.delete(name))}};
+  const sceneElement = {classList: {add: (...names) => names.forEach(name => classes.add(name)),
+    remove: (...names) => names.forEach(name => classes.delete(name)), contains: name => classes.has(name)}};
   const container = {isConnected: true, dataset: {placeKey,cesiumLatitude: String(journey.latitude), cesiumLongitude: String(journey.longitude), cesiumPlace: journey.place,cesiumHeight:journey.height ? String(journey.height) : ''},
     closest: () => sceneElement, parentElement: {querySelector: selector => selector === '[data-map-retry]' ? retry : fallback}};
   if (pendingFocus) container.dataset.cesiumPending='true';

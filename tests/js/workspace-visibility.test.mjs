@@ -243,7 +243,7 @@ test('collapsing a ready workspace also hides the life-stage strip', () => {
   assert.doesNotMatch(html, /workspace-media-overview|life-stage-navigator/);
 });
 
-test('an activated workspace survives a later unresolved location and respects collapse and project scope', () => {
+test('the workspace is available only while there is a map or a tab to open', () => {
   let target = {place: 'Chengde', latitude: 40.95, longitude: 117.96};
   const state = {
     project: {id: 'project'},
@@ -265,8 +265,8 @@ test('an activated workspace survives a later unresolved location and respects c
 
   assert.equal(context.workspaceIsVisible(), true);
   target = null;
-  assert.equal(context.workspaceIsVisible(), true, 'a later unresolved location must not close the workspace');
-  assert.equal(context.workspaceHasContent(), true);
+  assert.equal(context.workspaceIsVisible(), false, 'A missing map must not expose the empty workspace');
+  assert.equal(context.workspaceHasContent(), false);
 
   target = {place: 'Chengde', latitude: 40.95, longitude: 117.96};
   assert.equal(context.workspaceIsVisible(), true);
@@ -282,33 +282,31 @@ test('an activated workspace survives a later unresolved location and respects c
   assert.equal(context.workspaceIsVisible(), false, 'a past map must not activate a new empty project');
 });
 
-for (const policyEpoch of [1, 2]) test(`an activated workspace stays rendered after an empty place snapshot at policy epoch ${policyEpoch}`, () => {
+for (const policyEpoch of [1, 2]) test(`an empty authoritative snapshot at policy epoch ${policyEpoch} leaves only chat`, () => {
   const journey = {place:'Chengde', hierarchy:['Earth', 'China', 'Chengde'], status:'active',
     latitude:40.95, longitude:117.96};
   const {state, context, app} = workspaceHarness({
     project:{id:'project', profile:{memory_places:[journey]}}, placeJourney:journey,
     placeWorkspaceMap:{projectId:'project', key:'saved-map'},
-  }, {workspaceMediaOverview:() => ''});
+  });
   context.renderStory();
   assert.match(app.innerHTML, /story-shell context-visible/);
 
   assert.equal(applyDerivedWorkspace(state, {project_id:'project', source_revision:2,
     policy_epoch:policyEpoch, authoritative:true, places:[]}), true);
   context.renderStory();
-  assert.match(app.innerHTML, /story-shell context-visible/);
-  assert.match(app.innerHTML, /id="workspace-detail"/);
-  assert.match(app.innerHTML, /class="workspace-empty"[^]*role="status"/);
-  assert.doesNotMatch(app.innerHTML, /conversation-only|workspace-collapsed/);
+  assert.match(app.innerHTML, /story-shell conversation-only/);
+  assert.doesNotMatch(app.innerHTML, /id="workspace-detail"|workspace-empty|workspace-collapsed/);
   assert.equal(state.placeJourney, null);
   assert.equal(state.placeWorkspaceMap, null);
   assert.deepEqual(state.project.profile.memory_places, []);
 
   state.workspaceCollapsed = true;
   context.renderStory();
-  assert.match(app.innerHTML, /workspace-detail is-collapsed/);
+  assert.doesNotMatch(app.innerHTML, /id="workspace-detail"/);
   state.workspaceCollapsed = false;
   context.renderStory();
-  assert.match(app.innerHTML, /story-shell context-visible/);
+  assert.match(app.innerHTML, /story-shell conversation-only/);
 
   state.project = {id:'another-project', profile:{}};
   context.renderStory();

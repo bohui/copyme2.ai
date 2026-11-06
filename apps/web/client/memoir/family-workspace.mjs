@@ -37,11 +37,16 @@ export function createFamilyWorkspace({
   let memoryEventTimer = null;
   let memoryEventRequest = 0;
 
-  async function refreshFamilyContext() {
+  async function refreshFamilyContext(retry = true) {
     const scope = captureProjectScope();
     if (!state.project?.id || !state.supabase?.accessToken) return null;
     const request = ++memoryEventRequest;
     const projectId = state.project.id;
+    const current = () => isCurrentProjectScope(scope) && request === memoryEventRequest;
+    const refreshLater = (retryNext = true) => {
+      clearTimeout(memoryEventTimer);
+      memoryEventTimer = setTimeout(() => { if (current()) void refreshFamilyContext(retryNext); }, 15000);
+    };
     try {
       const body = state.familyFeaturesEnabled
         ? await supabaseApi(`/v1/agent/family-context?project_id=${encodeURIComponent(projectId)}`) : null;
@@ -60,7 +65,7 @@ export function createFamilyWorkspace({
           precision: event.temporal?.precision || "unknown", canonical: true })), state.project.profile);
         render();
         if (memoryEventTimer) clearTimeout(memoryEventTimer);
-        if (snapshot.processing?.pending_inputs) memoryEventTimer = setTimeout(refreshFamilyContext, 15000);
+        if (snapshot.processing?.pending_inputs) refreshLater();
         const cursors = new Set();
         while (snapshot.next_cursor && !snapshot.page_error && isCurrentProjectScope(scope)
             && request === memoryEventRequest && state.memoryEventPage === snapshot) {
@@ -95,7 +100,8 @@ export function createFamilyWorkspace({
       }
       return body?.family_context || null;
     } catch (failure) {
-      if (failure.status === 403 && isCurrentProjectScope(scope) && request === memoryEventRequest) {
+      if (!current()) return null;
+      if (failure.status === 403) {
         state.familyFeaturesEnabled = false;
         state.timeline = [];
         state.memoryEventPage = null;
@@ -104,6 +110,8 @@ export function createFamilyWorkspace({
         state.relationships = [];
         state.memoryEventEdit = null;
         render();
+      } else if (retry && [409,500,503].includes(failure.status)) {
+        refreshLater(false);
       }
       return null;
     }

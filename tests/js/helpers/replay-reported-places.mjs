@@ -9,7 +9,7 @@ const {ready,expected_places:expected,expect_no_research:noResearch} = JSON.pars
 const update = ready.derived_workspace;
 const old = {place:'承德',hierarchy:['Earth','中国','承德'],granularity:'city',status:'active'};
 const state = {project:{id:update.project_id,profile:{memory_places:[old]}},placeJourney:old,
-  selectedPlace:'stale-father-place',workspaceActivatedProjectId:update.project_id,placeWorkspaceMap:{}};
+  selectedPlace:'stale-father-place',placeWorkspaceMap:{}};
 assert.equal(applyDerivedWorkspace(state,update),true);
 assert.deepEqual(state.project.profile.memory_places.map(p=>p.place),expected);
 assert.equal(state.placeJourney?.place ?? null,expected.at(-1) ?? null);
@@ -19,7 +19,6 @@ if (noResearch) {
 }
 if (!expected.length) {
   assert.equal(state.selectedPlace,null);
-  assert.equal(state.workspaceActivatedProjectId,update.project_id);
   assert.equal(state.placeWorkspaceMap,null);
 }
 
@@ -29,7 +28,7 @@ const source = readMemoirClientSource();
 for (const name of ['workspaceContentAvailable', 'workspaceHasContent', 'workspaceIsVisible']) {
   vm.runInContext(source.match(new RegExp(`function ${name}\\([^]*?\\n\\}`))[0], context);
 }
-assert.equal(context.workspaceIsVisible(),true,'A background snapshot must not hide an activated workspace');
+assert.equal(context.workspaceIsVisible(),expected.length > 0,'The workspace requires an authorized map place');
 state.workspaceCollapsed = true;
 assert.equal(context.workspaceIsVisible(),false,'The narrator can still collapse the workspace');
 state.workspaceCollapsed = false;

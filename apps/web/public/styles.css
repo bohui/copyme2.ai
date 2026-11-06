@@ -322,6 +322,9 @@ h3 { line-height: 1.1; }
 .cesium-place-journey .cesium-viewer-bottom { font-size: 8px; opacity: .82; }
 .place-journey-fallback { position: absolute; inset: 0; z-index: 2; display: flex; align-items: center; gap: 14px; padding: 18px; color: #dcebd8; background: radial-gradient(circle at 72% 34%, rgba(255,223,165,.8), transparent 22%), radial-gradient(circle at 23% 80%, rgba(130,174,156,.36), transparent 30%), linear-gradient(135deg, #173f45, #28675f 55%, #e29a71); transition: opacity .25s ease; }
 .is-cesium-live .place-journey-fallback { opacity: 0; pointer-events: none; }
+/* Cesium needs the opening map at its final size to load the right tiles. */
+.workspace-detail:has(.place-journey-scene.is-cesium-opening) { visibility: hidden; }
+.is-cesium-opening .place-journey-fallback { transition: none; }
 .journey-earth { font-size: 70px; line-height: 1; text-shadow: 0 6px 18px rgba(0,0,0,.2); }
 .journey-fallback-line { flex: 1; color: rgba(255,255,255,.9); font-size: 12px; font-weight: 700; letter-spacing: .04em; }
 .journey-fallback-line small { display: block; margin-top: 8px; font-size: 11px; font-weight: 400; letter-spacing: 0; line-height: 1.5; }

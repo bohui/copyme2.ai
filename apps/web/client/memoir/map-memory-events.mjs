@@ -7,7 +7,7 @@ export function createMapMemoryEvents({getEvents, getGroups, getProfile, getScop
   getActiveLocation = () => null, getLocationChange = () => 0,
   getPage = () => null, getReadiness = () => ({}), getCanAddMemory = () => true, readPlaces, resolvePlaces = async places => places,
   t, lifeStageText, onExplore, onAdd, onLoadMore, onOverview = () => {}, onChange = () => {}}) {
-  let layer, sceneElement, viewer, cesium, removePostRender, scope, journey, signature, selectedKey;
+  let layer, sceneElement, viewer, cesium, removePostRender, scope, journey, stage, signature, selectedKey;
   let focusedCity = null, viewCity = null, listView, lastMode, hasView, overviewRequested = false, overviewMode = true;
   let cityIdentity, handledLocationChange = 0, flyingToCity = null, flightRevision = 0, restoreCity;
   let visibleCityKeys = [];
@@ -102,7 +102,7 @@ export function createMapMemoryEvents({getEvents, getGroups, getProfile, getScop
     }
   }
 
-  function sync(scene, focusedKey = null) {
+  function updateJourney() {
     const nextScope = getScope();
     const identity = getIdentity();
     if (identity !== renderedIdentity) {
@@ -115,10 +115,9 @@ export function createMapMemoryEvents({getEvents, getGroups, getProfile, getScop
       visibleCityKeys = [];
       activeCity();
     }
-    sceneElement = scene;
     const events = getEvents();
     loadPlaces(events);
-    const stage = getStage();
+    stage = getStage();
     const visible = events.filter(event => stage === "all" || event.life_stage === stage)
       .map(event => {
         const entry = places.get(`${event.id}:${event.revision}`);
@@ -130,6 +129,16 @@ export function createMapMemoryEvents({getEvents, getGroups, getProfile, getScop
         && !event.place_conflicts?.includes(link.role)).map(link => link.place));
     placeGroups = getGroups(eventPlaces);
     journey = buildMapMemoryJourney(visible, placeGroups, getProfile());
+  }
+
+  function prepareNodes() {
+    if (!journey || getScope() !== scope || getStage() !== stage) updateJourney();
+    return journey.nodes;
+  }
+
+  function sync(scene, focusedKey = null) {
+    updateJourney();
+    sceneElement = scene;
     if (!scene) return;
     layer = scene.querySelector(".map-memory-layer");
     if (!layer) {
@@ -162,7 +171,7 @@ export function createMapMemoryEvents({getEvents, getGroups, getProfile, getScop
           focusedCity = city.groupKey;
           overviewMode = false;
           selectedKey = null;
-          if (city.groupKey !== "unlocated") frame(city.nodes,2500,city.groupKey);
+          if (city.groupKey !== "unlocated") frame(city.nodes,2500,city.groupKey,{preloadTiles:false});
           position();
           if (focused) [...layer.querySelectorAll("[data-map-memory]")]
             .find(button => button.dataset.mapMemory === city.nodes[0].key)?.focus({preventScroll:true});
@@ -207,7 +216,7 @@ export function createMapMemoryEvents({getEvents, getGroups, getProfile, getScop
     sync(sceneElement);
   }
 
-  function frame(nodes, minimum, city = null, animate = true) {
+  function frame(nodes, minimum, city = null, {animate = true, preloadTiles = true} = {}) {
     if (!viewer || viewer.isDestroyed() || !nodes.length) return;
     const origin = nodes[0].longitude;
     const longitudes = nodes.map(node => origin + ((node.longitude - origin + 540) % 360 - 180));
@@ -228,7 +237,7 @@ export function createMapMemoryEvents({getEvents, getGroups, getProfile, getScop
       flyingToCity = null;
       return;
     }
-    viewer.camera.flyTo({destination,
+    viewer.camera.flyTo({destination, preloadTiles,
       duration:window.matchMedia("(prefers-reduced-motion: reduce)").matches ? 0 : 2.8,
       complete:finish, cancel:() => { if (revision === flightRevision) { flyingToCity = null;position(); } }});
   }
@@ -242,7 +251,8 @@ export function createMapMemoryEvents({getEvents, getGroups, getProfile, getScop
     if (!viewer || viewer.isDestroyed()) return;
     const ready = sceneElement.classList.contains("is-cesium-map");
     layer.classList.toggle("is-ready", ready);
-    if (!ready) return;
+    // Frame the opening view before Cesium starts checking its tile queue.
+    if (!ready && (hasView || !sceneElement.classList.contains("is-cesium-opening"))) return;
     const city = activeCity();
     const locationChanged = getLocationChange() !== handledLocationChange;
     const pendingLocation = locationChanged && city === undefined;
@@ -260,9 +270,10 @@ export function createMapMemoryEvents({getEvents, getGroups, getProfile, getScop
         overviewRequested = false;
         restoreCity = null;
         if (group) { focusedCity = group.key;overviewMode = false; }
-        frame(nodes,group ? 12000 : 40000,group?.key,locationChanged && Boolean(group));
+        frame(nodes,group ? 12000 : 40000,group?.key,{animate:ready && locationChanged && Boolean(group)});
       }
     }
+    if (!ready) return;
     // Photo-only maps still need a city scope while the event layer is hidden.
     const zoom = viewer.scene.mode === cesium.SceneMode.SCENE2D ? viewer.camera.frustum.right - viewer.camera.frustum.left
       : viewer.camera.positionCartographic.height;
@@ -403,7 +414,7 @@ export function createMapMemoryEvents({getEvents, getGroups, getProfile, getScop
     overviewMode = true;
     visibleCityKeys = [];
   }
-  return {sync, attach, dispose, overview, activeCity, selectCity,
+  return {sync, attach, dispose, overview, activeCity, selectCity, prepareNodes,
     visibleCities:() => getScope() === scope ? visibleCityKeys : [],
     nodes:() => getScope() === scope ? journey?.nodes || [] : [],
     viewCity:() => { const city = activeCity();return getLocationChange() !== handledLocationChange ? city : flyingToCity ?? viewCity; }};

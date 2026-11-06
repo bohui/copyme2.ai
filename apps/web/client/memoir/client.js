@@ -80,7 +80,6 @@ const state = {
   photoMemoryRevision: 0,
   photoFavoritesOpen: false,
   workspaceUnlocked: false,
-  workspaceActivatedProjectId: null,
   placeWorkspaceMap: null,
   compositionStage: 0,
   workspaceCollapsed: false,
@@ -1827,7 +1826,6 @@ async function signOut() {
     state.placeJourneyChange = null;
     state.workspaceTab = "memoir";
     state.workspaceUnlocked = false;
-    state.workspaceActivatedProjectId = null;
     state.placeWorkspaceMap = null;
     state.compositionStage = 0;
     state.workspaceCollapsed = false;
@@ -2416,9 +2414,8 @@ function renderStory() {
 }
 
 function workspaceContentAvailable() {
-  if (placeMapTarget(placeWorkspaceSelection())) state.workspaceActivatedProjectId = state.project?.id;
   return Boolean(composingWorkspaceActive() || freeRecallFinished()
-    || (state.project?.id && state.workspaceActivatedProjectId === state.project.id));
+    || (state.project?.id && placeMapTarget(placeWorkspaceSelection())));
 }
 
 function workspaceHasContent() {
@@ -2448,12 +2445,10 @@ function workspaceDetail() {
   const composing = composingWorkspaceActive();
   const mediaOverview = composing || (tabs.length && !state.placeJourney) ? "" : workspaceMediaOverview(toggle);
   const workspaceHeader = mediaOverview ? "" : `<div class="workspace-detail-top">${toggle}</div>`;
-  const empty = !mediaOverview && !tabs.length
-    ? `<div class="workspace-scroll"><div class="workspace-empty"><p role="status">${t("placesEmpty")}</p></div></div>` : "";
   const ariaLabel = tabs.length
     ? `${escapeHtml(title)} ${t("workspaceSuffix")}`
     : state.placeJourney ? `${t("places")} ${t("workspaceSuffix")}` : t("yourWorkspace");
-  return `<aside id="workspace-detail" class="workspace-detail${mediaOverview && tabs.length ? " has-recall-views" : ""}" aria-label="${ariaLabel}">${workspaceHeader}${mediaOverview}${contentMarkup}${empty}${tabs.length || mediaOverview ? lifeStageNavigator(!mediaOverview) : ""}</aside>`;
+  return `<aside id="workspace-detail" class="workspace-detail${mediaOverview && tabs.length ? " has-recall-views" : ""}" aria-label="${ariaLabel}">${workspaceHeader}${mediaOverview}${contentMarkup}${tabs.length || mediaOverview ? lifeStageNavigator(!mediaOverview) : ""}</aside>`;
 }
 
 function currentWorkspaceMemoryFocus() {

@@ -90,10 +90,10 @@ export function installMapFlightPreloader({viewer, cesium, provider, isCurrent, 
     }
   }
 
-  function wrappedFlyTo(options) {
+  function wrappedFlyTo({preloadTiles = true, ...options}) {
     wrappedCancelFlight();
     if (!current()) return;
-    if (options.duration === 0) return flyTo.call(camera, options);
+    if (!preloadTiles || options.duration === 0) return flyTo.call(camera, options);
     const target = cesium.Cartographic.fromCartesian(options.destination);
     if (!Number.isFinite(target?.height) || target.height <= 0) return flyTo.call(camera, options);
     const job = {options, images:new Map(), preparing:true,

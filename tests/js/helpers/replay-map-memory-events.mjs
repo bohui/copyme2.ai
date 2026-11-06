@@ -22,8 +22,9 @@ for (const provider of ['google','geoapify']) for (const group of groups) {
   const pending=slow.imagery.requestImage(0,0,0);
   slow.expireTileWait();
   assert.equal(slow.unavailable.size,0,'Slow imagery must keep an API-backed city recoverable');
-  assert.ok(slow.viewer.view.destination.height>1000000,
-    "A restored map starts globally while its imagery is loading");
+  assert.equal(slow.viewer.view.destination.longitude,frame.longitude,
+    'A restored map starts at an authorized place while its imagery is loading');
+  assert.equal(slow.viewer.view.destination.latitude,frame.latitude);
   slow.resolveImage({width:256,height:256});await pending;slow.loadedTiles();
   assert.equal(slow.classes.has('is-cesium-map'),true,'Late tiles must restore the canonical API city without reload');
   assert.equal(slow.loads(),1);

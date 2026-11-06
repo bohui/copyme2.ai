@@ -18,16 +18,28 @@ const photo=(place,id)=>({asset_id:id,image_url:`https://photos.example/${id}.jp
 const event=(id,age,place)=>({id,revision:1,canonical:true,status:'active',life_stage:'childhood',title:`Memory ${id}`,
   temporal:{expression:`Age ${age}`,precision:'age'},places:[{role:'setting',status:'supported',place}]});
 
-test('map markup keeps the same global frame when the active location changes',async t=>{
+test('map markup keeps the same opening target when the active location changes',async t=>{
   const {places,state}=await setup(t,[]);
   const initial=places.workspaceMediaOverview();
   state.currentActiveLocation=north;state.activeLocationChange=1;
   state.workspaceFocus={place:'School family compound',source_sequence:2};
   assert.equal(places.workspaceMediaOverview(),initial,'The loaded imagery stays mounted while the controller flies');
   assert.match(initial,/data-place-key="all"/);
-  assert.match(initial,/data-cesium-latitude="0"/);
+  assert.match(initial,/data-cesium-latitude="-33.9"/);
   assert.match(initial,/sydney/);
   assert.match(initial,/Chengde/);
+});
+
+test('a new workspace revision keeps the current map until its event authority changes', async t=>{
+  const {places,state}=await setup(t,[]);
+  state.memoryEventPage={...state.memoryEventPage,project_id:'project',map_source:'published_events'};
+  state.derivedWorkspace={project_id:'project',policy_epoch:1,source_revision:2,map_source:'published_events'};
+  assert.match(places.workspaceMediaOverview(),/data-place-key="all"/,
+    'Refresh the event model before choosing the workspace markup');
+  state.derivedWorkspace.policy_epoch=2;
+  assert.equal(places.workspaceMediaOverview(),'', 'Do not reuse places from an older privacy scope');
+  state.memoryEventPage={...state.memoryEventPage,policy_epoch:2,source_revision:2};
+  assert.match(places.workspaceMediaOverview(),/data-place-key="all"/);
 });
 
 async function setup(t,privatePhotos=[{photo_id:personalId,kind:'private_upload',title:'My school photo',event_ids:['school']}]) {

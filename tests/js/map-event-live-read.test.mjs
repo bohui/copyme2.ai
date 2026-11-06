@@ -89,6 +89,24 @@ test('a pending Lane B extraction refreshes map events after they are saved', as
   assert.equal(reads,2);
 });
 
+test('a transient map read failure keeps the saved events and retries within the same project', async t => {
+  t.mock.timers.enable({apis:['setTimeout']});
+  const saved={id:'birth',canonical:true}, state={project:{id:'project',profile:{}},supabase:{accessToken:'test'},
+    familyFeaturesEnabled:false,timeline:[saved]};
+  let reads=0;
+  const workspace=createFamilyWorkspace({state,captureProjectScope:()=>state.project.id,
+    isCurrentProjectScope:id=>id===state.project.id,render(){},storyApi:async()=>{
+      if (++reads===1) throw Object.assign(new Error('stale lifetime read fence'),{status:500});
+      return {project_id:'project',events:[{...saved,title:'Updated birth memory'}]};
+    }});
+  await workspace.refreshFamilyContext();
+  assert.deepEqual(state.timeline,[saved]);
+  t.mock.timers.tick(15000);
+  await new Promise(resolve=>setImmediate(resolve));
+  assert.equal(reads,2);
+  assert.equal(state.timeline[0].title,'Updated birth memory');
+});
+
 test('ordinary map pagination loads later events without Family access', async () => {
   const state={project:{id:'project'},supabase:{accessToken:'test'},familyFeaturesEnabled:false,
     timeline:[{id:'earlier'}],memoryEventPage:{next_cursor:'next'}};

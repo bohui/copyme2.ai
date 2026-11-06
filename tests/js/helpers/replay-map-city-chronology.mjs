@@ -119,7 +119,7 @@ scene.child=null;
 state.placeJourney=destination;
 const refreshed=workspace();
 refreshed.mapMemoryEvents.sync(null);
-assert.match(refreshed.workspaceMediaOverview(),/data-cesium-latitude="0"/,
+assert.match(refreshed.workspaceMediaOverview(),/data-place-key="all"/,
   'Refresh opens the whole journey regardless of the previous camera selection');
 const beforeArrival=frames.length;
 center=active;
@@ -132,6 +132,6 @@ refreshed.mapMemoryEvents.dispose();
 state.project.profile.memory_places=[];
 const eventOnly=workspace();
 eventOnly.mapMemoryEvents.sync(null);
-assert.match(eventOnly.workspaceMediaOverview(),/data-cesium-latitude="0"/,
+assert.match(eventOnly.workspaceMediaOverview(),/data-place-key="all"/,
   'Event-only cities also open on the whole journey');
 eventOnly.mapMemoryEvents.dispose();

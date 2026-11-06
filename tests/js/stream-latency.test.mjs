@@ -2,7 +2,7 @@ import { readMemoirClientSource } from './helpers/memoir-source.mjs';
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import vm from 'node:vm';
-import {mergePlaces} from '../../apps/web/client/memoir/places.mjs';
+import {mergePlaces, placeHistoryKey} from '../../apps/web/client/memoir/places.mjs';
 
 const source = readMemoirClientSource();
 const extract = name => ['captureProjectScope', 'isCurrentProjectScope', 'currentWorkspaceMemoryFocus', 'workspaceTurnFocus', 'markWorkspaceFocusStarted', 'readBrowserValues', 'mergeChatHistoryCopies'].map(helper => source.match(new RegExp(`(?:async )?function ${helper}\\([^]*?\\n\}`))[0]).join('\n') + '\n' + (source.match(new RegExp(`(?:async )?function ${name}\\([^]*?\\n\\}`))[0]);
@@ -59,19 +59,21 @@ test('map preview renders during text streaming without a profile write or photo
   assert.ok(renders >= 2);
 });
 
-for (const previous of [null, {place: 'Chengde', latitude: 40.95, longitude: 117.96}]) {
+for (const previous of [null, {place:'Chengde', hierarchy:['Earth','China','Chengde'],
+  granularity:'city', latitude:40.95, longitude:117.96}]) {
 test(`a failed conversational save restores ${previous ? 'the confirmed workspace' : 'the unopened workspace'}`, async () => {
   const visibility = [];
+  const selectedPlace = previous ? placeHistoryKey(previous) : null;
   const context = vm.createContext({
-    state: {supabase: {accessToken: 'test'}, project: {id: 'p'}, chat: [],
-      placeJourney: previous, selectedPlace: previous?.place || null},
-    placeWorkspaceSelection: () => context.state.placeJourney,
+    state: {supabase: {accessToken:'test'}, project:{id:'p', profile:{memory_places:previous ? [previous] : []}},
+      chat:[], lifeStage:'all', placeJourney:previous, selectedPlace},
+    publishedMap: () => false, profile: () => context.state.project.profile, mergePlaces, placeHistoryKey,
     placeMapTarget: place => Number.isFinite(place?.latitude) && Number.isFinite(place?.longitude) ? place : null,
     composingWorkspaceActive: () => false,
     appliedWorkspaceSequences: new Map(), workspaceUpdateQueue: Promise.resolve(),
     conversationLanguage: () => 'en-AU', simulatedLoopTrace: () => [],
     render: () => visibility.push(context.workspaceHasContent()),
-    toast: () => {}, placeHistoryKey: item => item.place, resolvePlaceMap: () => {},
+    toast: () => {}, resolvePlaceMap: () => {},
     streamAgentTurn: async (_text, _onDelta, onEvent) => {
       await onEvent({type: 'place_preview', data: {project_id: 'p', source_sequence: 1,
         place_journey: {place: 'Sydney'}}});
@@ -80,14 +82,14 @@ test(`a failed conversational save restores ${previous ? 'the confirmed workspac
   });
   context.refreshPrivateDraft = async () => {};
   context.refreshStageReadiness = async () => {};
-  for (const name of ['freeRecallFinished', 'workspaceContentAvailable', 'workspaceHasContent']) {
+  for (const name of ['placeMapAvailable', 'placeWorkspaceSelection', 'freeRecallFinished', 'workspaceContentAvailable', 'workspaceHasContent']) {
     vm.runInContext(extract(name), context);
   }
   assert.equal(context.workspaceHasContent(), Boolean(previous));
   vm.runInContext(extract('agentTurn'), context);
   await context.agentTurn('Sydney');
   assert.equal(context.state.placeJourney, previous);
-  assert.equal(context.state.selectedPlace, previous?.place || null);
+  assert.equal(context.state.selectedPlace, selectedPlace);
   assert.equal(visibility[0], Boolean(previous), 'an unresolved preview must retain prior workspace availability');
   assert.equal(visibility.at(-1), Boolean(previous), 'failed previews must restore prior workspace availability');
 });
