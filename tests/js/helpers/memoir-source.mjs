@@ -18,7 +18,10 @@ export function readMemoirClientSource() {
 
 export function installConversationInputs(context) {
   context.crypto ||= {randomUUID};
-  vm.runInContext(readMemoirClientSource().match(/async function processChatMessage\([^]*?\n\}/)[0], context);
+  const source = readMemoirClientSource();
+  for (const name of ['chatInputLimitReached', 'processChatMessage']) {
+    vm.runInContext(source.match(new RegExp(`(?:async )?function ${name}\\([^]*?\\n\\}`))[0], context);
+  }
   context.state.conversationInputs = createConversationInputs({
     scope:() => context.captureProjectScope(), current:scope => context.isCurrentProjectScope(scope),
     run:(...args) => context.processChatMessage(...args),

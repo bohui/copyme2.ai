@@ -1388,6 +1388,7 @@ async function streamAssistantMessage(text, metadata = {}) {
   const current = () => isCurrentProjectScope(scope);
   if (!current()) return null;
   const { scope: _scope, ...messageMetadata } = metadata;
+  if (messageMetadata.traceMode === "error") messageMetadata.failed = true;
   if (messageMetadata.streamedMessage) {
     const { streamedMessage, ...details } = messageMetadata;
     if (!state.chat.includes(streamedMessage)) return null;
@@ -2906,27 +2907,55 @@ function storyGameButton() {
     ? `<div class="workspace-game"><button type="button" class="button button-secondary" data-story-game>${escapeHtml(translate("Memoir.game.button"))}</button></div>` : "";
 }
 
+function chatInputLimitReached() {
+  const queued = state.conversationInputs?.inputs() || [];
+  if (!queued.length && !state.photoTurns?.pending()) return false;
+  const replyIndex = state.chat.findLastIndex(message => message.role === "assistant" && message.text
+    && !message.streaming && !message.provisional && !message.failed && !message.error);
+  const replyTurnId = state.chat[replyIndex]?.clientTurnId;
+  // A finished reply can appear below inputs that arrived while it was being generated.
+  const answeredIndex = replyTurnId
+    ? state.chat.findLastIndex(message => message.role === "user" && message.clientTurnId === replyTurnId)
+    : -1;
+  const boundary = answeredIndex === -1 ? replyIndex : answeredIndex;
+  const queuedIds = new Set(queued.map(input => input.id));
+  let unanswered = 0;
+  for (const [index, message] of state.chat.entries()) {
+    if (message.role !== "user") continue;
+    queuedIds.delete(message.clientTurnId);
+    if (index > boundary) unanswered += 1;
+  }
+  return unanswered + queuedIds.size >= 8;
+}
+
 function chatComposer() {
   if (state.recallStatus?.payment_required) return "";
   const game = storyGameButton();
   const focusControls = workspaceMemoryFocusMarkup()+game+`<button type="button" class="text-button" data-action="recording-consent">${escapeHtml(translate('RecordingConsent.title'))}</button>`;
   const t = (key) => escapeHtml(translate(`Memoir.story.${key}`));
-  const button = (action, label, icon, extra = "") => `<button type="button" class="voice-button ${extra}" data-action="${action}" aria-label="${t(label)}" title="${t(label)}">${composerIcon(icon)}</button>`;
+  const atLimit = chatInputLimitReached();
+  const waitNote = atLimit ? `<div class="composer-note" role="status">${t("sendWait")}</div>` : "";
+  const button = (action, label, icon, extra = "", disabled = false) => `<button type="button" class="voice-button ${extra}" data-action="${action}" aria-label="${t(label)}" title="${t(label)}"${disabled ? " disabled" : ""}>${composerIcon(icon)}</button>`;
   if (state.dictationStatus !== "off") {
     const processing = ["starting", "processing"].includes(state.dictationStatus);
-    return `<div class="composer-wrap">${focusControls}<div class="chat-composer dictation-composer">${button("cancel-dictation", "cancelDictation", "close")}<div class="dictation-visual"><div class="dictation-wave ${state.recording ? "is-recording" : ""}" aria-hidden="true">${"<i></i>".repeat(40)}</div><span role="status">${t(processing ? (state.dictationStatus === "starting" ? "connectingMic" : "transcribing") : state.recording ? "dictating" : "dictationStopped")}</span></div>${!processing ? `${state.recording ? button("stop-dictation", "stopDictation", "stop") : ""}${button("accept-dictation", "send", "send", "voice-mode-button")}` : ""}</div><div class="composer-note">${t("dictationNote")}</div></div>`;
+    return `<div class="composer-wrap">${focusControls}<div class="chat-composer dictation-composer">${button("cancel-dictation", "cancelDictation", "close")}<div class="dictation-visual"><div class="dictation-wave ${state.recording ? "is-recording" : ""}" aria-hidden="true">${"<i></i>".repeat(40)}</div><span role="status">${t(processing ? (state.dictationStatus === "starting" ? "connectingMic" : "transcribing") : state.recording ? "dictating" : "dictationStopped")}</span></div>${!processing ? `${state.recording ? button("stop-dictation", "stopDictation", "stop") : ""}${button("accept-dictation", "send", "send", "voice-mode-button", atLimit)}` : ""}</div>${waitNote || `<div class="composer-note">${t("dictationNote")}</div>`}</div>`;
   }
   const status = state.voiceMuted ? "muted" : state.voiceModeStatus;
   const voiceStatus = state.voiceMode ? `<div class="voice-session"><div class="voice-orb ${status}" aria-hidden="true"><div class="voice-orb-water"><i></i><i></i><i></i></div></div><div class="voice-mode-status" role="status"><strong class="voice-mode-title">${t("voiceConversation")}</strong><span>${t(state.voiceMuted ? "micMuted" : status === "speaking" ? "miraSpeaking" : status === "processing" ? "listeningBack" : "listening")}</span></div></div>` : "";
   const controls = state.voiceMode
     ? `${button("mute-voice", state.voiceMuted ? "unmuteMic" : "muteMic", state.voiceMuted ? "muted" : "mic")}${button("voice-input", "endVoice", "close", "voice-mode-end")}`
     : `${button("dictate", "dictate", "mic", "dictation-button")}${button("voice-input", "startVoice", "wave", "voice-mode-button voice-mode-launcher")}`;
-  return `<div class="composer-wrap ${state.voiceMode ? "has-voice-orb" : ""}">${focusControls}${voiceStatus}${selectedPhotoCue()}${composerAttachments()}${!state.loading && !state.photoTurns?.pending() && (state.audioRecordings?.length || state.pendingAudioUpload) ? `<button type="button" class="text-button" data-action="discard-audio-draft">${t("discardAudio")}</button>` : ""}${state.photoTurns?.pending() && !state.loading ? `<button type="button" class="text-button retry-interview-turn" data-action="retry-interview-turn">${t("retryTurn")}</button>` : ""}<form id="chat-form" class="chat-composer" data-voice-mode="${state.voiceMode ? "on" : "off"}"><button type="button" class="voice-button" data-action="attach-media" aria-label="${t("attachMedia")}" title="${t("attachMedia")}" ${state.loading ? "disabled" : ""}>${composerIcon("plus")}</button><input id="chat-attachments" type="file" accept="${Object.keys(ATTACHMENT_TYPES).join(",")}" multiple hidden /><textarea id="chat-input" rows="1" placeholder="${t(state.voiceMode ? "voicePlaceholder" : "textPlaceholder")}" aria-label="${t("yourMessage")}">${escapeHtml(state.audioTranscript)}</textarea>${controls}<button type="submit" class="send-button" aria-label="${t("send")}" ${(state.loading && !state.conversationInputs?.pending()) || state.photoMemoryTask ? "disabled" : ""}>${composerIcon("send")}</button></form><div class="composer-note"><span>${t(state.voiceMode ? "voiceNote" : "sourceNote")}</span><span>${t("shortcutNote")}</span></div></div>`;
+  const sendDisabled = atLimit || (state.loading && !state.conversationInputs?.pending()) || state.photoMemoryTask;
+  const canRetry = !state.loading && (state.photoTurns?.pending() || (atLimit && state.conversationInputs?.pending()));
+  const note = waitNote || `<div class="composer-note"><span>${t(state.voiceMode ? "voiceNote" : "sourceNote")}</span><span>${t("shortcutNote")}</span></div>`;
+  return `<div class="composer-wrap ${state.voiceMode ? "has-voice-orb" : ""}">${focusControls}${voiceStatus}${selectedPhotoCue()}${composerAttachments()}${!state.loading && !state.photoTurns?.pending() && (state.audioRecordings?.length || state.pendingAudioUpload) ? `<button type="button" class="text-button" data-action="discard-audio-draft">${t("discardAudio")}</button>` : ""}${canRetry ? `<button type="button" class="text-button retry-interview-turn" data-action="retry-interview-turn">${t("retryTurn")}</button>` : ""}<form id="chat-form" class="chat-composer" data-voice-mode="${state.voiceMode ? "on" : "off"}"><button type="button" class="voice-button" data-action="attach-media" aria-label="${t("attachMedia")}" title="${t("attachMedia")}" ${state.loading ? "disabled" : ""}>${composerIcon("plus")}</button><input id="chat-attachments" type="file" accept="${Object.keys(ATTACHMENT_TYPES).join(",")}" multiple hidden /><textarea id="chat-input" rows="1" placeholder="${t(state.voiceMode ? "voicePlaceholder" : "textPlaceholder")}" aria-label="${t("yourMessage")}">${escapeHtml(state.audioTranscript)}</textarea>${controls}<button type="submit" class="send-button" aria-label="${t("send")}" ${sendDisabled ? "disabled" : ""}>${composerIcon("send")}</button></form>${note}</div>`;
 }
 
 async function retryInterviewTurn() {
+  if (state.loading) return;
+  if (chatInputLimitReached() && state.conversationInputs?.pending()) return state.conversationInputs.restore();
   const turn = state.photoTurns?.pending();
-  if (!turn || state.loading) return;
+  if (!turn) return;
   state.audioTranscript = $("#chat-input")?.value || state.audioTranscript;
   const scope = captureProjectScope();
   const current = () => isCurrentProjectScope(scope);
@@ -3205,7 +3234,8 @@ async function sendChatMessage({ voiceTurn = false } = {}) {
     if (!current() || !state.voiceMode) return;
   }
   if (state.recallStatus?.payment_required) return;
-  if ((state.loading && !state.conversationInputs?.pending()) || state.photoMemoryTask || state.dictationStatus !== "off") return;
+  if (chatInputLimitReached() || (state.loading && !state.conversationInputs?.pending())
+    || state.photoMemoryTask || state.dictationStatus !== "off") return;
   if (state.voiceMode && state.voiceModeStatus !== "listening" && !voiceTurn) return;
   if (state.voiceMode && state.voiceModeRecorder && !voiceTurn) {
     if (state.voiceModeRecorder.state !== "inactive") {

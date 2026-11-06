@@ -366,6 +366,7 @@
       "voiceNote": "Mira replies with an AI-generated voice, then listens again. Use × to end. Submitted voice retains your original privately with approved identity and consent.",
       "sourceNote": "Your stories and related memories will be saved together.",
       "shortcutNote": "Press Enter to send · Shift + Enter for a new line",
+      "sendWait": "You're sending messages too quickly. Please wait.",
       "dictate": "Dictate",
       "cancelDictation": "Cancel dictation",
       "stopDictation": "Stop recording",
