@@ -7,18 +7,11 @@ const clientSource = readMemoirClientSource();
 const styleSource = fs.readFileSync(new URL('../../apps/web/public/styles.css', import.meta.url), 'utf8');
 
 test('keeps the conversation heading inside the scroll region', () => {
-  const scrollStart = clientSource.indexOf('<div id="chat-scroll"');
-  const headingStart = clientSource.indexOf('<div class="chat-heading">', scrollStart);
-  assert.ok(scrollStart >= 0);
-  assert.ok(headingStart > scrollStart);
-  assert.equal(clientSource.lastIndexOf('<div class="chat-heading">', scrollStart), -1);
+  assert.match(clientSource, /heading: `<div class="chat-heading">/);
+  assert.match(clientSource, /<div id="chat-scroll"[^\n]+\$\{parts\.heading\}[^\n]*<\/div>/);
 });
 
 test('leaves the chat composer outside the scroll region', () => {
-  const scrollStart = clientSource.indexOf('<div id="chat-scroll"');
-  const scrollEnd = clientSource.indexOf('</div>\n          ${chatComposer()}', scrollStart);
-  const composerStart = clientSource.indexOf('${chatComposer()}', scrollStart);
-  assert.ok(scrollEnd > scrollStart);
-  assert.ok(composerStart > scrollEnd);
+  assert.match(clientSource, /<div id="chat-scroll"[^\n]+<\/div>\s*\$\{parts\.composer\}/);
   assert.match(styleSource, /\.chat-main \{[^}]*grid-template-rows: minmax\(0, 1fr\) auto;/);
 });

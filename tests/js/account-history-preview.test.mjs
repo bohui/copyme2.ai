@@ -186,7 +186,7 @@ test('opening an interview after login restores account turns before sample admi
   const state = { supabase: { user: { id: 'owner', is_anonymous: false } }, chat: [], loading: false };
   let previewHistory;
   const context = vm.createContext({ state, PLACE_JOURNEY_PROJECT_STORAGE_KEY: 'places',
-    MEMOIR_ROUTES: { interview: '/memoir/interview' }, stopVoiceMode() {},
+    MEMOIR_ROUTES: { interview: '/memoir/interview' }, stopVoiceMode() {}, currentPath: () => '/memoir',
     conversationLanguage: () => 'zh-CN', currentUiLocale: () => 'zh-CN',
     localStorage: { setItem() {}, removeItem() {} },
     api: async path => path === '/v1/projects' ? { id: 'new-project', profile: {} } : {},
@@ -207,7 +207,7 @@ test('opening an interview after login restores account turns before sample admi
 test('continuing a signed-in interview uses its saved project for progressive samples', async () => {
   const state = { supabase: { user: { id: 'owner', is_anonymous: false }, accessToken: 'session' }, chat: [], loading: false };
   const context = vm.createContext({ state, PLACE_JOURNEY_PROJECT_STORAGE_KEY: 'places',
-    MEMOIR_ROUTES: { interview: '/memoir/interview' }, stopVoiceMode() {},
+    MEMOIR_ROUTES: { interview: '/memoir/interview' }, stopVoiceMode() {}, currentPath: () => '/memoir',
     conversationLanguage: () => 'zh-CN', currentUiLocale: () => 'zh-CN',
     localStorage: { setItem() {}, removeItem() {} },
     api: async (path, options) => {
@@ -232,7 +232,7 @@ test('continuing a signed-in interview uses its saved project for progressive sa
 test('an account switch during interview recovery discards the prior account history', async () => {
   const state = { supabase: { user: { id: 'owner', is_anonymous: false } }, chat: [], loading: false };
   let created = false;
-  const context = vm.createContext({ state, stopVoiceMode() {}, conversationLanguage: () => 'en-AU',
+  const context = vm.createContext({ state, stopVoiceMode() {}, currentPath: () => '/memoir', conversationLanguage: () => 'en-AU',
     storyApi: async () => {
       context.invalidateProjectNavigation();
       state.supabase.user = { id: 'another-owner', is_anonymous: false };

@@ -36,7 +36,7 @@ function workspaceHarness(overrides = {}, dependencies = {}) {
     ...dependencies,
   });
   for (const name of ['freeRecallFinished', 'composingWorkspaceActive', 'workspaceTabs', 'activeWorkspaceTab',
-    'workspaceContentAvailable', 'workspaceHasContent', 'workspaceIsVisible', 'workspaceDetail', 'renderStory']) {
+    'workspaceContentAvailable', 'workspaceHasContent', 'workspaceIsVisible', 'workspaceDetail', 'debugGenerationBar', 'renderStory']) {
     vm.runInContext(extract(name), context);
   }
   return {state, context, app};
@@ -112,25 +112,46 @@ test('live draft previews require only their own flag and a local browser', asyn
   }
 });
 
-test('early generation opens Chapters at zero rounds only on a flagged loopback browser', async () => {
+test('early generation adds only two footer actions before either workspace is selected', async () => {
   for (const [hostname, flag, enabled] of [['localhost', true, true], ['localhost', false, false],
     ['memoir.example', true, false]]) {
     const {state, context, app} = workspaceHarness({
-      placeJourney:null, recallStatus:{rounds_completed:0, free_rounds:20}, currentInterviewMode:{mode:'explore'},
+      recallStatus:{rounds_completed:0, free_rounds:20}, currentInterviewMode:{mode:'explore'},
     }, {
       window:{location:{hostname}}, memoirApiPath:String,
       fetch:async () => ({json:async () => ({auth_mode:'test', debug_early_generation:flag})}),
-      memoirWorkspace:() => context.storyGameButton(),
     });
-    for (const name of ['loadSupabaseConfig', 'storyGameButton']) vm.runInContext(extract(name), context);
+    vm.runInContext(extract('loadSupabaseConfig'), context);
     await context.loadSupabaseConfig();
     context.renderStory();
     assert.equal(state.debugEarlyGeneration, enabled);
     assert.equal(context.freeRecallFinished(), false);
-    assert.equal(app.innerHTML.includes('data-workspace-tab="memoir"'), enabled);
-    assert.equal(app.innerHTML.includes('data-story-game'), enabled);
-    assert.doesNotMatch(app.innerHTML, /data-workspace-tab="family"|data-workspace-tab="timeline"/);
+    assert.match(app.innerHTML, /workspace-media-overview/);
+    assert.doesNotMatch(app.innerHTML, /data-workspace-tab|private-draft-status|workspace-intro/);
+    const footer = app.innerHTML.match(/<footer class="debug-generation-bar"[^]*?<\/footer>/)?.[0] || '';
+    assert.equal((footer.match(/<button /g) || []).length, enabled ? 2 : 0);
+    assert.equal(footer.includes('data-action="generate-private-draft"'), enabled);
+    assert.equal(footer.includes('data-action="generate-story-game"'), enabled);
   }
+});
+
+test('debug actions switch between all memoir tabs and the exclusive right-hand game pane', () => {
+  let generations = 0, gameMounts = 0;
+  const {state, context, app} = workspaceHarness({debugEarlyGeneration:true, familyFeaturesEnabled:false}, {
+    generatePrivateDraft: () => generations++,
+    render: () => context.renderStory(),
+    storyGameDialog: {openWorkspace: render => render(), mountWorkspace: () => gameMounts++},
+  });
+  vm.runInContext(extract('openDebugWorkspace'), context);
+  context.openDebugWorkspace('memoir');
+  for (const tab of ['family', 'timeline', 'memoir']) assert.match(app.innerHTML, new RegExp(`data-workspace-tab="${tab}"`));
+  assert.doesNotMatch(app.innerHTML, /workspace-media-overview|data-story-game-workspace/);
+  assert.equal(generations, 1);
+  assert.equal(state.privateDraftExpanded, true);
+  context.openDebugWorkspace('game');
+  assert.match(app.innerHTML, /data-story-game-workspace/);
+  assert.doesNotMatch(app.innerHTML, /workspace-media-overview|data-workspace-tab/);
+  assert.equal(gameMounts, 1);
 });
 
 test('draft controls never appear beneath the message input, including with local debugging enabled', () => {

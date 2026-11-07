@@ -67,7 +67,7 @@ for (const rounds of [5, 20]) {
 }
 
 test('debug memoir generation queues the current project and streams the saved draft before recall ends', async () => {
-  const s = setup({showThinkingSteps:false, showDraftUpdates:false, debugEarlyGeneration:false});
+  const s = setup({showThinkingSteps:false, showDraftUpdates:false, debugEarlyGeneration:false, debugWorkspace:'memoir'});
   const calls = [];
   s.context.escapeHtml = String;
   s.context.storyApi = async (path, options) => {
@@ -75,14 +75,10 @@ test('debug memoir generation queues the current project and streams the saved d
     return {status:'queued'};
   };
   vm.runInContext('let generation = null;', s.context);
-  for (const name of ['generatePrivateDraft', 'privateDraftGenerationButton']) {
-    vm.runInContext(source.match(new RegExp(`(?:async )?function ${name}\\([^]*?\\n\\}`))[0], s.context);
-  }
-  assert.equal(s.context.privateDraftGenerationButton(), '');
+  vm.runInContext(source.match(/async function generatePrivateDraft\([^]*?\n\}/)[0], s.context);
   await s.context.generatePrivateDraft();
   assert.deepEqual(calls, []);
   s.state.debugEarlyGeneration = true;
-  assert.match(s.context.privateDraftGenerationButton(), /data-action="generate-private-draft"/);
   await s.context.generatePrivateDraft();
   await settled(s.state);
   assert.deepEqual(calls, [['/v1/story/private-draft/generate', {project_id:'p', language:'zh-CN'}]]);
@@ -90,6 +86,7 @@ test('debug memoir generation queues the current project and streams the saved d
   await s.context.generatePrivateDraft({forGame:true});
   await settled(s.state);
   assert.deepEqual(calls.at(-1), ['/v1/story/private-draft/generate', {project_id:'p', language:null}]);
+  assert.equal(s.requests(), 1, 'game generation leaves the memoir reader stream to Chapters');
 });
 
 test('one request delivers draft changes without scheduling HTTP polling', async()=>{

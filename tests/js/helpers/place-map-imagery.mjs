@@ -35,7 +35,7 @@ export async function harness(provider = 'geoapify', {
   const container = {isConnected: true, dataset: {placeKey,cesiumLatitude: String(journey.latitude), cesiumLongitude: String(journey.longitude), cesiumPlace: journey.place,cesiumHeight:journey.height ? String(journey.height) : ''},
     closest: () => sceneElement, parentElement: {querySelector: selector => selector === '[data-map-retry]' ? retry : fallback}};
   if (pendingFocus) container.dataset.cesiumPending='true';
-  let viewer, imagery, finishSession, loads = 0, renders = 0;
+  let viewer, imagery, finishSession, loads = 0, renders = 0, viewportReads = 0;
   const flights=[], views=[], timers=new Map(),animatedCities=new Set(animated ? [placeKey] : []);
   let timerId=0;
   class Provider {
@@ -48,7 +48,9 @@ export async function harness(provider = 'geoapify', {
     Google2DImageryProvider: {fromUrl: async () => {
       if (sessionFailure) throw new Error('Captured Google createSession HTTP 403');
       if (sessionPending) await new Promise(resolve=>{finishSession=resolve;});
-      return new Provider();
+      const provider = new Provider();
+      provider.getViewportCredits = async () => { viewportReads++; return ['Synthetic attribution']; };
+      return provider;
     }},
     Credit: class {}, WebMercatorProjection: class {}, Cartesian2: class {},
     Cartesian3: {fromDegrees: (longitude, latitude, height) => ({longitude, latitude, height})},
@@ -91,7 +93,7 @@ export async function harness(provider = 'geoapify', {
     window: {matchMedia: () => ({matches: reducedMotion})}, currentUiLocale: () => 'en-AU',
     mapPhotoAlbums: {sync() {}, attach() {},dispose() {}}, mapMemoryEvents: {sync() {}, attach() {},dispose() {},
       hasAnimatedCity:city=>animatedCities.has(city),rememberFlight:city=>animatedCities.add(city)},
-    imageryLoadPromise:null,imageryLoadScope:null,imageryWarmPromise:null,renderedPins:undefined,
+    imageryLoadPromise:null,imageryLoadScope:null,renderedPins:undefined,
     cesiumPlaceJourneyViewer: null, cesiumLoadPromise:null,disposeOpeningFlight:null,disposeImagery:null,console: {warn() {}},
     setTimeout:callback=>{timers.set(++timerId,callback);return timerId;},clearTimeout:id=>timers.delete(id),
     placeMapRenderKey: () => 'map', unavailablePlaceMaps: new Set(), render() {renders++;context.initCesiumPlaceJourney();},
@@ -102,7 +104,6 @@ export async function harness(provider = 'geoapify', {
     vm.runInContext(extract(name), context);
   }
   for (const name of ['loadPlaceImagery','syncCesiumPins']) vm.runInContext(extract(name),context);
-  vm.runInContext(source.match(/async function preloadPlaceMap\([^]*?\n\}/)[0],context);
   vm.runInContext(init, context);
   vm.runInContext(extract('disposeCesiumPlaceJourney'),context);
   context.initCesiumPlaceJourney();
@@ -111,6 +112,6 @@ export async function harness(provider = 'geoapify', {
   const loadedTiles=()=>{viewer.scene.globe.tilesLoaded=true;frame();frame();};
   return {viewer, imagery, container, classes, attributes, resolveImage, rejectImage, context, fallback,flights,views,frame,loadedTiles,timers,
     finishSession, expireTileWait() { const [id, callback] = [...timers][0]; timers.delete(id); callback(); },
-    unavailable:context.unavailablePlaceMaps, retryHandlers, loads:()=>loads, renders:()=>renders,
+    unavailable:context.unavailablePlaceMaps, retryHandlers, loads:()=>loads, renders:()=>renders, viewportReads:()=>viewportReads,
     restoreProvider:()=>{sessionFailure=false;libraryFailure=false;}};
 }

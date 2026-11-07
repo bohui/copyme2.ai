@@ -597,13 +597,13 @@ ingestion may appear afterward.
 High-level Codex activity and early private-draft previews are hidden from storytellers by default. Both debug flags default to off. Set `MEMORY_SPARK_SHOW_THINKING_STEPS=1` to stream operation summaries and show "Thinking steps", including progressive `memoir-composer` draft/event previews in a collapsible entry on the covered turn. Preview text comes from the current saved view and is not copied into cached chat traces. Draft language and retry controls stay in the workspace's Chapters tab; the location/photo workspace and message input have no draft-status card. `MEMORY_SPARK_SHOW_DRAFT_UPDATES=1` also enables draft streaming and early saved-draft access inside Chapters, but generated text in Thinking steps still requires the thinking-step flag. Either debug mode requires a browser URL at `localhost`, `127.0.0.1` or `[::1]`. With thinking steps off, chat still streams its reply and saved/workspace events, but emits no thinking-step progress or trace. The draft endpoint negotiates `application/x-ndjson`, sends `draft_update` events when the saved view changes and periodic `heartbeat` events, then sends `complete` when background work settles or a safe `error` if delivery fails. The server checks durable draft state every two seconds while work is pending; the UI maintains one connection and only reconnects after transport interruptions, with two bounded retries. Each canonical update retains its own publication guard. Other browser hosts keep this debug UI hidden and cannot open the draft stream even when the flags are enabled. With both debug flags off, a one-time read loads the saved draft in the workspace's Chapters tab after the configured free recall rounds are complete (20 by default), including after refresh and for storytellers who paid early. Location/photo cues remain available alongside those tabs until composition unlock, when the composition views take over.
 
 Set `MEMORY_SPARK_DEBUG_EARLY_GENERATION=1` in the local API environment and
-restart the API to open **Chapters** immediately on a loopback browser URL.
-Use **Generate my memoir** to write a private draft from the memories saved so
-far, or open **Story game** to prepare scenes from a saved draft. The game still
-requires a signed-in owner, a current memoir, and adaptation consent. Games
-started before shaping mode stay private. This flag defaults to off and leaves
-conversation accounting and the payment allowance in effect. The local database
-needs the current fresh-install schema.
+restart the API to show **Generate my memoir** and **Story game** in the
+interview footer on loopback URLs. The memoir action replaces the map with the
+Family, Timeline and Chapters tabs. The game action prepares the draft if
+needed, builds the recommended scenes, and opens the finished game in the
+workspace. The game requires a signed-in owner and adaptation consent. Games
+started before shaping mode stay private. The flag defaults to off and the
+local database needs the current fresh-install schema.
 
 ### First-response latency profiling
 

@@ -160,7 +160,7 @@ export function mountNovelGameWebpage(root, game, t, onClose) {
   let closed = false;
   frame.className = "story-game-frame"; frame.title = t("title");
   frame.setAttribute("sandbox", "allow-scripts"); frame.referrerPolicy = "no-referrer";
-  root.textContent = t("title");
+  if (!root.hasChildNodes()) root.textContent = t("title");
   if (!novelRuntime) novelRuntime = fetch("/api/v1/memoir/agent/story-game-runtime")
     .then(response => { if (!response.ok) throw new Error("Game runtime unavailable"); return response.json(); })
     .catch(error => { novelRuntime = null; throw error; });
@@ -216,7 +216,8 @@ export function rankSceneOptions(options) {
 }
 
 
-export function createStoryGameDialog({ state, storyApi, captureProjectScope, isCurrentProjectScope, translate, generatePrivateDraft }) {
+export function createStoryGameDialog({ state, storyApi, captureProjectScope, isCurrentProjectScope, translate,
+  generatePrivateDraft, onWorkspaceClose }) {
   let view = null;
   const t = key => translate(`Memoir.game.${key}`);
   const path = active => `/v1/agent/projects/${encodeURIComponent(active.scope.projectId)}`;
@@ -235,14 +236,19 @@ export function createStoryGameDialog({ state, storyApi, captureProjectScope, is
     const old = view; view = null;
     old.controller.abort(); old.cleanup?.(); clearInterval(old.poll);
     document.removeEventListener("visibilitychange", old.visibility);
-    old.dialog.remove();
-    (old.opener?.isConnected ? old.opener : document.querySelector("[data-story-game]"))?.focus();
+    old.dialog?.remove();
+    if (!old.inline) (old.opener?.isConnected ? old.opener : document.querySelector("[data-story-game]"))?.focus();
   }
   function sync() {
-    if (view && (!isCurrentProjectScope(view.scope)
-        || (!state.debugEarlyGeneration && state.currentInterviewMode?.mode !== "shape"))) close();
+    if (view) {
+      const available = view.inline ? state.debugEarlyGeneration && state.debugWorkspace === "game"
+        : state.currentInterviewMode?.mode === "shape";
+      if (!available || !isCurrentProjectScope(view.scope)) close();
+    }
+    if (state.debugWorkspace === "game" && !view?.inline) state.debugWorkspace = null;
   }
   async function refresh(active = view) {
+    if (view !== active) return;
     if (!current()) return close();
     const revision = active.revision;
     const before = JSON.stringify([active.status?.adaptation, active.status?.eligibility, active.status?.composer_ready]);
@@ -253,15 +259,18 @@ export function createStoryGameDialog({ state, storyApi, captureProjectScope, is
     if (status.formal?.run?.status === "stale") active.formalRequest = crypto.randomUUID();
     const adaptation = view.status.adaptation;
     const after = JSON.stringify([adaptation, status.eligibility, status.composer_ready]);
+    const wasPlaying = Boolean(active.content);
     if (view.status.eligibility?.available && status.composer_ready !== false && adaptation?.game_id && adaptation.status === "published") {
-      if (!view.content || before !== after) {
+      if (!view.content || before !== after || !view.rendered) {
         const content = await request(`/story-game/${adaptation.game_id}`, {}, active);
         if (view !== active || !current() || active.revision !== revision) return;
+        if (active.inline && content?.status !== "published") throw new Error("game_not_published");
         active.content = content;
+        if (active.inline) active.error = "";
       }
     } else {
       view.content = null; clearRenderer();
-      if (adaptation?.pool_digest) {
+      if (adaptation?.pool_digest && (!active.inline || adaptation.status === "selection_required")) {
         const plan = await request(`/story-game/${adaptation.game_id}`, {}, active);
         if (view !== active || !current() || active.revision !== revision) return;
         if (plan.pool && active.poolDigest !== plan.pool_digest) {
@@ -273,17 +282,20 @@ export function createStoryGameDialog({ state, storyApi, captureProjectScope, is
         if (active.confirmed) active.selected = new Set(plan.selected_scene_ids);
       } else clearPool(active);
     }
-    if (before !== after || !view.rendered) draw();
+    if (active.inline && wasPlaying && !active.content) active.error = t("unavailable");
+    if ((before !== after || !view.rendered) && !(active.inline && active.busy)) draw();
   }
   async function action(callback) {
     if (!current() || view.busy) return;
     const active = view;
     active.revision++;
     active.busy = true; active.error = ""; draw();
-    try { await callback(active); if (view === active && current()) await refresh(active); }
-    catch (_) {
+    try { await callback(active); if (!active.inline && view === active && current()) await refresh(active); }
+    catch (error) {
       if (view === active && current()) {
-        active.error = t("retry"); clearRenderer(); active.content = null; clearPool(active);
+        active.error = active.inline && [401, 403].includes(error?.status) && state.supabase?.user?.is_anonymous
+          ? t("signInToPlay") : t("retry");
+        clearRenderer(); active.content = null; clearPool(active);
         try { await refresh(active); if (active.content) active.error = ""; } catch (_) { /* Keep content withheld. */ }
       }
     }
@@ -321,6 +333,58 @@ export function createStoryGameDialog({ state, storyApi, captureProjectScope, is
     await request(`/story-game/${active.status.adaptation.game_id}/selection`, {
       method: "POST", body: JSON.stringify({expected_pool_digest: active.poolDigest,
         scene_ids: active.pool.scenes.filter(s => active.selected.has(s.id)).map(s => s.id)})}, active);
+  }
+  async function buildInWorkspace(active) {
+    const deadline = Date.now() + 75 * 60 * 1000;
+    const waitForUpdate = async () => {
+      if (Date.now() >= deadline) throw new Error("game_timeout");
+      await new Promise(resolve => setTimeout(resolve, 2500));
+      await refresh(active);
+    };
+    await refresh(active);
+    if (view !== active || active.content) return;
+    if (active.status.composer_ready === false) {
+      const outcome = await generatePrivateDraft({forGame:true, signal:active.controller.signal});
+      if (outcome === "insufficient_context") {
+        active.error = translate("Memoir.recall.previewInsufficient");
+        return;
+      }
+      while (view === active && current() && active.status.composer_ready === false) {
+        const draft = await storyApi(`/v1/story/private-draft?project_id=${encodeURIComponent(active.scope.projectId)}`,
+          {signal:active.controller.signal});
+        if (!draft.updating && draft.status === "insufficient_context") {
+          active.error = translate("Memoir.recall.previewInsufficient");
+          return;
+        }
+        if (draft.approval_required || (!draft.updating && draft.error)) throw new Error("game_draft_unavailable");
+        if (!draft.updating) {
+          await refresh(active);
+          if (view === active && active.status.composer_ready === false) throw new Error("game_draft_unavailable");
+          break;
+        }
+        await waitForUpdate();
+      }
+    }
+    if (view !== active || !current() || active.content) return;
+    const adaptation = active.status.adaptation;
+    if (adaptation?.status !== "selection_required" && (adaptation?.status !== "running" || adaptation.retryable)) {
+      await generate(active);
+      await refresh(active);
+    }
+    let submitted = false;
+    while (view === active && current() && !active.content) {
+      const game = active.status.adaptation;
+      if (!active.status.eligibility?.available || active.status.composer_ready === false ||
+          !game || game.retryable || !["pending", "running", "selection_required"].includes(game.status)) {
+        throw new Error("game_build_unavailable");
+      }
+      if (game.status === "selection_required" && !submitted) {
+        if (!active.pool || !active.selected.size) throw new Error("game_scenes_unavailable");
+        await confirmSelection(active);
+        submitted = true;
+      }
+      await waitForUpdate();
+    }
   }
   function selectionMarkup(disabled) {
     const options = view.pool.scenes, groups = new Map();
@@ -366,16 +430,29 @@ export function createStoryGameDialog({ state, storyApi, captureProjectScope, is
     });
   }
   function draw() {
-    if (!view) return;
+    if (!view?.body) return;
     clearRenderer(); view.rendered = true;
     const status = view.status, content = view.content;
+    if (view.inline) {
+      const spinner = `<div class="debug-game-progress" role="status" aria-label="${escapeHtml(t("loading"))}"><span class="preview-spinner" aria-hidden="true"></span></div>`;
+      if (content?.status === "published" && !view.busy && !document.hidden) {
+        view.body.innerHTML = `<div data-story-game-player>${spinner}</div>`;
+        view.cleanup = mountStoryGameWebpage(view.body.firstElementChild, content.game, t, () => {
+          close();
+          onWorkspaceClose?.();
+          document.querySelector('[data-action="generate-story-game"]')?.focus({preventScroll:true});
+        });
+      } else {
+        view.body.innerHTML = view.error ? `<p class="debug-game-progress" role="alert">${escapeHtml(view.error)}</p>` : spinner;
+      }
+      return;
+    }
     const building = status?.adaptation?.status === "running" && !status.adaptation.retryable;
     const disabled = view.busy || building ? "disabled" : "";
     let markup = `<p role="status">${escapeHtml(t("loading"))}</p>`;
     if (status) {
       if (status.composer_ready === false) {
-        markup = `<p role="status">${escapeHtml(t("composerRequired"))}</p>${state.debugEarlyGeneration
-          ? `<button type="button" data-compose-for-game ${disabled}>${escapeHtml(translate("Memoir.storyFlow.generateMemoir"))}</button>` : ""}`;
+        markup = `<p role="status">${escapeHtml(t("composerRequired"))}</p>`;
       } else if (content?.status === "published") {
         markup = `<a data-game-page-link href="/memoir/game/${encodeURIComponent(view.scope.projectId)}">${escapeHtml(t("openGamePage"))}</a>
           <div data-story-game-player></div><button type="button" class="text-button" data-revoke-game ${disabled}>${escapeHtml(t("revoke"))}</button>`;
@@ -391,48 +468,60 @@ export function createStoryGameDialog({ state, storyApi, captureProjectScope, is
     view.body.innerHTML = `${view.busy ? `<p role="status">${escapeHtml(t("loading"))}</p>` : ""}
       ${view.error ? `<p role="alert">${escapeHtml(view.error)}</p>` : ""}${markup}`;
     view.body.querySelector("[data-game-consent]")?.addEventListener("submit", event => { event.preventDefault(); void action(generate); });
-    view.body.querySelector("[data-compose-for-game]")?.addEventListener("click", () => action(async active => {
-      const status = await generatePrivateDraft({forGame:true});
-      if (status === "error") throw new Error("draft_generation_failed");
-      if (status === "insufficient_context") active.error = translate("Memoir.recall.previewInsufficient");
-    }));
     view.body.querySelector("[data-revoke-game]")?.addEventListener("click", () => action(revoke));
     bindSelection();
     const root = view.body.querySelector("[data-story-game-player]");
     if (root && !document.hidden) view.cleanup = mountStoryGameWebpage(root, content.game, t, close);
   }
-  async function open(opener) {
+  async function poll(active) {
+    if (view !== active || active.busy || active.polling || document.hidden) return;
+    const revision = active.revision;
+    active.polling = true;
+    try { await refresh(active); }
+    catch (_) {
+      if (view === active && active.revision === revision) {
+        clearRenderer(); active.content = null; clearPool(active); active.error = t("retry"); draw();
+      }
+    } finally { active.polling = false; }
+  }
+  function startView(dialog, opener) {
     close();
+    const active = view = {scope:captureProjectScope(), inline:!dialog, dialog, body:dialog?.querySelector(".story-game-body"), opener,
+      controller:new AbortController(), formalRequest:crypto.randomUUID(), gameRequest:crypto.randomUUID(),
+      busy:false, error:"", rendered:false, revision:0, polling:false, selected:new Set(), confirmed:false,
+      visibility:() => {
+        if (document.hidden) clearRenderer();
+        else if (view === active && active.inline && active.content) { active.rendered = false; void poll(active); }
+        else if (view === active && !active.inline) { active.content = null; active.rendered = false; void action(refresh); }
+      }};
+    document.addEventListener("visibilitychange", active.visibility);
+    window.addEventListener("popstate", close, {signal:active.controller.signal});
+    window.addEventListener("pagehide", close, {signal:active.controller.signal});
+    active.poll = setInterval(() => { if (!active.inline || active.content) void poll(active); }, 15000);
+  }
+  async function open(opener) {
     const dialog = document.createElement("dialog"); dialog.className = "story-game-modal";
     dialog.setAttribute("aria-labelledby", "story-game-title");
     dialog.innerHTML = `<header><h2 id="story-game-title">${escapeHtml(t("title"))}</h2>
       <button type="button" data-close-game aria-label="${escapeHtml(t("close"))}">×</button></header><div class="story-game-body"></div>`;
-    view = {scope:captureProjectScope(),dialog,body:dialog.querySelector(".story-game-body"),opener,
-      controller:new AbortController(),formalRequest:crypto.randomUUID(),gameRequest:crypto.randomUUID(),
-      busy:false,error:"",rendered:false,revision:0,polling:false,selected:new Set(),confirmed:false,visibility:() => {
-        if (document.hidden) clearRenderer();
-        else if (view) { view.content = null; view.rendered = false; void action(refresh); }
-      }};
+    startView(dialog, opener);
     dialog.querySelector("[data-close-game]").addEventListener("click", close);
     dialog.addEventListener("cancel", event => { event.preventDefault(); close(); });
-    document.addEventListener("visibilitychange", view.visibility);
-    window.addEventListener("popstate", close, {signal: view.controller.signal});
-    window.addEventListener("pagehide", close, {signal: view.controller.signal});
     document.body.append(dialog); dialog.showModal(); draw();
-    const active = view;
     await action(refresh);
-    if (view === active) {
-      view.poll = setInterval(() => {
-        if (view !== active || view.busy || active.polling || document.hidden) return;
-        const revision = active.revision;
-        active.polling = true;
-        void refresh(active).catch(() => {
-          if (view === active && active.revision === revision) {
-            clearRenderer(); active.content = null; clearPool(active); active.error = t("retry"); draw();
-          }
-        }).finally(() => { active.polling = false; });
-      }, 15000);
-    }
   }
-  return {open,sync,close};
+  function openWorkspace(render) {
+    if (!view?.inline || !current()) {
+      startView(null);
+      render();
+    }
+    if (!view.content) void action(buildInWorkspace);
+  }
+  function mountWorkspace(root) {
+    if (!view?.inline || view.body === root) return;
+    clearRenderer();
+    view.body = root;
+    draw();
+  }
+  return {open,openWorkspace,mountWorkspace,sync,close};
 }

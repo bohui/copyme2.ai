@@ -88,7 +88,7 @@ export function createPlaceWorkspace({
   let disposeImagery = null;
 
   let cesiumLoadPromise = null;
-  let imageryLoadPromise, imageryLoadScope, imageryWarmPromise, renderedPins;
+  let imageryLoadPromise, imageryLoadScope, renderedPins;
 
   const unavailablePlaceMaps = new Set();
 
@@ -391,12 +391,24 @@ export function createPlaceWorkspace({
     const key = provider === "google" ? state.supabase?.google_maps_browser_api_key : state.supabase?.geoapify_browser_api_key;
     const scope = JSON.stringify([provider,key,currentUiLocale()]);
     if (imageryLoadPromise && imageryLoadScope === scope) return imageryLoadPromise;
-    imageryLoadScope = scope;imageryWarmPromise = null;
+    imageryLoadScope = scope;
     imageryLoadPromise = (async () => {
       if (!key) throw new Error("Map imagery is not configured");
-      if (provider === "google") return cesium.Google2DImageryProvider.fromUrl({
-        key,mapType:"roadmap",language:currentUiLocale(),region:currentUiLocale() === "zh-CN" ? "CN" : "AU",
-      });
+      if (provider === "google") {
+        const imagery = await cesium.Google2DImageryProvider.fromUrl({
+          key,mapType:"roadmap",language:currentUiLocale(),region:currentUiLocale() === "zh-CN" ? "CN" : "AU",
+        });
+        const loadCredits = imagery.getViewportCredits?.bind(imagery);
+        if (loadCredits) {
+          // Cesium 1.145 starts this full zoom-level sweep from every tile until it resolves.
+          let credits;
+          imagery.getViewportCredits = () => credits ??= loadCredits().catch(error => {
+            credits = null;
+            throw error;
+          });
+        }
+        return imagery;
+      }
       if (provider === "geoapify") return new cesium.UrlTemplateImageryProvider({
         url:`https://maps.geoapify.com/v1/tile/osm-carto/{z}/{x}/{y}.png?apiKey=${encodeURIComponent(key)}`,
         credit:new cesium.Credit('© <a href="https://www.geoapify.com/">Geoapify</a> | © <a href="https://www.openstreetmap.org/copyright">OpenStreetMap contributors</a>',true),
@@ -407,16 +419,6 @@ export function createPlaceWorkspace({
     const pending = imageryLoadPromise;
     pending.catch(() => { if (imageryLoadPromise === pending) imageryLoadPromise = null; });
     return pending;
-  }
-
-  async function preloadPlaceMap() {
-    if (!state.supabase?.google_maps_browser_api_key && !state.supabase?.geoapify_browser_api_key) return;
-    try {
-      const imagery = await loadPlaceImagery(await loadCesium());
-      // Warm a world tile before the first narrated place needs the map.
-      imageryWarmPromise ||= Promise.resolve(imagery.requestImage(0,0,imagery.minimumLevel || 0));
-      await imageryWarmPromise;
-    } catch { /* Map preparation must not hold up the conversation. */ }
   }
 
   function syncCesiumPins(viewer,cesium,container) {
@@ -839,7 +841,7 @@ export function createPlaceWorkspace({
   }
 
   return {
-    disposeCesiumPlaceJourney, hydratePlaceJourney, initCesiumPlaceJourney, loadCesium, preloadPlaceMap, mapPhotoAlbums, mapMemoryEvents,
+    disposeCesiumPlaceJourney, hydratePlaceJourney, initCesiumPlaceJourney, mapPhotoAlbums, mapMemoryEvents,
     placeJourneySurface, placeMapTarget, placeWorkspaceSelection, rememberPlaceJourneyProject, resolvePlaceMap,
     selectPlace, workspaceMediaOverview, resizeCesiumPlaceJourney, mapPhotoAlbum, mapPhotoAlbumsForScene
   };

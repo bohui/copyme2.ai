@@ -1023,6 +1023,16 @@ body:has(.story-shell #chat-scroll) { overflow: hidden; }
 }
 .story-shell:has(#chat-scroll) .story-topbar { flex: 0 0 auto; height: auto; min-height: 76px; padding-top: max(19px, env(safe-area-inset-top)); padding-left: max(clamp(20px, 4vw, 48px), env(safe-area-inset-left)); padding-right: max(clamp(20px, 4vw, 48px), env(safe-area-inset-right)); }
 .story-shell:has(#chat-scroll) .conversation-layout { flex: 1 1 0; height: auto; min-height: 0; overflow: hidden; }
+.debug-generation-bar {
+  display: flex;
+  flex: 0 0 auto;
+  justify-content: flex-end;
+  gap: 8px;
+  padding: 6px max(12px, env(safe-area-inset-right)) max(6px, env(safe-area-inset-bottom)) max(12px, env(safe-area-inset-left));
+  border-top: 1px solid var(--line);
+  background: var(--paper);
+}
+.debug-generation-bar .button { min-height: 44px; }
 .story-shell:has(#chat-scroll) .chat-main { height: 100%; min-height: 0; overflow: hidden; }
 .chat-scroll { min-height: 0; overscroll-behavior-y: contain; overflow-anchor: none; }
 .chat-scroll:focus-visible { outline: 2px solid var(--green); outline-offset: -2px; }

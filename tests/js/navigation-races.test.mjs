@@ -254,27 +254,28 @@ function reentryHarness({anonymous = true, saved = 'a', denied = null, historyDe
     setPath: next => {path = next;}};
 }
 
-for (const anonymous of [true, false]) test(`early Begin waits for ${anonymous ? 'guest' : 'account'} recovery and keeps one journey`, async () => {
+for (const anonymous of [true, false]) test(`Begin starts ${anonymous ? 'guest' : 'account'} recovery once from the landing page`, async () => {
   const h = reentryHarness({anonymous});
-  const boot = h.context.boot();
-  await tick();
+  await h.context.boot();
   assert.match(h.app.innerHTML, /data-action="open-memoir"/);
-  assert.equal(h.state.project.id, 'a');
-  assert.equal(h.state.project.mode, undefined); // Recovery has not authorized its metadata yet.
+  assert.equal(h.state.project, undefined);
+  assert.deepEqual(h.hydrations, []);
   const begin = h.events.get('begin')();
   const repeated = h.events.get('begin')();
   try {
     await tick();
+    assert.equal(h.state.project.id, 'a');
+    assert.equal(h.state.project.mode, undefined); // Recovery has not authorized its metadata yet.
     assert.equal(h.creates.length, 0);
   } finally {
     h.recovery.resolve();
-    await Promise.all([boot, begin, repeated]);
+    await Promise.all([begin, repeated]);
   }
   assert.equal(h.state.project.id, 'a');
   assert.equal(h.state.projectPrincipalId, 'owner');
   assert.equal(h.path(), '/memoir/interview/a');
   assert.equal(h.creates.length, 0);
-  assert.deepEqual(h.hydrations, ['a', 'a']); // Boot plus one coalesced resume.
+  assert.deepEqual(h.hydrations, ['a']);
 });
 
 for (const denied of [new Error('Recovery unavailable'), Object.assign(new Error('Denied'), {status: 403})]) {
@@ -309,7 +310,9 @@ test('cold Begin coalesces to one fresh self project without a saved pointer', a
 });
 
 test('an explicit family start waits for recovery and then deliberately creates its own project', async () => {
-  const h = reentryHarness(); const boot = h.context.boot(); await tick();
+  const h = reentryHarness();
+  h.setPath('/memoir');
+  const boot = h.context.boot(); await tick();
   const family = h.context.startStory('family');
   try {await tick(); assert.equal(h.creates.length, 0);}
   finally {h.recovery.resolve(); await Promise.all([boot, family]);}

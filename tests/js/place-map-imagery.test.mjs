@@ -18,14 +18,17 @@ for (const provider of ['google','geoapify']) {
     assert.equal(h.viewer.scene.screenSpaceCameraController.enableInputs,true);
   });
 
-  test(`${provider}: conversation preloading reuses the initialized imagery provider`,async()=>{
-    const h=await harness(provider);
-    const ready=h.context.preloadPlaceMap();
-    h.resolveImage({width:256,height:256});await ready;
-    assert.equal(await h.context.loadPlaceImagery({}),h.imagery);
-    assert.equal(h.flights.length,0);
-  });
 }
+
+test('concurrent Google tiles share one viewport credit read', async () => {
+  const h = await harness('google');
+  const first = h.imagery.getViewportCredits();
+  const second = h.imagery.getViewportCredits();
+  assert.equal(first, second);
+  assert.deepEqual(await first, ['Synthetic attribution']);
+  assert.equal(h.viewportReads(), 1);
+  assert.equal(await h.context.loadPlaceImagery({}), h.imagery);
+});
 
 for (const provider of ['google', 'geoapify']) for (const [mode, options] of [
   ['reduced motion', {}], ['opening flight', {reducedMotion:false}],

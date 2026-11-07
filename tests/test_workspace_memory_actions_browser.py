@@ -113,28 +113,28 @@ def test_stage_action_preserves_unsent_words_and_sends_only_scoped_context(works
     expect(page.locator('#chat-input')).to_have_value('My unsent memory.')
     expect(page.locator('#chat-input')).to_be_focused()
     assert not any(path=='/agent/turn' for path,_,_ in calls)
-    page.locator('#chat-form button[type=submit]').click()
-    expect(page.locator('#chat-form button[type=submit]')).to_be_enabled()
-    body=next(body for path,_,body in calls if path=='/agent/turn')
+    with page.expect_response('**/agent/turn') as turn:
+        page.locator('#chat-form button[type=submit]').click()
+    body=turn.value.request.post_data_json
     assert body['conversation_text']=='My unsent memory.'
     assert body['workspace_focus']=={'kind':'add_memory','life_stage':'later_life'}
     assert page.evaluate('document.documentElement.scrollWidth<=innerWidth')
 
 
 def test_event_action_continues_exact_memory_and_can_finish_without_changing_mode(workspace_page):
-    page,calls,copy,*_ = workspace_page
+    page,*_ = workspace_page
     page.locator('[data-workspace-tab=timeline]').click()
     page.locator('[data-explore-workspace-memory=garden-event]').click()
     expect(page.locator('.workspace-memory-focus')).to_contain_text('The little garden')
     page.locator('#chat-input').fill('There were roses.')
-    page.locator('#chat-form button[type=submit]').click()
-    expect(page.locator('#chat-form button[type=submit]')).to_be_enabled()
-    body=next(body for path,_,body in calls if path=='/agent/turn')
+    with page.expect_response('**/agent/turn') as first_turn:
+        page.locator('#chat-form button[type=submit]').click()
+    body=first_turn.value.request.post_data_json
     assert body['workspace_focus']=={'kind':'explore_memory','event_id':'garden-event','event_revision':3}
     page.locator('#chat-input').fill('We watered them every morning.')
-    page.locator('#chat-form button[type=submit]').click()
-    expect(page.locator('#chat-form button[type=submit]')).to_be_enabled()
-    assert [body for path,_,body in calls if path=='/agent/turn'][-1]['workspace_focus'] is None
+    with page.expect_response('**/agent/turn') as second_turn:
+        page.locator('#chat-form button[type=submit]').click()
+    assert second_turn.value.request.post_data_json['workspace_focus'] is None
     page.locator('[data-finish-workspace-memory]').click()
     expect(page.locator('.workspace-memory-focus')).to_have_count(0)
 
@@ -198,7 +198,6 @@ def test_language_switch_discards_old_rewrite_and_submits_against_selected_editi
     expect(page.locator('#section-rework-form')).to_have_count(0)
     expect(page.locator('.private-draft-section')).to_contain_text('Saved prose in the other edition.')
     assert not any(path=='/story/private-draft/rework' for path,_,_ in calls)
-    page.locator('.saved-draft-sections summary').click()
     page.locator('[data-rework-section=garden-partition]').click()
     expect(page.locator('#section-rework-instruction')).to_have_value('')
     page.locator('#section-rework-instruction').fill('Selected edition instruction.')

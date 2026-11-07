@@ -17,6 +17,15 @@
 .game-dialogue{padding:20px;border-radius:14px;background:#e9efdf;border-left:4px solid #709478}.game-text-equivalent{margin-top:24px;padding:16px;background:white;border:1px solid #d6ddd7;border-radius:12px}.game-text-equivalent summary{cursor:pointer;font-weight:600;min-height:32px}
 .game-scene-label{font-weight:600}.workspace-game{padding:16px 0}
 .story-game-frame{display:block;width:100%;height:min(740px,75dvh);min-height:520px;border:0;border-radius:16px;background:#fbfcf8}
+.workspace-detail.is-debug-game { overflow: hidden; }
+[data-story-game-workspace] { display: flex; flex: 1 1 auto; flex-direction: column; min-height: 0; }
+[data-story-game-workspace] > [data-story-game-player] { flex: 1 1 auto; min-height: 0; overflow: auto; }
+[data-story-game-workspace] .story-game-frame { height: 100%; min-height: 0; border-radius: 0; }
+.debug-game-progress { display: grid; height: 100%; place-items: center; margin: 0; padding: 16px; text-align: center; }
+.debug-game-progress .preview-spinner { width: 1.5em; height: 1.5em; margin: 0; }
+@media (max-width: 760px) {
+  .story-shell:has(#chat-scroll) .workspace-detail.is-debug-game { flex-basis: 70%; max-height: 70%; }
+}
 @media(max-width:600px){.story-game-body{padding:16px}.story-game-modal>header{padding:16px}.game-stage{height:240px}.game-player,.game-npc{bottom:55px}.game-controls button{padding:10px 18px}}
 @media(prefers-reduced-motion:reduce){.game-world{will-change:auto}}
 

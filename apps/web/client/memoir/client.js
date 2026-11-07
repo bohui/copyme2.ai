@@ -66,6 +66,7 @@ const state = {
   showThinkingSteps: false,
   showDraftUpdates: false,
   debugEarlyGeneration: false,
+  debugWorkspace: null,
   privateDraftExpanded: false,
   privateDraftThinkingExpanded: false,
   profileIntakePending: true,
@@ -255,7 +256,7 @@ const {
 } = photos;
 
 const {
-  disposeCesiumPlaceJourney, hydratePlaceJourney, initCesiumPlaceJourney, loadCesium, preloadPlaceMap, mapPhotoAlbums, mapMemoryEvents,
+  disposeCesiumPlaceJourney, hydratePlaceJourney, initCesiumPlaceJourney, mapPhotoAlbums, mapMemoryEvents,
   placeJourneySurface, placeMapTarget, placeWorkspaceSelection, rememberPlaceJourneyProject, resolvePlaceMap,
   selectPlace, workspaceMediaOverview, resizeCesiumPlaceJourney
 } = createPlaceWorkspace({
@@ -268,14 +269,15 @@ const {
 
 const {
   currentSectionRework, decidePrivateDraftProposal, loadMorePrivateDraft, openSectionRework,
-  generatePrivateDraft, privateDraftGenerationButton, privateDraftPreview, privateDraftThinkingStep,
+  generatePrivateDraft, privateDraftGenerationStatus, privateDraftPreview, privateDraftThinkingStep,
   refreshPrivateDraft, retryPrivateDraft, selectPrivateDraftLocale, submitSectionRework
 } = createPrivateDraft({
   applyBackgroundSkillProgress, captureProjectScope, freeRecallFinished, isCurrentProjectScope, memoirApiPath, persistChatHistory, profile,
   render, state, storyApi, updateStreamingAssistantMessage
 });
 
-const storyGameDialog = createStoryGameDialog({state,storyApi,captureProjectScope,isCurrentProjectScope,translate,generatePrivateDraft});
+const storyGameDialog = createStoryGameDialog({state,storyApi,captureProjectScope,isCurrentProjectScope,translate,generatePrivateDraft,
+  onWorkspaceClose: () => { state.debugWorkspace = null; render(); }});
 
 const {
   addPerson, applyPersistedFamilyContext, closeFamilyPerson, familyWorkspace, initFamilyVisualizations,
@@ -414,6 +416,7 @@ function invalidateProjectNavigation() {
   state.conversationStreams?.clear();
   state.privateDraftStream?.controller.abort();
   state.privateDraftStream = null;
+  state.debugWorkspace = null;
   state.atlasUpdates?.stop();
   state.stageReadinessRefresh?.controller.abort();
   state.privateDraftExpanded = false;
@@ -729,7 +732,6 @@ async function agentTurn(text, fallback = "", toolNames = ["memory.search"], lan
     streamedMessage.traceMode = "live";
     updateStreamingAssistantMessage(streamedMessage);
   };
-  if (state.supabase?.google_maps_browser_api_key || state.supabase?.geoapify_browser_api_key) void preloadPlaceMap();
   try {
     const applyWorkspace = async (update) => {
       if (!current()) return;
@@ -1357,6 +1359,8 @@ function updateStreamingAssistantMessage(message) {
     render();
     return;
   }
+  const paint = $(".story-shell")?.memoirPaint;
+  if (paint) delete paint.parts.history;
   const scroll = $("#chat-scroll");
   const followConversation = conversationScroll.following();
   const text = row.querySelector(".message-text");
@@ -1466,7 +1470,6 @@ async function refreshFamilyEntitlement() {
 }
 
 async function startCodexConversation({ resume = false } = {}) {
-  if (state.supabase?.google_maps_browser_api_key || state.supabase?.geoapify_browser_api_key) void preloadPlaceMap();
   const scope = captureProjectScope();
   if (!state.project || state.codexStarting || state.codexReady || state.chat.length) return;
   if (state.recallStatus?.payment_required) return;
@@ -1908,6 +1911,7 @@ function memoryFollowUpPrompt(session = state.session) {
 }
 
 function render() {
+  if (state.projectRecovery?.restoring) return;
   storyGameDialog.sync();
   if (!state.project || currentPath() === "/" || currentPath() === MEMOIR_ROUTES.home) {
     conversationScroll.mount(null); disposeCesiumPlaceJourney(); return renderLanding();
@@ -1921,9 +1925,12 @@ function renderLanding() {
 }
 
 function renderPlatformLanding() {
+  const app = $("#app");
+  const locale = currentUiLocale();
+  if (app.firstElementChild?.dataset.platformLocale === locale) return;
   const t = (key) => escapeHtml(translate(`Platform.${key}`));
-  $("#app").innerHTML = `
-    <div class="platform-landing">
+  app.innerHTML = `
+    <div class="platform-landing" data-platform-locale="${escapeHtml(locale)}">
       <header class="landing-header platform-header">
         <a class="brand" href="/" aria-label="${t("homeAria")}"><img class="brand-mark" src="/static/copyme2_icon_light.png" alt="" aria-hidden="true" /><span class="brand-name">${t("brand")}</span></a>
         <div class="landing-language" data-language-switcher-slot></div>
@@ -2009,6 +2016,7 @@ async function startStory(mode = "self") {
 }
 
 async function startMemoirStory(mode = "self") {
+  const entryPath = currentPath();
   let generation = state.navigationGeneration || 0;
   let ownerId = state.supabase?.user?.id;
   let token = state.supabase?.accessToken;
@@ -2031,10 +2039,15 @@ async function startMemoirStory(mode = "self") {
         return;
       }
     }
-    if (!current() || state.loading) return;
+    if (!current() || currentPath() !== entryPath || state.loading) return;
     if (mode === "self" && state.projectRecoveryBlocked) {
       toast(translate("AuthReminder.historyError"));
       return;
+    }
+    if (mode === "self" && entryPath === "/") {
+      const saved = savedProjectId();
+      if (saved && await boot({openProjectId:saved}) !== false) return;
+      if (!current() || currentPath() !== entryPath) return;
     }
     if (mode === "self" && state.supabase?.user
         && state.project?.mode === "self" && state.projectPrincipalId === state.supabase.user.id) {
@@ -2292,6 +2305,7 @@ function renderStory() {
   }
   const thinkingDraft = $(".agent-composer-draft");
   if (thinkingDraft) state.privateDraftThinkingExpanded = thinkingDraft.open;
+  const debugAction = document.activeElement?.closest?.(".debug-generation-bar button")?.dataset.action;
   const profileFocus = document.activeElement?.dataset?.profileAction;
   const profileTriggerFocused = document.activeElement?.hasAttribute?.("data-profile-trigger");
   const hadRecallPrompt = Boolean($(".recall-package-prompt"));
@@ -2314,13 +2328,14 @@ function renderStory() {
 
   const t = (key) => escapeHtml(translate(`Memoir.story.${key}`));
   const storyText = (key, values = {}) => escapeHtml(translateWith(`Memoir.story.${key}`, values));
-  const unlocked = composingWorkspaceActive() || freeRecallFinished();
+  const unlocked = state.debugEarlyGeneration ? state.debugWorkspace === "memoir" : composingWorkspaceActive() || freeRecallFinished();
   const workspaceVisible = workspaceIsVisible();
   const workspaceAvailable = workspaceHasContent();
   const contextOnly = workspaceVisible && !unlocked;
   const baseShellClass = workspaceVisible ? (contextOnly ? "context-visible" : "workspace-visible") : "conversation-only";
   const shellClass = `${baseShellClass}${!workspaceVisible && workspaceAvailable ? " workspace-collapsed" : ""}`;
-  const chatClass = "chat-main";
+  const mainLabel = translate("Memoir.story.mainLabel");
+  const historyLabel = translate("Memoir.story.historyRegion");
   const historyToggleLabel = t(state.chatHistoryCollapsed ? "showHistory" : "hideHistory");
   const historyToggle = !isFreshAnonymousSession() && state.chat.length
     ? `<button type="button" class="button button-secondary button-small chat-history-toggle" data-action="toggle-chat-history" aria-expanded="${!state.chatHistoryCollapsed}" aria-controls="chat-history">${historyToggleLabel}</button>`
@@ -2332,46 +2347,85 @@ function renderStory() {
     && state.workspaceSkillProgress?.owner_id === state.supabase?.user?.id
     ? renderAgentTrace(state.workspaceSkillProgress.items,"live") : "";
   activeWorkspaceTab();
-  const markup = `
-    <div class="story-shell ${shellClass}">
-      <header class="story-topbar">
+  const parts = {
+    topbar: `<header class="story-topbar">
         <div class="brand"><a href="/" data-action="story-home" aria-label="${escapeHtml(translate("Platform.homeAria"))}"><img class="brand-mark" src="/static/copyme2_icon_light.png" alt="" aria-hidden="true" /></a><a class="brand brand-name" href="${MEMOIR_ROUTES.home}">${t("brand")}</a></div>
         <div class="story-topbar-actions"><div class="story-status"><span class="topbar-hint">${t("voiceAvailable")}</span></div>${profileMenu()}</div>
-      </header>
-      <div class="conversation-layout">
-        <main class="${chatClass}" aria-label="${t("mainLabel")}">
-          <div id="chat-scroll" class="chat-scroll" tabindex="0" role="region" aria-label="${t("historyRegion")}"><div class="chat-heading"><div>${unlocked ? `<div class="eyebrow">${t("workspaceEyebrow")}</div>` : ""}<h1>${t(unlocked ? "workspaceTitle" : "conversationTitle")}</h1><p>${t(unlocked ? "workspaceDescription" : "conversationDescription")}</p></div>${headerActions}</div><div id="chat-history" class="chat-history"${state.chatHistoryCollapsed ? " hidden" : ""}>${state.chat.map(renderMessage).join("")}${serviceProgress ? `<div class="message-trace" aria-live="polite">${serviceProgress}</div>` : ""}</div>${state.loading && !state.chat.at(-1)?.streaming ? `<div class="thinking" role="status"><em>${state.supabase?.accessToken ? t("thinkingCodex") : t("thinkingSimulated")}</em></div>` : ""}${placeJourneySurface()}${recallPackagePrompt()}</div>
-          ${chatComposer()}
-        </main>
-        ${workspaceAvailable ? workspaceDetail() : ""}
-      </div>
-    </div>`;
-  let retainedWorkspace = false;
+      </header>`,
+    heading: `<div class="chat-heading"><div>${unlocked ? `<div class="eyebrow">${t("workspaceEyebrow")}</div>` : ""}<h1>${t(unlocked ? "workspaceTitle" : "conversationTitle")}</h1><p>${t(unlocked ? "workspaceDescription" : "conversationDescription")}</p></div>${headerActions}</div>`,
+    history: `<div id="chat-history" class="chat-history"${state.chatHistoryCollapsed ? " hidden" : ""}>${state.chat.map(renderMessage).join("")}${serviceProgress ? `<div class="message-trace" aria-live="polite">${serviceProgress}</div>` : ""}</div>`,
+    notices: `<div class="chat-notices">${state.loading && !state.chat.at(-1)?.streaming ? `<div class="thinking" role="status"><em>${state.supabase?.accessToken ? t("thinkingCodex") : t("thinkingSimulated")}</em></div>` : ""}${placeJourneySurface()}${recallPackagePrompt()}</div>`,
+    composer: chatComposer(),
+    workspace: workspaceAvailable ? workspaceDetail() : "",
+    debug: state.debugEarlyGeneration && state.project?.id ? debugGenerationBar() : "",
+  };
+  const shell = $(".story-shell");
+  const paint = shell?.memoirPaint;
+  const sameVisit = paint && isCurrentProjectScope(paint.scope);
+  const layoutChanged = shell?.className !== `story-shell ${shellClass}`;
+  let retainedWorkspace = sameVisit && parts.workspace === paint.parts.workspace;
+  let headerChanged = true;
+  let debugChanged = true;
+  let mapPinsChanged = false;
   const previousWorkspace = $("#workspace-detail");
-  if (previousWorkspace && previousMap && !previousWorkspace.querySelector(".workspace-detail-tabs")) {
+  if (sameVisit && !retainedWorkspace && parts.workspace && previousWorkspace && previousMap
+      && !previousWorkspace.querySelector(".workspace-detail-tabs")) {
     const template = document.createElement("template");
-    template.innerHTML = markup;
+    template.innerHTML = parts.workspace;
     const nextWorkspace = template.content.querySelector("#workspace-detail");
-    const nextMap = nextWorkspace?.querySelector("[data-cesium-place]");
+    const nextMap = nextWorkspace.querySelector("[data-cesium-place]");
     if (nextMap && previousWorkspace.className === nextWorkspace.className
         && !nextWorkspace.querySelector(".workspace-detail-tabs")
         && previousMap.dataset.cesiumScope === nextMap.dataset.cesiumScope
         && previousMap.dataset.cesiumUnavailable === nextMap.dataset.cesiumUnavailable) {
-      // Background paints replace the conversation while the workspace stays connected.
-      previousWorkspace.closest(".story-shell").className = `story-shell ${shellClass}`;
-      $(".story-topbar").replaceWith(template.content.querySelector(".story-topbar"));
-      $(".chat-main").replaceWith(template.content.querySelector(".chat-main"));
-      Object.assign(previousMap.dataset,nextMap.dataset);
+      mapPinsChanged = previousMap.dataset.cesiumPins !== nextMap.dataset.cesiumPins;
+      Object.assign(previousMap.dataset, nextMap.dataset);
       retainedWorkspace = true;
     }
   }
-  if (!retainedWorkspace) $("#app").innerHTML = markup;
-  if (retainedWorkspace) {
-    bindViewActions($(".story-topbar"));
-    bindViewActions($(".chat-main"));
-  } else bindViewActions();
-  bindProfileMenu();
-  if (state.profileMenuScope && isCurrentProjectScope(state.profileMenuScope)) {
+  if (sameVisit) {
+    // Compare rendered markup so browser state such as focus and open menus stays in place.
+    const update = (part, selector, parent) => {
+      if (parts[part] === paint.parts[part]) return false;
+      const current = $(selector);
+      if (current) current.outerHTML = parts[part];
+      else if (parts[part]) $(parent).insertAdjacentHTML("beforeend", parts[part]);
+      const next = $(selector);
+      if (next) bindViewActions(next);
+      return true;
+    };
+    if (layoutChanged) shell.className = `story-shell ${shellClass}`;
+    if (paint.mainLabel !== mainLabel) $(".chat-main").setAttribute("aria-label", mainLabel);
+    if (paint.historyLabel !== historyLabel) previousScroll.setAttribute("aria-label", historyLabel);
+    headerChanged = update("topbar", ".story-topbar");
+    update("heading", ".chat-heading");
+    update("history", "#chat-history");
+    update("notices", ".chat-notices");
+    update("composer", ".composer-wrap", ".chat-main");
+    if (!retainedWorkspace) update("workspace", "#workspace-detail", ".conversation-layout");
+    debugChanged = update("debug", ".debug-generation-bar", ".story-shell");
+  } else {
+    $("#app").innerHTML = `
+      <div class="story-shell ${shellClass}">
+        ${parts.topbar}
+        <div class="conversation-layout">
+          <main class="chat-main" aria-label="${escapeHtml(mainLabel)}">
+            <div id="chat-scroll" class="chat-scroll" tabindex="0" role="region" aria-label="${escapeHtml(historyLabel)}">${parts.heading}${parts.history}${parts.notices}</div>
+            ${parts.composer}
+          </main>
+          ${parts.workspace}
+        </div>
+        ${parts.debug}
+      </div>`;
+    bindViewActions();
+  }
+  const nextShell = $(".story-shell");
+  if (nextShell) nextShell.memoirPaint = {scope:captureProjectScope(), parts, mainLabel, historyLabel};
+  if (state.debugEarlyGeneration && state.debugWorkspace === "game") {
+    storyGameDialog.mountWorkspace($("[data-story-game-workspace]"));
+  }
+  if (headerChanged) bindProfileMenu();
+  if (headerChanged && state.profileMenuScope && isCurrentProjectScope(state.profileMenuScope)) {
     // Background greeting/readiness/draft paints must not dismiss an in-flight
     // menu choice. Navigation, owner changes and explicit close discard intent.
     $("[data-profile-trigger]")?.click();
@@ -2379,10 +2433,10 @@ function renderStory() {
       : ["settings", "collection", "attached-history", "login", "logout"].includes(profileFocus)
         ? $(`[data-profile-action="${profileFocus}"]`) : null;
     focus?.focus({preventScroll: true});
-  } else state.profileMenuScope = null;
-  if (!retainedWorkspace) {
-    const nextMap = $("[data-cesium-place]");
-    if (previousMap && nextMap && previousMap.dataset.cesiumScope === nextMap.dataset.cesiumScope
+  } else if (headerChanged) state.profileMenuScope = null;
+  const nextMap = $("[data-cesium-place]");
+  if (!sameVisit || nextMap !== previousMap) {
+    if ((!paint || sameVisit) && previousMap && nextMap && previousMap.dataset.cesiumScope === nextMap.dataset.cesiumScope
         && previousMap.dataset.cesiumUnavailable === nextMap.dataset.cesiumUnavailable) {
       Object.assign(previousMap.dataset,nextMap.dataset);
       nextMap.closest(".place-journey-scene").replaceWith(previousScene);
@@ -2398,8 +2452,8 @@ function renderStory() {
   if (currentMap) {
     const locationChange = String(state.activeLocationChange || 0);
     const changed = currentMap.dataset.activeLocationChange !== locationChange;
-    currentMap.dataset.activeLocationChange = locationChange;
-    if (retainedWorkspace && changed) resizeCesiumPlaceJourney();
+    if (changed) currentMap.dataset.activeLocationChange = locationChange;
+    if (sameVisit && nextMap === previousMap && (changed || mapPinsChanged)) resizeCesiumPlaceJourney();
   }
   mapPhotoAlbums.sync($(".place-journey-scene"), albumFocus);
   mapMemoryEvents.sync($(".place-journey-scene"), mapMemoryFocus);
@@ -2411,30 +2465,33 @@ function renderStory() {
   bindPhotoMemoryActions();
   void state.photoTurns?.bindImages(document, {path:memoirApiPath, errorText:translate("Memoir.story.photoUnavailable")});
   const scroll = $("#chat-scroll");
-  if (draft !== undefined && $("#chat-input")) {
-    $("#chat-input").value = draft;
-  }
+  const nextInput = $("#chat-input");
   authReminder.mount();
-  resizeChatInput($("#chat-input"));
+  if (nextInput && nextInput !== composer) {
+    nextInput.value = (sameVisit ? draft : undefined) ?? state.audioTranscript ?? "";
+    if (sameVisit && composerFocused) {
+      nextInput.focus({ preventScroll: true });
+      nextInput.setSelectionRange(...selection);
+    }
+  }
+  if (layoutChanged || nextInput !== composer) resizeChatInput(nextInput);
   if (scroll) {
     const recallPrompt = $(".recall-package-prompt");
-    scroll.scrollTop = recallPrompt
-      ? (hadRecallPrompt ? previousTop : recallPrompt.getBoundingClientRect().top - scroll.getBoundingClientRect().top)
-      : followConversation ? scroll.scrollHeight : previousTop;
+    if (recallPrompt && !hadRecallPrompt) scroll.scrollTop = recallPrompt.getBoundingClientRect().top - scroll.getBoundingClientRect().top;
+    else if (scroll !== previousScroll) scroll.scrollTop = followConversation && !recallPrompt ? scroll.scrollHeight : previousTop;
     if (recallPrompt || !followConversation) conversationScroll.pause();
-    else conversationScroll.follow();
-    conversationScroll.mount(scroll);
+    else if (scroll !== previousScroll) conversationScroll.follow();
+    if (scroll !== previousScroll) conversationScroll.mount(scroll);
   }
-  if (composerFocused && $("#chat-input")) {
-    $("#chat-input").focus({ preventScroll: true });
-    $("#chat-input").setSelectionRange(...selection);
+  if (debugChanged && debugAction) {
+    $(`.debug-generation-bar [data-action="${debugAction}"]`)?.focus({preventScroll:true});
   }
   persistChatHistory();
 }
 
 function workspaceContentAvailable() {
-  return Boolean(composingWorkspaceActive() || freeRecallFinished()
-    || (state.project?.id && (state.debugEarlyGeneration || placeMapTarget(placeWorkspaceSelection()))));
+  const selected = state.debugEarlyGeneration ? state.debugWorkspace : composingWorkspaceActive() || freeRecallFinished();
+  return Boolean(selected || (state.project?.id && placeMapTarget(placeWorkspaceSelection())));
 }
 
 function workspaceHasContent() {
@@ -2443,6 +2500,9 @@ function workspaceHasContent() {
 
 function workspaceDetail() {
   const t = (key) => escapeHtml(translate(`Memoir.workspace.${key}`));
+  if (state.debugEarlyGeneration && state.debugWorkspace === "game") {
+    return `<aside id="workspace-detail" class="workspace-detail is-debug-game" aria-label="${escapeHtml(translate("Memoir.game.title"))}"><div data-story-game-workspace></div></aside>`;
+  }
   const expanded = workspaceIsVisible();
   const toggleLabel = t(expanded ? "collapseWorkspace" : "showWorkspace");
   const toggle = `<button type="button" class="workspace-toggle" data-action="toggle-workspace" aria-expanded="${expanded}" aria-controls="workspace-detail" aria-label="${toggleLabel}" title="${toggleLabel}"><span aria-hidden="true">${expanded ? "&gt;" : "&lt;"}</span></button>`;
@@ -2461,7 +2521,7 @@ function workspaceDetail() {
     ? `<nav class="workspace-detail-tabs" aria-label="${t("workspaceViews")}">${tabs.map(([key, label]) => `<button class="workspace-detail-tab ${active === key ? "active" : ""}" aria-current="${active === key ? "page" : "false"}" data-workspace-tab="${key}">${escapeHtml(label)}</button>`).join("")}</nav>`
     : "";
   const contentMarkup = content ? `${tabsMarkup}${content}` : tabsMarkup;
-  const composing = composingWorkspaceActive();
+  const composing = state.debugEarlyGeneration ? state.debugWorkspace === "memoir" : composingWorkspaceActive();
   const mediaOverview = composing || (tabs.length && !state.placeJourney) ? "" : workspaceMediaOverview(toggle);
   const workspaceHeader = mediaOverview ? "" : `<div class="workspace-detail-top">${toggle}</div>`;
   const ariaLabel = tabs.length
@@ -2516,13 +2576,14 @@ function composingWorkspaceActive() {
 }
 
 function workspaceTabs() {
+  if (state.debugEarlyGeneration && state.debugWorkspace !== "memoir") return [];
   const t = (key) => translate(`Memoir.workspace.${key}`);
   const chapters = ["memoir", t("chapters")];
-  if (composingWorkspaceActive() || freeRecallFinished()) {
-    const premium = state.familyFeaturesEnabled ? [["family", t("family")], ["timeline", t("timeline")]] : [];
+  if (state.debugEarlyGeneration || composingWorkspaceActive() || freeRecallFinished()) {
+    const premium = state.debugEarlyGeneration || state.familyFeaturesEnabled ? [["family", t("family")], ["timeline", t("timeline")]] : [];
     return [...premium, chapters];
   }
-  return state.project?.id && state.debugEarlyGeneration ? [chapters] : [];
+  return [];
 }
 
 function activeWorkspaceTab() {
@@ -2722,7 +2783,7 @@ function memoirWorkspace() {
   let selected = chapters.findIndex((chapter, index) => memoirChapterKey(chapter, index) === state.selectedMemoirChapter);
   if (selected < 0) selected = 0;
   const chapter = chapters[selected];
-  const draftPreview = privateDraftGenerationButton() + privateDraftPreview({ inChapters: true }) + storyGameButton();
+  const draftPreview = privateDraftGenerationStatus() + privateDraftPreview({ inChapters: true }) + storyGameButton();
   if (!chapter) return `<div class="workspace-scroll"><div class="workspace-intro"><h2>${t("memoir")}</h2></div>${draftPreview || `<div class="workspace-empty"><span>✦</span><p>${t("firstChapterEmpty")}</p></div>`}</div>`;
   state.selectedMemoirChapter = memoirChapterKey(chapter, selected);
   const button = (index, label, disabled = false) => `<button type="button" data-memoir-chapter="${escapeHtml(memoirChapterKey(chapters[index], index))}" ${disabled ? "disabled" : ""}>${label}</button>`;
@@ -2902,9 +2963,28 @@ function recallPackagePrompt() {
 }
 
 function storyGameButton() {
-  return state.project?.id && (state.debugEarlyGeneration ||
-    state.currentInterviewMode?.project_id === state.project.id && state.currentInterviewMode.mode === "shape")
+  return !state.debugEarlyGeneration && state.project?.id &&
+    state.currentInterviewMode?.project_id === state.project.id && state.currentInterviewMode.mode === "shape"
     ? `<div class="workspace-game"><button type="button" class="button button-secondary" data-story-game>${escapeHtml(translate("Memoir.game.button"))}</button></div>` : "";
+}
+
+function debugGenerationBar() {
+  return `<footer class="debug-generation-bar"><button type="button" class="button button-secondary button-small" data-action="generate-private-draft">${escapeHtml(translate("Memoir.storyFlow.generateMemoir"))}</button>
+    <button type="button" class="button button-secondary button-small" data-action="generate-story-game" title="${escapeHtml(translate("Memoir.game.consentIntro"))}">${escapeHtml(translate("Memoir.game.button"))}</button></footer>`;
+}
+
+function openDebugWorkspace(kind) {
+  if (!state.debugEarlyGeneration || !state.project?.id) return;
+  state.debugWorkspace = kind;
+  state.workspaceCollapsed = false;
+  if (kind === "memoir") {
+    state.workspaceTab = "memoir";
+    state.privateDraftExpanded = true;
+    render();
+    void generatePrivateDraft();
+  } else {
+    storyGameDialog.openWorkspace(render);
+  }
 }
 
 function chatInputLimitReached() {
@@ -2930,7 +3010,7 @@ function chatInputLimitReached() {
 
 function chatComposer() {
   if (state.recallStatus?.payment_required) return "";
-  const game = state.debugEarlyGeneration ? "" : storyGameButton();
+  const game = storyGameButton();
   const focusControls = workspaceMemoryFocusMarkup()+game+`<button type="button" class="text-button" data-action="recording-consent">${escapeHtml(translate('RecordingConsent.title'))}</button>`;
   const t = (key) => escapeHtml(translate(`Memoir.story.${key}`));
   const atLimit = chatInputLimitReached();
@@ -2948,7 +3028,7 @@ function chatComposer() {
   const sendDisabled = atLimit || (state.loading && !state.conversationInputs?.pending()) || state.photoMemoryTask;
   const canRetry = !state.loading && (state.photoTurns?.pending() || (atLimit && state.conversationInputs?.pending()));
   const note = waitNote || `<div class="composer-note"><span>${t(state.voiceMode ? "voiceNote" : "sourceNote")}</span><span>${t("shortcutNote")}</span></div>`;
-  return `<div class="composer-wrap ${state.voiceMode ? "has-voice-orb" : ""}">${focusControls}${voiceStatus}${selectedPhotoCue()}${composerAttachments()}${!state.loading && !state.photoTurns?.pending() && (state.audioRecordings?.length || state.pendingAudioUpload) ? `<button type="button" class="text-button" data-action="discard-audio-draft">${t("discardAudio")}</button>` : ""}${canRetry ? `<button type="button" class="text-button retry-interview-turn" data-action="retry-interview-turn">${t("retryTurn")}</button>` : ""}<form id="chat-form" class="chat-composer" data-voice-mode="${state.voiceMode ? "on" : "off"}"><button type="button" class="voice-button" data-action="attach-media" aria-label="${t("attachMedia")}" title="${t("attachMedia")}" ${state.loading ? "disabled" : ""}>${composerIcon("plus")}</button><input id="chat-attachments" type="file" accept="${Object.keys(ATTACHMENT_TYPES).join(",")}" multiple hidden /><textarea id="chat-input" rows="1" placeholder="${t(state.voiceMode ? "voicePlaceholder" : "textPlaceholder")}" aria-label="${t("yourMessage")}">${escapeHtml(state.audioTranscript)}</textarea>${controls}<button type="submit" class="send-button" aria-label="${t("send")}" ${sendDisabled ? "disabled" : ""}>${composerIcon("send")}</button></form>${note}</div>`;
+  return `<div class="composer-wrap ${state.voiceMode ? "has-voice-orb" : ""}">${focusControls}${voiceStatus}${selectedPhotoCue()}${composerAttachments()}${!state.loading && !state.photoTurns?.pending() && (state.audioRecordings?.length || state.pendingAudioUpload) ? `<button type="button" class="text-button" data-action="discard-audio-draft">${t("discardAudio")}</button>` : ""}${canRetry ? `<button type="button" class="text-button retry-interview-turn" data-action="retry-interview-turn">${t("retryTurn")}</button>` : ""}<form id="chat-form" class="chat-composer" data-voice-mode="${state.voiceMode ? "on" : "off"}"><button type="button" class="voice-button" data-action="attach-media" aria-label="${t("attachMedia")}" title="${t("attachMedia")}" ${state.loading ? "disabled" : ""}>${composerIcon("plus")}</button><input id="chat-attachments" type="file" accept="${Object.keys(ATTACHMENT_TYPES).join(",")}" multiple hidden /><textarea id="chat-input" rows="1" placeholder="${t(state.voiceMode ? "voicePlaceholder" : "textPlaceholder")}" aria-label="${t("yourMessage")}"></textarea>${controls}<button type="submit" class="send-button" aria-label="${t("send")}" ${sendDisabled ? "disabled" : ""}>${composerIcon("send")}</button></form>${note}</div>`;
 }
 
 async function retryInterviewTurn() {
@@ -3110,7 +3190,6 @@ function bindViewActions(root = document) {
     state.photoTurns?.saveAudioDraft();
     resizeChatInput(event.target);
   });
-  resizeChatInput($("#chat-input"));
   select("#chat-input")?.addEventListener("keydown", (event) => {
     if (event.isComposing || event.keyCode === 229 || state.chatComposition) return;
     if (event.key === "Enter" && !event.shiftKey) { event.preventDefault(); sendChatMessage(); }
@@ -3174,7 +3253,8 @@ function bindViewActions(root = document) {
     "speak": (button) => speakText(button.dataset.text),
     "cue-reaction": (button) => reactCue(button.dataset.asset, button.dataset.reaction),
     "add-person": addPerson,
-    "generate-private-draft": generatePrivateDraft,
+    "generate-private-draft": () => openDebugWorkspace("memoir"),
+    "generate-story-game": () => openDebugWorkspace("game"),
     "retry-private-draft": retryPrivateDraft,
     "load-more-private-draft": loadMorePrivateDraft,
     "refresh-private-draft": () => refreshPrivateDraft({restart:true}),
@@ -3429,8 +3509,8 @@ async function reactCue(assetId, reaction) {
 
 // Keep playback analysis local to the player so ending voice mode releases it too.
 
-async function boot() {
-  const generation = invalidateProjectNavigation();
+async function boot({openProjectId = null} = {}) {
+  const generation = openProjectId ? state.navigationGeneration : invalidateProjectNavigation();
   let releaseRecovery;
   const recovery = {generation, failed: true, promise: new Promise(resolve => {releaseRecovery = resolve;})};
   recovery.finish = () => {
@@ -3441,6 +3521,7 @@ async function boot() {
   const path = currentPath();
   state.navigationPath = path;
   const current = () => generation === state.navigationGeneration;
+  if (path === "/" && !openProjectId) renderLanding();
   try {
     const choice = JSON.parse(sessionStorage.getItem("memoir-package-choice") || "null");
     if (FALLBACK_STORY_PLANS.some(plan => plan.plan_key === choice?.plan)) {
@@ -3448,24 +3529,24 @@ async function boot() {
       state.storyBookCount = Math.max(2, Math.min(20, Number(choice.books) || 2));
     }
   } catch { /* Ignore unavailable storage or an invalid saved selection. */ }
-  const authPromise = state.authPromise || ensureAuth();
+  const authPromise = state.authPromise || (openProjectId ? Promise.resolve() : ensureAuth());
   state.authPromise = authPromise;
   try {
     await authPromise;
     if (!current()) return;
-    try {
-      const completed = await guestTransfer.complete();
-      if (!current()) return;
-      if (completed) toast(translate("AuthReminder.mergeSuccess"));
-    } catch {
-      if (!current()) return;
-      retryConversationTransfer(() => guestTransfer.complete(), async () => {
-        await guestTransfer.restoreGuest();
-        window.location.reload();
-      });
+    if (!openProjectId) {
+      try {
+        const completed = await guestTransfer.complete();
+        if (!current()) return;
+        if (completed) toast(translate("AuthReminder.mergeSuccess"));
+      } catch {
+        if (!current()) return;
+        retryConversationTransfer(() => guestTransfer.complete(), async () => {
+          await guestTransfer.restoreGuest();
+          window.location.reload();
+        });
+      }
     }
-    await syncProfileUiLocale();
-    if (!current()) return;
     // The old five-round entry point was client-only state. Clear it so a
     // refresh always returns to the persistent Codex conversation instead of
     // reopening a fixed question card.
@@ -3475,9 +3556,9 @@ async function boot() {
     const interviewPrefix = `${MEMOIR_ROUTES.interview}/`;
     const routeProject = path.startsWith(interviewPrefix)
       ? path.slice(interviewPrefix.length).split("/")[0] : null;
-    const cachedProject = savedProjectId();
-    const saved = routeProject || cachedProject;
+    const saved = openProjectId || routeProject || (path === "/" ? null : savedProjectId());
     if (saved) {
+      recovery.restoring = true;
       try {
         const ownerId = state.supabase?.user?.id;
         state.project = { id: saved };
@@ -3494,10 +3575,16 @@ async function boot() {
         state.people = []; state.relationships = []; state.timeline = [];
         state.freshAnonymousSession = false;
         state.chat = [];
-        state.chatHistoryCollapsed = true;
+        state.chatHistoryCollapsed = !openProjectId;
         await refreshProject({deferReadiness:true});
         if (!current() || state.project?.id !== saved || state.supabase?.user?.id !== ownerId) return;
         state.projectRecoveryBlocked = null;
+        if (openProjectId && state.project.mode !== "self") {
+          state.project = null;
+          state.projectPrincipalId = null;
+          recovery.failed = false;
+          return false;
+        }
         state.projectPrincipalId = state.supabase?.user?.id;
         state.chat = restoreChatHistory(saved);
         rememberProject(saved);
@@ -3514,6 +3601,7 @@ async function boot() {
           }
         }
         if (!current()) return;
+        if (openProjectId && state.projectRecoveryBlocked) return;
         await syncProfileUiLocale();
         if (!current()) return;
         await hydratePlaceJourney();
@@ -3521,11 +3609,14 @@ async function boot() {
         await refreshFamilyEntitlement();
         if (!current()) return;
         state.profileIntakePending = !profileHasContext(state.project.profile);
-        if (currentPath() === MEMOIR_ROUTES.start) window.history.replaceState({}, "", `${MEMOIR_ROUTES.interview}/${saved}`);
-        if (!state.atlasUpdates?.start()) void refreshStageReadiness();
+        if (openProjectId || path === MEMOIR_ROUTES.start) {
+          window.history[openProjectId ? "pushState" : "replaceState"]({}, "", `${MEMOIR_ROUTES.interview}/${encodeURIComponent(saved)}`);
+          state.navigationPath = currentPath();
+        }
         recovery.failed = Boolean(state.projectRecoveryBlocked);
         recovery.finish(); // Do not couple start admission to subsequent opening-copy streaming.
         render();
+        if (!state.atlasUpdates?.start()) void refreshStageReadiness();
         void state.conversationInputs?.restore();
         if (!state.conversationInputs?.pending()) await startCodexConversation({ resume: true });
         return;
@@ -3535,9 +3626,14 @@ async function boot() {
         // Preserve an unavailable saved interview rather than silently making a replacement.
         state.projectRecoveryBlocked = saved;
         state.project = null; state.projectPrincipalId = null; state.chat = [];
+        if (openProjectId) toast(translate("AuthReminder.historyError"));
       }
     }
-    if (!saved) recovery.failed = false;
+    if (!saved) {
+      await syncProfileUiLocale();
+      if (!current()) return;
+      recovery.failed = false;
+    }
     recovery.finish();
     if (currentPath() === MEMOIR_ROUTES.start) window.history.replaceState({}, "", MEMOIR_ROUTES.home);
     renderLanding();
@@ -3572,6 +3668,7 @@ window.addEventListener("pageshow", event => { if (event.persisted) state.atlasU
 window.addEventListener("copyme2:ui-locale-change", () => {
   closeProfileMenu();
   if (!refreshOpeningMessageLocale()) render();
+  if (currentPath() === "/" || currentPath() === MEMOIR_ROUTES.home) return;
   const place = typeof placeWorkspaceSelection === "function"
     ? placeWorkspaceSelection({allowUnmapped: true}) || state.placeJourney
     : state.placeJourney;

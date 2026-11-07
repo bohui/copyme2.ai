@@ -150,7 +150,8 @@ export function createPrivateDraft({
     const scope = captureProjectScope();
     if (!scope.projectId || !state.supabase?.accessToken) return;
     const language = state.privateDraftLocale || profile().preferred_language || currentUiLocale();
-    const debug = state.showThinkingSteps || state.showDraftUpdates || state.debugEarlyGeneration;
+    const debug = state.showThinkingSteps || state.showDraftUpdates ||
+      (state.debugEarlyGeneration && state.debugWorkspace === "memoir");
     const active = state.privateDraftStream;
     if (debug && !restart && active && !active.controller.signal.aborted &&
         isCurrentProjectScope(active.scope) && active.language === language) return active.ready;
@@ -214,17 +215,18 @@ export function createPrivateDraft({
     await refreshPrivateDraft({restart:true});
   }
 
-  async function generatePrivateDraft({forGame = false} = {}) {
+  async function generatePrivateDraft({forGame = false, signal} = {}) {
     const scope = captureProjectScope();
-    if (!state.debugEarlyGeneration || !scope.projectId || !state.supabase?.accessToken ||
-        (generation?.busy && isCurrentProjectScope(generation))) return;
+    if (!state.debugEarlyGeneration || !scope.projectId || !state.supabase?.accessToken) return;
+    const language = forGame ? null : state.privateDraftLocale || profile().preferred_language || currentUiLocale();
+    const submit = () => storyApi("/v1/story/private-draft/generate", {method:"POST", signal,
+      body:JSON.stringify({project_id:scope.projectId, language})});
+    if (forGame) return (await submit()).status;
+    if (generation?.busy && isCurrentProjectScope(generation)) return;
     const attempt = generation = {...scope, busy:true, status:null};
     render();
     try {
-      const language = forGame ? null : state.privateDraftLocale || profile().preferred_language || currentUiLocale();
-      const {status} = await storyApi("/v1/story/private-draft/generate", {method:"POST", body:JSON.stringify({
-        project_id:scope.projectId, language,
-      })});
+      const {status} = await submit();
       if (!isCurrentProjectScope(scope)) return;
       attempt.status = status;
       if (status !== "insufficient_context") await refreshPrivateDraft({restart:true});
@@ -238,13 +240,14 @@ export function createPrivateDraft({
     }
   }
 
-  function privateDraftGenerationButton() {
-    if (!state.debugEarlyGeneration || !state.project?.id) return "";
+  function privateDraftGenerationStatus() {
+    if (!state.debugEarlyGeneration || state.debugWorkspace !== "memoir") return "";
     const attempt = generation && isCurrentProjectScope(generation) ? generation : null;
     const key = attempt?.status === "error" ? "Memoir.workspace.privateDraftBlocked"
       : attempt?.status === "insufficient_context" || state.privateDraft?.status === "insufficient_context"
         ? "Memoir.recall.previewInsufficient" : null;
-    return `<div class="workspace-game"><button type="button" class="button button-secondary" data-action="generate-private-draft" ${attempt?.busy || state.privateDraft?.updating ? "disabled" : ""}>${escapeHtml(translate("Memoir.storyFlow.generateMemoir"))}</button>${key ? `<p role="status">${escapeHtml(translate(key))}</p>` : ""}</div>`;
+    if (attempt?.busy && !state.privateDraft?.updating) return `<p role="status"><span class="preview-spinner" aria-hidden="true"></span>${escapeHtml(translate("Memoir.workspace.privateDraftUpdating"))}</p>`;
+    return key ? `<p role="status">${escapeHtml(translate(key))}</p>` : "";
   }
 
   async function selectPrivateDraftLocale(language) {
@@ -341,14 +344,15 @@ export function createPrivateDraft({
     const partial = saved.snapshot_id && saved.page_complete === false;
     const pagination = partial ? `<p role="status">${t('draftPagesPartial')}</p><button type="button" class="button button-secondary button-small" data-action="load-more-private-draft" ${saved.loading_page ? "disabled" : ""}>${t(saved.loading_page ? 'loadingSavedPage' : 'loadMoreDraft')}</button>` : "";
     const locale = saved.locale || state.privateDraftLocale || profile().preferred_language || currentUiLocale();
-    const edition = saved.snapshot_id || saved.error ? `<label>${t('draftEditionLanguage')} <select data-draft-locale ${saved.deciding || saved.loading_page ? "disabled" : ""}><option value="en-AU" ${locale === "en-AU" ? "selected" : ""}>English</option><option value="zh-CN" ${locale === "zh-CN" ? "selected" : ""}>简体中文</option></select></label>` : "";
+    const edition = !state.debugEarlyGeneration && (saved.snapshot_id || saved.error) ? `<label>${t('draftEditionLanguage')} <select data-draft-locale ${saved.deciding || saved.loading_page ? "disabled" : ""}><option value="en-AU" ${locale === "en-AU" ? "selected" : ""}>English</option><option value="zh-CN" ${locale === "zh-CN" ? "selected" : ""}>简体中文</option></select></label>` : "";
     const decisionError = saved.decision_error ? `<p role="status">${t('draftProposalChanged')}</p><button type="button" class="text-button" data-action="refresh-private-draft">${t('reloadSavedPages')}</button>` : "";
-    return `<section class="private-draft-status">${edition}<p>${status}</p>${sections ? `<details class="saved-draft-sections" ${state.privateDraftExpanded || currentSectionRework() ? "open" : ""}><summary>${t('readSavedDraft')}</summary>${sections}</details>` : ""}${sectionReworkNotice()}${protectedNotice}${withheldNotice}${proposalMarkup}${decisionError}${pagination}${saved.page_error ? `<p role="status">${t('savedPageChanged')}</p><button type="button" class="text-button" data-action="refresh-private-draft">${t('reloadSavedPages')}</button>` : ""}${saved.error && !saved.updating ? `<button type="button" class="button button-secondary button-small" data-action="${saved.error === 'PRIVATE_DRAFT_UNAVAILABLE' ? 'refresh-private-draft' : 'retry-private-draft'}">${t('retryPrivateDraft')}</button>` : ""}</section>`;
+    const retry = !state.debugEarlyGeneration && saved.error && !saved.updating ? `<button type="button" class="button button-secondary button-small" data-action="${saved.error === 'PRIVATE_DRAFT_UNAVAILABLE' ? 'refresh-private-draft' : 'retry-private-draft'}">${t('retryPrivateDraft')}</button>` : "";
+    return `<section class="private-draft-status">${edition}<p>${status}</p>${sections ? `<details class="saved-draft-sections" ${state.privateDraftExpanded || currentSectionRework() ? "open" : ""}><summary>${t('readSavedDraft')}</summary>${sections}</details>` : ""}${sectionReworkNotice()}${protectedNotice}${withheldNotice}${proposalMarkup}${decisionError}${pagination}${saved.page_error ? `<p role="status">${t('savedPageChanged')}</p><button type="button" class="text-button" data-action="refresh-private-draft">${t('reloadSavedPages')}</button>` : ""}${retry}</section>`;
   }
 
   return {
     currentSectionRework, decidePrivateDraftProposal, loadMorePrivateDraft, openSectionRework,
-    generatePrivateDraft, privateDraftGenerationButton, privateDraftPreview, privateDraftThinkingStep,
+    generatePrivateDraft, privateDraftGenerationStatus, privateDraftPreview, privateDraftThinkingStep,
     refreshPrivateDraft, retryPrivateDraft, selectPrivateDraftLocale, submitSectionRework
   };
 }

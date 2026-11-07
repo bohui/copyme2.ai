@@ -16,6 +16,7 @@ function harness(chat = []) {
   let listener, saved;
   const context = vm.createContext({state,
     window:{addEventListener:(_name, handler) => {listener = handler;}},
+    currentPath: () => '/memoir/interview/project', MEMOIR_ROUTES: { home: '/memoir' },
     openingMessages:Object.values(openings), conversationMessage:() => openings[locale],
     persistChatHistory:() => {saved = structuredClone(state.chat);},
     closeProfileMenu() {}, render() {},
