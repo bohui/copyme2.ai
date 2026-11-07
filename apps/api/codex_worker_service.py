@@ -14,6 +14,7 @@ import threading
 import time
 from pathlib import Path
 from typing import Any, Literal
+from urllib.parse import urlsplit
 from uuid import UUID
 
 from fastapi import FastAPI, Header, HTTPException, Request
@@ -187,6 +188,16 @@ class CodexWorker:
         )
         self.model = model or os.getenv('MEMORY_SPARK_LLM_MODEL', '').strip()
         self.api_key = api_key if api_key is not None else os.getenv("MEMORY_SPARK_LLM_API_KEY", "")
+        aas_url = os.getenv('MEMOIR_MIRA_AAS_URL', '').strip()
+        self.mira_aas = None
+        if aas_url:
+            endpoint = urlsplit(aas_url)
+            secret = os.getenv('MEMOIR_MIRA_AAS_SECRET', '')
+            if (endpoint.scheme != 'http' or endpoint.hostname != '127.0.0.1'
+                    or endpoint.username is not None or endpoint.password is not None
+                    or endpoint.query or endpoint.fragment or len(secret) < 32):
+                raise ValueError('Mira AAS requires a loopback URL and a private secret')
+            self.mira_aas = (aas_url, secret)
         self.reasoning_effort = reasoning_effort
         # Bound the whole execution, not each protocol request separately.
         # Collector/workspace budgets stay below their conversation leases;
@@ -482,6 +493,7 @@ class CodexWorker:
                     progress=self._progress_context.get()[1] if self._progress_context.get() else None,
                     uid=uid, apply_owner=os.getenv('MEMORY_SPARK_DISABLE_PRIVDROP') != '1',
                     trajectory=recorder, enqueue_checkpoint=self._enqueue_checkpoint if on_event else None,
+                    mira_aas=self.mira_aas,
                 )
             except BaseException as error:
                 if recorder is not None:

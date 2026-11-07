@@ -270,6 +270,56 @@ def test_actual_body_send_holds_fence_but_generation_does_not():
     assert not publisher.held
 
 
+@pytest.mark.parametrize('stale', [False, True])
+def test_aas_rechecks_fence_when_sending_recall_result(stale):
+    from uuid import uuid4
+    from apps.api.lifetime_memory_publication import PublicationUnavailable
+
+    callback = dict(type='memoir.tool_call', id=str(uuid4()), name='memoir_read_context', arguments={})
+    result = dict(contentItems=[dict(type='inputText', text='{"items":["authorized evidence"]}')], success=True)
+    sent = []
+    revoked = False
+
+    class Publisher:
+        @asynccontextmanager
+        async def guard(self, fence):
+            assert fence == FENCE.model_dump(mode='json')
+            if revoked:
+                raise PublicationUnavailable('stale after tool read')
+            yield
+
+    class Tools:
+        def specs(self):
+            return [dict(name=callback['name'], description='Read authorized evidence.', inputSchema={'type':'object'})]
+
+        async def call(self, params):
+            nonlocal revoked
+            assert params == {'tool': callback['name'], 'arguments': {}}
+            revoked = stale
+            return result
+
+    class Sidecar(httpx.AsyncBaseTransport):
+        async def handle_async_request(self, request):
+            body = json.loads(await request.aread())
+            sent.append(request.url.path)
+            if request.url.path.endswith('/tool-results'):
+                assert body == {'id': callback['id'], 'result': result}
+                return httpx.Response(204)
+            assert body['tools'][0]['name'] == callback['name']
+            return httpx.Response(200, content=sse([callback, *events('{"ok":true}')]))
+
+    async def run():
+        return await transport.stream_reply(**{**options(), 'publisher': Publisher()}, transport=Sidecar(), tools=Tools())
+
+    if stale:
+        with pytest.raises(PublicationUnavailable, match='stale after tool read'):
+            asyncio.run(run())
+        assert sent == ['/v1/responses']
+    else:
+        assert asyncio.run(run())[0] == '{"ok":true}'
+        assert sent == ['/v1/responses', '/v1/tool-results']
+
+
 def test_abandoned_body_releases_publication_guard():
     held = []
     class Publisher:
