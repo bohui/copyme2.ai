@@ -405,8 +405,13 @@ async def _run_governed_collector_once(*, command, home_root, base_url, api_key,
         direct_reply = interview_context.get('reply_contract') == 'reply-v2'
         session = None
         if direct_reply:
+            from .conversation_reply import reply_schema
             from .conversation_reply_session import open_interview
             from .interview_context_tools import InterviewContextTools
+            # The per-turn enum constrains generation without changing which
+            # committed native thread may be resumed.
+            session_schema = (reply_schema({}) if repair_reason is None
+                and interview_context.get('reviewed_acknowledgement') is not None else output_schema)
             queue_checkpoint = None
             if enqueue_checkpoint is not None and not revisable:
                 from .codex_home_store import save_deferred_checkpoint
@@ -414,7 +419,7 @@ async def _run_governed_collector_once(*, command, home_root, base_url, api_key,
                 def queue_checkpoint(store, archive):
                     return enqueue_checkpoint(lambda: save_deferred_checkpoint(store, archive, publisher, packet.fence))
             session, connection = await stack.enter_async_context(open_interview(
-                root=home_root, packet=packet, view=json.loads(model_packet), schema=output_schema,
+                root=home_root, packet=packet, view=json.loads(model_packet), schema=session_schema,
                 model=model, effort=effort, base_url=base_url, api_key=api_key, command=command,
                 timeout=timeout, admission=request_admission, connection_factory=connection_factory or CodexConnection,
                 uid=uid, apply_owner=apply_owner, trajectory=trajectory, progress=progress,
