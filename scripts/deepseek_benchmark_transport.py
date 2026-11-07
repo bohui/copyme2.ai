@@ -135,18 +135,25 @@ class Exchange:
             events = replay_events(body, self.fixture(body, len(self.requests)), self.bridge.delay)
         else:
             events = self.bridge.upstream(body)
-        async with aclosing(events) as stream:
-            async for event in stream:
-                if event['type'] == 'response.output_item.added' and event['item']['type'] == 'message':
-                    self.text_phases[event['item']['id']] = event['item'].get('phase')
-                if event['type'] == 'response.output_text.delta':
-                    evidence.setdefault('provider_first_text_ms', self.ms())
-                if event['type'] in ('response.completed', 'response.incomplete', 'response.failed'):
-                    response = event['response']
-                    evidence.update(provider_done_ms=self.ms(), served_model=response.get('model'),
-                                    usage=response.get('usage'), provider_status=response.get('status'),
-                                    provider_error=(response.get('error') or {}).get('code'))
-                yield event
+        try:
+            async with aclosing(events) as stream:
+                async for event in stream:
+                    kind = event.get('type')
+                    if kind == 'response.output_item.added':
+                        item = event.get('item') or {}
+                        if item.get('type') == 'message' and item.get('id'):
+                            self.text_phases[item['id']] = item.get('phase')
+                    if kind == 'response.output_text.delta':
+                        evidence.setdefault('provider_first_text_ms', self.ms())
+                    if kind in ('response.completed', 'response.incomplete', 'response.failed'):
+                        response = event['response']
+                        evidence.update(provider_done_ms=self.ms(), served_model=response.get('model'),
+                                        usage=response.get('usage'), provider_status=response.get('status'),
+                                        provider_error=(response.get('error') or {}).get('code'))
+                    yield event
+        except Exception as error:
+            evidence['relay_error_type'] = type(error).__name__
+            raise
 
 
 class Bridge:

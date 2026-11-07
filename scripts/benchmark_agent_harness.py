@@ -145,6 +145,10 @@ async def measure(case, arm, bridge, binary, directory, timeout, live, *, runtim
                     key: output.get(key) for key in ('executions', 'pending', 'reply')})
         except Exception as error:
             row.update(status='error', reason=type(error).__name__)
+            if runtimes is not None:
+                row['error_type'] = type(error).__name__
+                if error.__cause__ is not None:
+                    row['cause_type'] = type(error.__cause__).__name__
             if isinstance(error, RuntimeError):
                 row['reason'] = str(error)[:200]
         connection = exchange.connection

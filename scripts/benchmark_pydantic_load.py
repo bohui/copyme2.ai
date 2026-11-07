@@ -84,7 +84,8 @@ async def wave(bridge, runtimes, arm, profile, offered, mira, atlas):
                     with TemporaryDirectory(prefix='memoir-load-') as directory:
                         row = await measure(case, arm, bridge, None, Path(directory), 45, False,
                                             runtimes=runtimes)
-                    row = {key: row[key] for key in ('status', 'first_text_ms', 'elapsed_ms')}
+                    row = {key: row[key] for key in ('status', 'first_text_ms', 'elapsed_ms',
+                                                   'error_type', 'cause_type') if key in row}
                     row['wait_ms'] = round(wait, 2)
                 finally:
                     active -= 1
