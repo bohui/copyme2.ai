@@ -5,8 +5,6 @@ from urllib.parse import urlsplit
 import pytest
 from playwright.sync_api import expect, sync_playwright
 
-from browser_optional_fonts import control_optional_fonts
-
 
 @pytest.mark.skipif(not os.getenv('MEMOIR_BROWSER_URL'), reason='Requires an isolated frontend')
 def test_saved_interview_loads_on_begin_and_keeps_chat_stable():
@@ -44,7 +42,6 @@ def test_saved_interview_loads_on_begin_and_keeps_chat_stable():
     with sync_playwright() as playwright:
         browser = playwright.chromium.launch()
         page = browser.new_page(viewport={'width': 1440, 'height': 900}, locale='en-AU')
-        control_optional_fonts(page)
         page.route('https://**', lambda route: route.abort())
         page.on('request', lambda request: provider_requests.append(request.url)
                 if urlsplit(request.url).path.endswith('/Cesium.js') else None)

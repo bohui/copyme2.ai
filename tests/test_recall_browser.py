@@ -7,7 +7,6 @@ from pathlib import Path
 
 import pytest
 from playwright.sync_api import expect, sync_playwright
-from browser_optional_fonts import control_optional_fonts
 from browser_story_history_fixture import StoryHistoryFixture, RECALL_OWNER, BUSY_OWNER
 
 pytestmark = pytest.mark.skipif(not os.environ.get('MEMOIR_BROWSER_URL'), reason='Requires a selected local source frontend')
@@ -15,16 +14,19 @@ ROOT = Path(__file__).resolve().parents[1]
 
 
 @pytest.mark.parametrize('locale', ['en-AU', 'zh-CN'])
-def test_startup_does_not_wait_for_optional_font_stylesheet(locale):
-    copy = json.loads((ROOT / f'apps/web/messages/{locale}.json').read_text())
+@pytest.mark.parametrize(('path', 'start_button'), [
+    ('/', '[data-action="open-memoir"]'),
+    ('/memoir', '[data-action="start-story"][data-mode="self"]'),
+])
+def test_landing_text_stays_stable_with_slow_fonts(locale, path, start_button):
     calls, pending_fonts = [], []
 
     def api(route):
-        path = route.request.url.split('/api/v1/memoir')[-1].split('?')[0]
-        calls.append(path)
-        if path == '/agent/config':
+        endpoint = route.request.url.split('/api/v1/memoir')[-1].split('?')[0]
+        calls.append(endpoint)
+        if endpoint == '/agent/config':
             data = {'auth_mode': 'test', 'show_thinking_steps': False}
-        elif path in ('/agent/profile', '/user/profile'):
+        elif endpoint in ('/agent/profile', '/user/profile'):
             data = {'preferred_language': locale}
         else:
             data = {'items': []}
@@ -32,23 +34,42 @@ def test_startup_does_not_wait_for_optional_font_stylesheet(locale):
 
     with sync_playwright() as pw:
         browser = pw.chromium.launch()
-        context = browser.new_context()
-        base = os.environ['MEMOIR_BROWSER_URL']
-        context.add_cookies([{'name': 'copyme2_ui_locale', 'value': locale, 'url': base},
-                            {'name': 'copyme2_ui_locale_source', 'value': 'fixed', 'url': base}])
+        context = browser.new_context(locale=locale, viewport={'width': 390 if locale == 'zh-CN' else 1440, 'height': 900})
+        base = os.environ['MEMOIR_BROWSER_URL'].rstrip('/')
         context.route('**/*', lambda route: route.continue_() if route.request.url.startswith(base) else route.abort())
         page = context.new_page()
         install_supabase_fixture(page, 'window.supabase = {};')
-        page.route('https://fonts.googleapis.com/**', lambda route: pending_fonts.append(route))
+        font_requests = '**/static/fonts/*.woff2'
+        page.route(font_requests, lambda route: pending_fonts.append(route))
         page.route('**/api/v1/memoir/**', api)
         try:
-            with page.expect_request(lambda request: request.url.startswith('https://fonts.googleapis.com/')):
-                page.goto(base + '/memoir', wait_until='commit')
-            expect(page.get_by_text(copy['Memoir']['landing']['connectSummary'], exact=True)).to_be_visible(timeout=30000)
-            expect(page.locator('[data-action="start-story"][data-mode="self"]')).to_be_enabled()
-            expect(page.locator('link[data-memoir-fonts]')).to_have_count(1)
+            page.goto(base + path, wait_until='commit')
+            expect(page.locator(start_button)).to_be_visible(timeout=30000)
+            expect(page.locator(start_button)).to_be_enabled()
+            expect(page.locator('html')).to_have_attribute('lang', locale)
             assert '/agent/config' in calls
-            assert len(pending_fonts) == 1, 'Font CSS must remain pending throughout startup assertions'
+
+            assert {route.request.url for route in pending_fonts} >= {
+                f'{base}/static/fonts/dm-sans-latin.woff2',
+                f'{base}/static/fonts/fraunces-latin.woff2',
+            }
+            text = page.locator('h1, .brand-name, .platform-reflection, .hero-copy')
+            measure = """elements => elements.map(element => {
+                const range = document.createRange();
+                range.selectNodeContents(element);
+                return Array.from(range.getClientRects(), ({width, height}) => [width, height]);
+            })"""
+            # Let fallback text paint while the font downloads are still pending.
+            page.wait_for_timeout(250)
+            before = text.evaluate_all(measure)
+            page.unroute(font_requests)
+            while pending_fonts:
+                route = pending_fonts.pop()
+                with page.expect_response(route.request.url) as response:
+                    route.continue_()
+                assert response.value.ok
+            page.evaluate('document.fonts.ready')
+            assert text.evaluate_all(measure) == before
         finally:
             for route in pending_fonts:
                 route.abort()
@@ -102,7 +123,6 @@ def test_paid_round_20_keeps_entitled_workspace_tabs_before_composition(locale, 
                              {'name': 'copyme2_ui_locale_source', 'value': 'fixed', 'url': base}])
         context.route('**/*', lambda route: route.continue_() if route.request.url.startswith(base) else route.abort())
         page = context.new_page()
-        control_optional_fonts(page)
         user = {'id': 'paid-storyteller', 'is_anonymous': False, 'user_metadata': {'ui_locale': locale}}
         auth_script = f"""window.supabase = {{createClient: () => ({{auth: {{
           getSession: async () => ({{data: {{session: {{access_token: 'token', user: {json.dumps(user)}}}}}}}),
@@ -215,7 +235,6 @@ def test_final_reply_package_selection_refresh_and_payment(locale, anonymous, sh
         context.add_cookies([{'name': 'copyme2_ui_locale', 'value': locale, 'url': base},
                              {'name': 'copyme2_ui_locale_source', 'value': 'fixed', 'url': base}])
         page = context.new_page()
-        control_optional_fonts(page)
         page.set_default_timeout(10000)
         user = {'id': RECALL_OWNER, 'is_anonymous': anonymous, 'user_metadata': {'ui_locale': locale}}
         auth_script = f"""window.supabase = {{createClient: () => ({{auth: {{
@@ -340,7 +359,6 @@ def test_account_history_and_busy_preview_resume_without_manual_retry():
     with sync_playwright() as pw:
         browser = pw.chromium.launch()
         page = browser.new_page()
-        control_optional_fonts(page)
         page.clock.install()
         page.add_init_script('''
           localStorage.setItem('memory-spark-project', 'history-project');
@@ -399,7 +417,7 @@ def test_upstream_extraction_failure_stops_spinner_and_retry_recovers(locale,wid
         base=os.environ['MEMOIR_BROWSER_URL']
         context.add_cookies([{'name':'copyme2_ui_locale','value':locale,'url':base},
                             {'name':'copyme2_ui_locale_source','value':'fixed','url':base}])
-        page=context.new_page();control_optional_fonts(page);page.clock.install()
+        page=context.new_page();page.clock.install()
         page.add_init_script("localStorage.setItem('memory-spark-project','preview-fixture');")
         install_supabase_fixture(page,'''window.supabase={createClient:()=>({auth:{
           getSession:async()=>({data:{session:{access_token:'synthetic',user:{id:'owner',is_anonymous:false}}}}),
@@ -470,7 +488,6 @@ def test_preview_retry_shows_progress_polls_and_recovers(locale, width):
         context.add_cookies([{'name': 'copyme2_ui_locale', 'value': locale, 'url': base},
                              {'name': 'copyme2_ui_locale_source', 'value': 'fixed', 'url': base}])
         page = context.new_page()
-        control_optional_fonts(page)
         page.clock.install()
         page.clock.pause_at(datetime.now() + timedelta(hours=1))
         page.add_init_script("localStorage.setItem('memory-spark-project', 'preview-fixture');")

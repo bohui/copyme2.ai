@@ -10,7 +10,6 @@ import os
 
 import pytest
 from playwright.sync_api import expect, sync_playwright
-from browser_optional_fonts import control_optional_fonts
 
 if not os.getenv('MEMOIR_BROWSER_URL'):
     pytest.skip('Requires isolated source frontend',allow_module_level=True)
@@ -121,7 +120,6 @@ def test_saved_draft_and_map_survive_landing_reentry_and_a_fresh_tab_without_res
           }}
         """)
         page = context.new_page()
-        control_optional_fonts(page)
         page.on("pageerror", lambda error: errors.append(str(error)))
         interview = base + "/memoir/interview/project"
         page.goto(interview, wait_until="networkidle")
@@ -146,7 +144,6 @@ def test_saved_draft_and_map_survive_landing_reentry_and_a_fresh_tab_without_res
         expect(page.locator(".private-draft-status")).to_contain_text(saved_copy)
         page.evaluate("sessionStorage.clear()")
         second = context.new_page()
-        control_optional_fonts(second)
         second.on("pageerror", lambda error: errors.append(str(error)))
         second.goto(interview, wait_until="networkidle")
         expect(second.locator(".chat-scroll")).to_contain_text(original)

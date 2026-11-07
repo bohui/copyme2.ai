@@ -7,7 +7,6 @@ import { useLocale, useMessages, useTranslations } from "next-intl";
 import enAU from "../messages/en-AU.json";
 import zhCN from "../messages/zh-CN.json";
 import { locales } from "../i18n/config";
-import { ensureMemoirFonts } from "../client/memoir/optional-fonts.mjs";
 import LanguageSwitcher from "./LanguageSwitcher";
 
 import { preferenceCookie, encodePreference } from "../i18n/preference.mjs";
@@ -80,9 +79,7 @@ export default function MemoirClientShell() {
   useEffect(() => {
     let mounted = true;
 
-    import("../client/memoir/client.js").then(() => {
-      if (mounted) ensureMemoirFonts(document);
-    }).catch((error) => {
+    import("../client/memoir/client.js").catch(() => {
       if (!mounted) return;
       const node = document.querySelector("#app");
       if (node) {
