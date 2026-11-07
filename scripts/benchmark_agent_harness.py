@@ -116,14 +116,17 @@ def scripted(case, body, step):
     return dict(type='function_call', name=name, arguments=json.dumps(args), call_id=f'call_fixture_{step}')
 
 
-async def measure(case, arm, bridge, binary, directory, timeout, live):
+async def measure(case, arm, bridge, binary, directory, timeout, live, *, runtimes=None):
     fixture = None if live else partial(scripted, case)
     async with bridge.exchange(fixture) as exchange:
         config = {f'MEMORY_SPARK_LLM_{key}': val for key, val in dict(
             MODEL=bridge.model, REASONING_EFFORT=bridge.effort,
             BASE_URL=exchange.origin + '/v1', API_KEY=exchange.token).items()}
-        factory = (partial(TimedCodex, exchange=exchange) if arm == 'codex'
-                   else partial(DeepSeekConnection, exchange=exchange, binary=binary))
+        if runtimes is not None:
+            factory = runtimes.factory(arm, exchange)
+        else:
+            factory = (partial(TimedCodex, exchange=exchange) if arm == 'codex'
+                       else partial(DeepSeekConnection, exchange=exchange, binary=binary))
         row = {'arm': arm, 'status': 'unavailable'}
         try:
             async with asyncio.timeout(timeout):
@@ -137,6 +140,9 @@ async def measure(case, arm, bridge, binary, directory, timeout, live):
                        output_sha256=digest(output if case['component'] == 'lane-a' else {
                            key: output.get(key) for key in ('executions', 'pending', 'reply')}),
                        checks=checks)
+            if runtimes is not None:
+                row['output'] = (output if case['component'] == 'lane-a' else {
+                    key: output.get(key) for key in ('executions', 'pending', 'reply')})
         except Exception as error:
             row.update(status='error', reason=type(error).__name__)
             if isinstance(error, RuntimeError):

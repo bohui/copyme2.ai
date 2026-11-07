@@ -1,5 +1,6 @@
 """Opt-in A/B run of Memoir's public Mira endpoint against disposable SQL."""
 import asyncio
+from contextlib import nullcontext
 from functools import partial
 import json
 import os
@@ -19,8 +20,8 @@ from test_agent_commit_postgres import database as postgres_database
 from test_conversation_reply import proposal
 
 
-pytestmark = pytest.mark.skipif(not os.getenv('MEMOIR_TEST_DSH_BIN') or not shutil.which('codex'),
-                                reason='Requires both installed harnesses')
+pytestmark = pytest.mark.skipif(not (os.getenv('MEMOIR_TEST_DSH_BIN') or os.getenv('MEMOIR_TEST_AAS_CORE'))
+                                or not shutil.which('codex'), reason='Requires installed benchmark harnesses')
 MODEL = 'gpt-6.1-sol'
 EFFORT = 'low'
 SECRET = 'synthetic-worker-secret'
@@ -40,6 +41,22 @@ def database():
     yield from postgres_database.__wrapped__(publication_tcp=True, deadline=time.monotonic() + 600)
 
 
+def comparison_plan():
+    if core := os.getenv('MEMOIR_TEST_AAS_CORE'):
+        from scripts.benchmark_pydantic_ai import ARMS
+        from scripts.pydantic_benchmark_transport import ComparisonRuntimes, comparison_body
+        bridge = Bridge(model=MODEL, effort=EFFORT, normalize=comparison_body)
+        runtimes = ComparisonRuntimes(bridge, core, os.getenv('MEMOIR_TEST_NODE', 'node'))
+        return bridge, ARMS, runtimes.factory, runtimes.serve
+
+    def factory(arm, exchange):
+        if arm == 'codex':
+            return partial(TimedCodex, exchange=exchange)
+        return partial(DeepSeekConnection, exchange=exchange, binary=Path(os.environ['MEMOIR_TEST_DSH_BIN']))
+
+    return Bridge(model=MODEL, effort=EFFORT), ('codex', 'deepseek'), factory, nullcontext
+
+
 def test_bilingual_endpoint_save_replay_and_recall(database, tmp_path, monkeypatch):
     from apps.api import agent_routes, codex_worker_service
     from apps.api.codex_runtime import CodexRuntime
@@ -56,15 +73,17 @@ def test_bilingual_endpoint_save_replay_and_recall(database, tmp_path, monkeypat
     database('update public.lifetime_two_lane_rollout set enabled=true,strategy_enabled=true,strategy_shadow=false;')
     samples = []
     seen_sources = set()
+    attacker = str(uuid4())
+    database(f"insert into auth.users(id,is_anonymous) values('{attacker}',false);")
 
     async def run():
-        bridge = Bridge(model=MODEL, effort=EFFORT)
+        bridge, names, factory, serve_runtimes = comparison_plan()
         bridge.app.include_router(agent_routes.router)
         bridge.app.mount('/worker', codex_worker_service.app)
-        async with bridge.serve():
+        async with bridge.serve(), serve_runtimes():
             async with httpx.AsyncClient(base_url=bridge.origin, trust_env=False, timeout=60) as client:
                 for index, (locale, case) in enumerate(STORIES.items()):
-                    arms = ('codex', 'deepseek') if index == 0 else ('deepseek', 'codex')
+                    arms = names[index:] + names[:index]
                     for arm in arms:
                         original, query, fact, follow, resumed, opening_ack, recall_ack, question = case
                         owner, project = str(uuid4()), 'harness-bench-' + uuid4().hex
@@ -79,6 +98,8 @@ def test_bilingual_endpoint_save_replay_and_recall(database, tmp_path, monkeypat
                             text = lambda row: ''.join(part.get('text', '') for part in row['content'])
                             actual = [text(item) for item in body['input'] if item.get('role') == 'user']
                             assert current in actual
+                            assert all(foreign not in json.dumps(body['input'])
+                                       for foreign in seen_sources - {source_id})
                             if phase == 'opening':
                                 return dict(proposal(), acknowledgement=opening_ack, question=question)
                             assert original in actual
@@ -100,9 +121,7 @@ def test_bilingual_endpoint_save_replay_and_recall(database, tmp_path, monkeypat
                             monkeypatch.setattr(agent_routes, 'runtime', CodexRuntime(
                                 worker_url=bridge.origin + '/worker', worker_secret=SECRET,
                                 base_url=gateway, model=MODEL, task_publisher_enabled=False))
-                            factory = (partial(TimedCodex, exchange=exchange) if arm == 'codex' else
-                                partial(DeepSeekConnection, exchange=exchange, binary=Path(os.environ['MEMOIR_TEST_DSH_BIN'])))
-                            monkeypatch.setattr(codex_worker_service, 'CodexConnection', factory)
+                            monkeypatch.setattr(codex_worker_service, 'CodexConnection', factory(arm, exchange))
                             for phase, current in [('opening', original), ('follow_up', follow), ('resumed', resumed)]:
                                 if phase in ('opening', 'resumed'):
                                     monkeypatch.setattr(codex_worker_service, 'worker',
@@ -127,6 +146,15 @@ def test_bilingual_endpoint_save_replay_and_recall(database, tmp_path, monkeypat
                                 assert {'source_accepted', 'text_delta', 'question_validated', 'conversation_saved'} <= events.keys()
                                 replay = (await client.post('/v1/agent/turn', json=request)).json()
                                 assert replay['cached'] and replay['reply'] == result['reply']
+                                denied_status = None
+                                if phase == 'opening':
+                                    with monkeypatch.context() as attack:
+                                        attack.setattr(agent_routes, 'authenticated_storage',
+                                            lambda _: PostgresRest(database, attacker).storage())
+                                        denied = await client.post('/v1/agent/turn', json=request)
+                                    assert denied.status_code in (403, 404, 409), denied.text
+                                    assert result['accepted_source_id'] not in denied.text
+                                    denied_status = denied.status_code
                                 current_thread = database(
                                     f"select thread_id from public.user_lifetime_conversation where user_id='{owner}';"
                                 ).stdout.strip()
@@ -135,19 +163,26 @@ def test_bilingual_endpoint_save_replay_and_recall(database, tmp_path, monkeypat
                                     seen_sources.add(source_id)
                                     thread = current_thread
                                 else:
-                                    assert current_thread == thread and fact in result['reply']
+                                    assert fact in result['reply']
+                                    if arm in ('codex', 'deepseek'):
+                                        assert current_thread == thread
+                                    else:
+                                        assert current_thread and current_thread != thread
+                                thread = current_thread
                                 assert len(exchange.requests) == (1 if phase == 'opening' else 2)
                                 samples.append(dict(locale=locale, phase=phase, arm=arm, milestones_ms=events,
-                                    resumed=phase != 'opening', requests=list(exchange.requests)))
+                                    tenant_replay_denied_http=denied_status, resumed=phase != 'opening',
+                                    requests=list(exchange.requests)))
 
     asyncio.run(run())
     for locale in STORIES:
         for phase in ('opening', 'follow_up', 'resumed'):
-            a, b = [row for row in samples if row['locale'] == locale and row['phase'] == phase]
-            for first, second in zip(a['requests'], b['requests'], strict=True):
-                same = matches(first, second)
-                # The two disposable projects receive independently allocated SQL IDs.
-                assert all(value for name, value in same.items() if name != 'input_sha256'), same
+            a, *others = [row for row in samples if row['locale'] == locale and row['phase'] == phase]
+            for b in others:
+                for first, second in zip(a['requests'], b['requests'], strict=True):
+                    same = matches(first, second)
+                    # Each disposable project receives independently allocated SQL IDs.
+                    assert all(value for name, value in same.items() if name != 'input_sha256'), same
     if path := os.getenv('MEMOIR_TEST_DSH_RECEIPT'):
         save(Path(path), dict(mode='controlled_endpoint', model=MODEL, samples=samples))
 
@@ -176,13 +211,13 @@ def test_atlas_activity_selects_and_commits_in_both_runtimes(database, tmp_path,
     selected = 'memoir-author-timeline'
 
     async def run():
-        bridge = Bridge(model=MODEL, effort=EFFORT)
+        bridge, names, factory, serve_runtimes = comparison_plan()
         bridge.app.include_router(agent_routes.router)
         bridge.app.mount('/worker', codex_worker_service.app)
-        async with bridge.serve(), httpx.AsyncClient(timeout=60, trust_env=False) as client:
+        async with bridge.serve(), serve_runtimes(), httpx.AsyncClient(timeout=60, trust_env=False) as client:
             activity = MemoryEventWorker(broker, worker_url=bridge.origin + '/worker', worker_secret=SECRET)
             for index, (locale, story) in enumerate(STORIES.items()):
-                arms = ('codex', 'deepseek') if index == 0 else ('deepseek', 'codex')
+                arms = names[index:] + names[:index]
                 for arm in arms:
                     owner, project = str(uuid4()), 'atlas-harness-bench-' + uuid4().hex
                     database(f"insert into auth.users(id,is_anonymous) values('{owner}',false);")
@@ -232,7 +267,7 @@ def test_atlas_activity_selects_and_commits_in_both_runtimes(database, tmp_path,
                         monkeypatch.setattr(agent_routes, 'runtime', CodexRuntime(
                             worker_url=bridge.origin + '/worker', worker_secret=SECRET,
                             base_url=gateway, model=MODEL, task_publisher_enabled=False))
-                        monkeypatch.setattr(codex_worker_service, 'CodexConnection', partial(TimedCodex, exchange=exchange))
+                        monkeypatch.setattr(codex_worker_service, 'CodexConnection', factory('codex', exchange))
                         response = await client.post(bridge.origin + '/v1/agent/turn', json=dict(
                             project_id=project, language=locale, text=story[0], client_turn_id=str(uuid4())))
                         assert response.status_code == 200, response.text
@@ -250,10 +285,7 @@ def test_atlas_activity_selects_and_commits_in_both_runtimes(database, tmp_path,
                         assert run_id
                         stage = 'atlas'
                         exchange.requests.clear()
-                        if arm == 'deepseek':
-                            monkeypatch.setattr(codex_worker_service, 'CodexConnection',
-                                partial(DeepSeekConnection, exchange=exchange,
-                                        binary=Path(os.environ['MEMOIR_TEST_DSH_BIN'])))
+                        monkeypatch.setattr(codex_worker_service, 'CodexConnection', factory(arm, exchange))
                         # The bounded extraction path stays on the existing
                         # Responses transport for both native orchestration arms.
                         with monkeypatch.context() as patch:
@@ -272,10 +304,11 @@ def test_atlas_activity_selects_and_commits_in_both_runtimes(database, tmp_path,
 
     asyncio.run(run())
     for locale in STORIES:
-        a, b = [row for row in samples if row['locale'] == locale]
-        for kind in ('native_calls', 'bounded_calls'):
-            for first, second in zip(a[kind], b[kind], strict=True):
-                assert all(value for name, value in matches(first, second).items() if name != 'input_sha256')
+        a, *others = [row for row in samples if row['locale'] == locale]
+        for b in others:
+            for kind in ('native_calls', 'bounded_calls'):
+                for first, second in zip(a[kind], b[kind], strict=True):
+                    assert all(value for name, value in matches(first, second).items() if name != 'input_sha256')
     if path := os.getenv('MEMOIR_TEST_DSH_ATLAS_RECEIPT'):
         save(Path(path), dict(mode='controlled_durable_atlas', model=MODEL, samples=samples))
 

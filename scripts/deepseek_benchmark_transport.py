@@ -74,13 +74,17 @@ def output_item(answer):
     if isinstance(answer, dict) and answer.get('type') == 'function_call':
         return {**answer, 'id': 'fc_' + answer['call_id'], 'status': 'completed'}
     text = answer if isinstance(answer, str) else json.dumps(answer, ensure_ascii=False)
-    return {**message('assistant', text), 'id': 'msg_fixture', 'status': 'completed', 'phase': 'final_answer'}
+    item = message('assistant', text)
+    item['content'][0]['annotations'] = []
+    return {**item, 'id': 'msg_fixture', 'status': 'completed', 'phase': 'final_answer'}
 
 
 async def replay_events(body, answer, delay):
     item = output_item(answer)
     response = dict(id='resp_fixture', object='response', status='completed', model=body['model'],
-                    output=[item], usage=dict(input_tokens=100, output_tokens=20, total_tokens=120))
+                    created_at=time.time(), output=[item], usage=dict(input_tokens=100,
+                        input_tokens_details=dict(cached_tokens=0), output_tokens=20,
+                        output_tokens_details=dict(reasoning_tokens=0), total_tokens=120))
     yield dict(type='response.created', response={**response, 'status': 'in_progress', 'output': []})
     yield dict(type='response.output_item.added', output_index=0,
                item={**item, 'status': 'in_progress', **({'content': []} if 'content' in item else {})})
@@ -91,6 +95,8 @@ async def replay_events(body, answer, delay):
             await asyncio.sleep(delay)
             yield dict(type='response.output_text.delta', output_index=0, content_index=0,
                        item_id=item['id'], delta=part)
+        yield dict(type='response.output_text.done', output_index=0, content_index=0,
+                   item_id=item['id'], text=text, logprobs=[])
     else:
         await asyncio.sleep(delay)
     yield dict(type='response.output_item.done', output_index=0, item=item)
@@ -103,6 +109,8 @@ class Exchange:
         self.token = secrets.token_hex(24)
         self.connection = None
         self.requests = []
+        self.text_phases = {}
+        self.dispatch_admission = None
         self.started = time.perf_counter()
 
     @property
@@ -118,6 +126,9 @@ class Exchange:
                 or body.get('reasoning', {}).get('effort') != self.bridge.effort
                 or len(self.requests) >= self.bridge.max_steps):
             raise ValueError('model_request_outside_benchmark_contract')
+        if self.dispatch_admission is not None:
+            async with self.dispatch_admission():
+                pass
         evidence = dict(**request_evidence(body), dispatch_ms=self.ms())
         self.requests.append(evidence)
         if self.fixture is not None:
@@ -126,6 +137,8 @@ class Exchange:
             events = self.bridge.upstream(body)
         async with aclosing(events) as stream:
             async for event in stream:
+                if event['type'] == 'response.output_item.added' and event['item']['type'] == 'message':
+                    self.text_phases[event['item']['id']] = event['item'].get('phase')
                 if event['type'] == 'response.output_text.delta':
                     evidence.setdefault('provider_first_text_ms', self.ms())
                 if event['type'] in ('response.completed', 'response.incomplete', 'response.failed'):
@@ -137,21 +150,19 @@ class Exchange:
 
 
 class Bridge:
-    def __init__(self, *, model, effort, gateway=None, key=None, delay=.04, max_steps=12, max_calls=400):
+    def __init__(self, *, model, effort, gateway=None, key=None, delay=.04, max_steps=12, max_calls=400,
+                 normalize=provider_body):
         self.model, self.effort = model, effort
         self.gateway, self.key, self.delay, self.max_steps = gateway, key, delay, max_steps
         self.max_calls, self.calls = max_calls, 0
         self.exchanges = {}
+        self.normalize = normalize
         self.app = FastAPI(docs_url=None, redoc_url=None, openapi_url=None)
 
         @self.app.post('/{token}/v1/responses')
         async def codex(token: str, request: Request):
             exchange = self.authorize(token, request)
-            body = provider_body(await request.json())
-            async def stream():
-                async for event in exchange.events(body):
-                    yield 'data: ' + json.dumps(event, ensure_ascii=False) + '\n\n'
-            return StreamingResponse(stream(), media_type='text/event-stream')
+            return self.responses(exchange, await request.json())
 
         @self.app.post('/{token}/step')
         async def step(token: str, request: Request):
@@ -168,6 +179,15 @@ class Bridge:
         if token not in self.exchanges or request.headers.get('authorization') != 'Bearer ' + token:
             raise HTTPException(status_code=403)
         return self.exchanges[token]
+
+    def responses(self, exchange, body):
+        body = self.normalize(body)
+
+        async def stream():
+            async for event in exchange.events(body):
+                yield 'data: ' + json.dumps(event, ensure_ascii=False) + '\n\n'
+
+        return StreamingResponse(stream(), media_type='text/event-stream')
 
     @asynccontextmanager
     async def serve(self):
