@@ -133,7 +133,7 @@ def map_event_page(storage, project_id, *, cursor=None, limit=8):
                              if relation.get('kind') in {'before', 'after'} and isinstance(relation.get('event_id'), str)]
         for field in ('temporal_estimate', 'timing_hint'):
             if isinstance(item.get(field), dict):
-                item[field] = {key: value for key, value in item[field].items() if key != 'basis'}
+                item[field] = {key: value for key, value in item[field].items() if key not in {'basis', 'rationale'}}
         events.append(item)
     return {**page, 'events': events}
 

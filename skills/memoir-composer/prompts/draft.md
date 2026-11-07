@@ -40,6 +40,8 @@ Attach the existing original source references to the factual anchors of each pa
 
 ## Enrich at each checkpoint
 
+Write the chapter as continuous memoir prose under one distinctive title. Open with a supported action, detail or setting that gives the reader a way into the memory. Organise paragraphs around scenes, changes or related details, weaving together evidence from different turns when they describe the same part of the story. Let each paragraph advance the chapter and use transitions that preserve the supported chronology. Put the title in the title field and use paragraph blocks for the body. Use the storyteller's exact wording selectively when a phrase carries their voice.
+
 For the passages already eligible for an update, weave new supported details into the existing scene, strengthen its rhythm and connect it to the supplied continuity context. Preserve unaffected passages and protected edits. Enrichment should improve clarity and texture, with length determined by the material.
 
 Example, using only this source: “Every day I walked to school with my older brother. We crossed a wooden bridge.”

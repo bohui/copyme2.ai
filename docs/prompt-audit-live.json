@@ -1,6 +1,6 @@
 {
   "project_id": "cmut9t75w00071z02n8bdv7it",
-  "captured_at": "2026-11-07T01:35:02.963081+00:00",
+  "captured_at": "2026-11-07T07:03:54.032288+00:00",
   "scope": "Metadata, case hashes and score presence; no trace text, model calls or mutations",
   "prompts": [
     {
@@ -409,7 +409,8 @@
         7,
         8,
         9,
-        10
+        10,
+        11
       ],
       "labels": [
         "latest"
@@ -429,7 +430,8 @@
     {
       "name": "memoir/skills/composer/draft",
       "versions": [
-        1
+        1,
+        2
       ],
       "labels": [
         "latest"
@@ -24942,7 +24944,7 @@
       "name": "memoir/skills/author-timeline/extract/golden/delivery-v3",
       "target": "memoir/skills/author-timeline/extract",
       "items": 8,
-      "content_sha256": "be54ef98a9ecf90a93513bdd6b0fabc7425277e1da38a95aac4848b11c432e94",
+      "content_sha256": "465a34c42292744868660ba6bfae137a1fb07e0a70a5f087c187ad3e57e3d8f1",
       "source": "scripts/run_memoir_skill_evaluation.py:datasets"
     },
     {

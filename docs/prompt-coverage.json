@@ -2463,15 +2463,15 @@
   {
     "name": "memoir/skills/author-timeline/extract",
     "source": "skills/memoir-author-timeline/prompts/extract.md",
-    "version": 10,
-    "sha256": "5daafc2ba8e297a9f795ead9c952ad139dce3ae5516e8c4692a682425b46a346",
+    "version": 11,
+    "sha256": "c06587e8f26a919bbacbfba6af08f1d3c975fbdcd6d2def61a312a35168dd930",
     "use": "conditional",
-    "scenario": "Draft grounded events, cited numeric display hints with confidence, supported period bounds, geography and narrated order in an authorized window. The compatibility branch also extracts coarse place cues.",
+    "scenario": "Draft event descriptions grounded in the original testimony, cited timing hints, supported period bounds, geography and narrated order. The compatibility branch also extracts coarse place cues.",
     "consumers": [
       {
         "path": "apps/api/memory_events.py",
         "symbol": "extraction_instructions",
-        "line": 428
+        "line": 431
       },
       {
         "path": "apps/api/two_lane_memory.py",
@@ -2618,7 +2618,9 @@
       "tests/test_memoir_background_agent_workflow.py::test_timeline_reconciles_and_revises_a_city_period",
       "tests/test_timeline_reported_places.py::test_map_city_chronology_preserves_skill_relations_across_paginated_api",
       "tests/js/map-memory-journey.test.mjs",
-      "tests/test_memoir_background_agent_workflow.py::test_pending_place_journey_resumes_in_author_timeline"
+      "tests/test_memoir_background_agent_workflow.py::test_pending_place_journey_resumes_in_author_timeline",
+      "tests/test_memoir_background_agent_workflow.py::test_resolved_language_reaches_background_skills_and_map_cards",
+      "tests/js/timeline-uncertainty.test.mjs"
     ],
     "gaps": [
       "Requires scenario/branch-specific execution evidence",
@@ -2667,10 +2669,10 @@
   {
     "name": "memoir/skills/composer/draft",
     "source": "skills/memoir-composer/prompts/draft.md",
-    "version": 1,
-    "sha256": "ce8358f7c5902de600309719363876c937c01715034fbf76c638a785071a830a",
+    "version": 2,
+    "sha256": "f20e646b8abd567980c3ebdd8c6e9e58797aad40cfbfb62631b22ed5e5ea9715",
     "use": "conditional",
-    "scenario": "Composer prepare/draft/review; batch variants and editorial components are conditional on phase and saved source authority.",
+    "scenario": "Compose source-grounded memoir chapters as continuous prose under a single title. Progressive batch and selected-passage revision instructions are conditional on the request.",
     "consumers": [
       {
         "path": "apps/api/memoir_preview.py",
@@ -2802,7 +2804,10 @@
       "tests/test_automatic_prompt_evaluation.py",
       "tests/test_memory_context_transport.py",
       "tests/test_assembled_prompts.py",
-      "tests/test_prompt_publication.py"
+      "tests/test_prompt_publication.py",
+      "tests/test_progressive_composer.py",
+      "tests/test_story_game_runtime_postgres.py::test_local_debug_generates_a_private_draft_and_game_from_one_round",
+      "tests/js/memoir-workspace.test.mjs"
     ],
     "gaps": [
       "Requires scenario/branch-specific execution evidence",

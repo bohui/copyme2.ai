@@ -2,6 +2,7 @@ import { readMemoirClientSource } from './helpers/memoir-source.mjs';
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import vm from 'node:vm';
+import { memoirParagraphs } from '../../apps/web/client/memoir/dom.mjs';
 import { memoryEventTiming, memoryEventTimingMarkup } from '../../apps/web/client/memoir/map-memory-journey.mjs';
 const source = readMemoirClientSource();
 function load(context, name) {
@@ -15,7 +16,7 @@ function setup(extra = {}) {
       preview:{title:'One',text:'First'},pages:[]}, ...extra};
   const context = vm.createContext({state, encodeURIComponent, URLSearchParams,
     captureProjectScope:()=>({id:'project'}),isCurrentProjectScope:scope=>scope.id===state.project.id,
-    render(){},escapeHtml:String,formatText:String,translateWith:key=>key,freeRecallFinished:()=>true,
+    render(){},escapeHtml:String,formatText:String,memoirParagraphs,translateWith:key=>key,freeRecallFinished:()=>true,
     profile:()=>state.project.profile || {}, currentUiLocale:()=> 'en-AU', memoryEventTiming, memoryEventTimingMarkup,
     currentSectionRework:()=>null, sectionReworkNotice:()=>'', sectionReworkMarkup:()=>'',
     storyApi:async()=>({snapshot_id:'root',complete:true,next_cursor:null,records:[{id:'two',preview:{title:'Two',text:'Second'}}]})});
@@ -46,7 +47,7 @@ test('later frozen draft pages are reachable and first page is explicitly partia
   await context.loadMorePrivateDraft();
   assert.equal(context.state.privateDraft.pages[0].preview.text, 'Second');
   assert.equal(context.state.privateDraft.next_cursor, null);
-  assert.match(context.privateDraftPreview({inChapters:true}), /Second/);
+  assert.match(context.privateDraftPreview({inChapters:true}), /First[\s\S]*Second/);
   assert.doesNotMatch(context.privateDraftPreview({inChapters:true}), /load-more-private-draft/);
 });
 
@@ -80,14 +81,15 @@ test('rapid repeated page requests admit one call and preserve retry cursor on f
   release({snapshot_id:'root',records:[],next_cursor:null,complete:true});await first;
   assert.equal(context.state.privateDraft.loading_page,false);
 });
-test('timeline partial paging is explicit and uncertainty remains visible', () => {
+test('timeline partial paging and uncertainty indicators stay visible without model explanations', () => {
   const context=setup({timeline:[{id:'event',title:'Ming at school',date_expression:'unknown',precision:'unknown',life_stage:'unplaced',
     canonical:true,status:'unresolved',assertion:'inferred',uncertainty:'Name and year uncertain',timing_conflict:true,
     details_complete:false,source_refs:[{quote:'Maybe 1963'}],evidence_next_cursor:'evidence'}],familyFeaturesEnabled:true,memoryEventPage:{next_cursor:'events'}});
   Object.assign(context,{translate:key=>key,currentUiLocale:()=>"en-AU",formatDateExpression:value=>value,referencesWorkspace:()=>'',lifeStageText:()=>''});
   load(context,'timelineWorkspace');
   const html=context.timelineWorkspace();
-  for(const marker of ['Name and year uncertain','eventInferred','eventUnresolved','eventConflictingDates','timelinePagesPartial','load-more-memory-events','data-more-event-evidence','data-more-event-details']) assert.match(html,new RegExp(marker));
+  for(const marker of ['eventInferred','eventUnresolved','eventConflictingDates','timelinePagesPartial','load-more-memory-events','data-more-event-evidence','data-more-event-details']) assert.match(html,new RegExp(marker));
+  assert.doesNotMatch(html, /Name and year uncertain/);
 });
 test('canonical timeline rows show the same estimated years and ages as map cards without confidence scores', () => {
   const context=setup({project:{id:'project',profile:{birth_year:1983}},timeline:[{id:'school',canonical:true,

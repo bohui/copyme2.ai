@@ -546,8 +546,6 @@ async function capture(page, name) {
       const button = page.locator('[data-workspace-tab="' + tab + '"]');
       if (!(await button.count())) { report.checks[tab + "_view"]="unavailable"; continue; }
       await button.first().click();
-      const details=page.locator('.private-draft-status details:not([open]) summary');
-      if (await details.count()) await details.first().click();
       await capture(page,tab); report.checks[tab + "_view"]="observed";
     }
     for (const stage of stages) {

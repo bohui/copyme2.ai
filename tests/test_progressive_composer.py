@@ -505,6 +505,8 @@ def test_pg_five_round_batch_groups_quotes_and_persists_progressive_passages(sql
     assert head['preview']['text']
     initial = {section['id']: section['preview']['text'] for section in
         rpc(sql, 'read_lifetime_private_draft_page', f"{literal(project)},'{head['snapshot_id']}',null,8")['records']}
+    assert list(initial.values()) == [item['block']['text'] for item in bundle['sections'] if 'block' in item]
+    assert head['preview']['text'] == next(iter(initial.values()))
     saved_events = rpc(sql, 'read_user_memory_events', literal(project))['events']
     target = next(e for e in saved_events if e['source_refs'][0]['source_id'] == originals[0]['id'])
     if protected:

@@ -47,12 +47,15 @@ export function createFamilyWorkspace({
         ? await supabaseApi(`/v1/agent/family-context?project_id=${encodeURIComponent(projectId)}`) : null;
       if (!isCurrentProjectScope(scope) || request !== memoryEventRequest) return null;
       if (body?.family_features_enabled === true && body.family_context) applyPersistedFamilyContext(body.family_context);
-      const snapshot = state.familyFeaturesEnabled
+      const collection = state.familyFeaturesEnabled || state.debugEarlyGeneration && state.debugWorkspace === "memoir"
+        ? "events" : "atlas-events";
+      const snapshot = collection === "events"
         ? await storyApi(`/v1/story/events?project_id=${encodeURIComponent(projectId)}`)
         : mapSnapshot ?? await storyApi(`/v1/story/atlas-events?project_id=${encodeURIComponent(projectId)}&view=map`);
       if (!isCurrentProjectScope(scope) || request !== memoryEventRequest) return null;
       if (Array.isArray(snapshot?.events)) {
         state.memoryEventProject = projectId;
+        snapshot.collection = collection;
         state.memoryEventPage = snapshot;
         state.timeline = chronologicalEvents(snapshot.events.map(event => ({ ...event,
           date_expression: event.temporal?.expression || "unknown",
@@ -289,7 +292,7 @@ export function createFamilyWorkspace({
     render();
     try {
       const query = new URLSearchParams({project_id: state.project.id, cursor: saved.next_cursor});
-      const collection = state.familyFeaturesEnabled ? 'events' : 'atlas-events';
+      const collection = saved.collection || (state.familyFeaturesEnabled ? 'events' : 'atlas-events');
       if (!state.familyFeaturesEnabled) query.set('view', 'map');
       const page = await storyApi(`/v1/story/${collection}?${query}`);
       if (!isCurrentProjectScope(scope) || state.memoryEventPage !== saved) return;
@@ -520,17 +523,18 @@ export function createFamilyWorkspace({
       const stage = item.life_stage ? (item.life_stage === "unplaced" ? t("unplacedStage") : escapeHtml(lifeStageText(item.life_stage,"label"))) : "";
       const edit = item.canonical && state.familyFeaturesEnabled ? `<button type="button" class="text-button" data-edit-memory-event="${escapeHtml(item.id)}">${t("editEventTags")}</button>` : "";
       const explore = item.canonical && item.status === "active" ? `<button type="button" class="text-button" data-explore-workspace-memory="${escapeHtml(item.id)}" ${state.loading || state.recallStatus?.payment_required ? "disabled" : ""}>${t("exploreThisMemory")}</button>` : "";
-      const evidence = item.canonical && item.source_refs?.length ? `<details><summary>${t("eventOriginalEvidence")}</summary>${item.source_refs.map(ref => `<p>${escapeHtml(ref.quote || "")}</p>`).join("")}${item.evidence_next_cursor ? `<button type="button" class="text-button" data-more-event-evidence="${escapeHtml(item.id)}" ${item.loading_evidence ? "disabled" : ""}>${t(item.loading_evidence ? "loadingSavedPage" : "loadMoreEvidence")}</button>` : ""}${item.evidence_error ? `<p role="status">${t("savedPageChanged")}</p>` : ""}</details>` : "";
-      const uncertainty = [item.uncertainty, item.assertion === "inferred" ? t("eventInferred") : "", item.status === "unresolved" ? t("eventUnresolved") : "", item.timing_conflict ? t("eventConflictingDates") : ""].filter(Boolean);
+      const evidence = state.familyFeaturesEnabled && item.canonical && item.source_refs?.length ? `<details><summary>${t("eventOriginalEvidence")}</summary>${item.source_refs.map(ref => `<p>${escapeHtml(ref.quote || "")}</p>`).join("")}${item.evidence_next_cursor ? `<button type="button" class="text-button" data-more-event-evidence="${escapeHtml(item.id)}" ${item.loading_evidence ? "disabled" : ""}>${t(item.loading_evidence ? "loadingSavedPage" : "loadMoreEvidence")}</button>` : ""}${item.evidence_error ? `<p role="status">${t("savedPageChanged")}</p>` : ""}</details>` : "";
+      const description = item.description?.trim() || item.original_excerpt?.trim();
+      const uncertainty = [item.assertion === "inferred" ? t("eventInferred") : "", item.status === "unresolved" ? t("eventUnresolved") : "", item.timing_conflict ? t("eventConflictingDates") : ""].filter(Boolean);
       const contextRecords = (item.detail_records || []).map(record => `<p>${t(`eventDetailKinds.${record.kind}`)}: ${escapeHtml(typeof record.value === "string" ? record.value : record.value?.expression || `${record.value?.kind || ""} ${record.value?.event_id || ""}`)}</p>`).join("");
-      const contextButton = item.details_complete === false ? `<button type="button" class="text-button" data-more-event-details="${escapeHtml(item.id)}" ${item.loading_details ? "disabled" : ""}>${t(item.loading_details ? "loadingSavedPage" : "loadMoreEventContext")}</button>` : "";
+      const contextButton = state.familyFeaturesEnabled && item.details_complete === false ? `<button type="button" class="text-button" data-more-event-details="${escapeHtml(item.id)}" ${item.loading_details ? "disabled" : ""}>${t(item.loading_details ? "loadingSavedPage" : "loadMoreEventContext")}</button>` : "";
       const qualifications = `${uncertainty.map(note => `<p class="event-uncertainty">${escapeHtml(note)}</p>`).join("")}${contextRecords}${contextButton}${item.details_error ? `<p role="status">${t("savedPageChanged")}</p>` : ""}`;
-      return `<article class="timeline-row"><span class="timeline-dot"></span><div><strong>${escapeHtml(item.title)}</strong><small>${details}${stage ? ` · ${stage}` : ""}</small>${qualifications}${explore}${edit}${evidence}${state.memoryEventEdit?.id === item.id ? memoryEventEditForm() : ""}</div></article>`;
+      return `<article class="timeline-row"><span class="timeline-dot"></span><div><strong>${escapeHtml(item.title)}</strong><small>${details}${stage ? ` · ${stage}` : ""}</small>${description && description !== item.title ? `<p class="timeline-description">${escapeHtml(description)}</p>` : ""}${qualifications}${explore}${edit}${evidence}${state.memoryEventEdit?.id === item.id ? memoryEventEditForm() : ""}</div></article>`;
     }).join("") : `<div class="workspace-empty"><span>⌁</span><p>${t("momentsEmpty")}</p></div>`;
     const page = state.memoryEventPage;
     const pagination = page?.next_cursor ? `<p role="status">${t("timelinePagesPartial")}</p><button type="button" class="button button-secondary button-small" data-action="load-more-memory-events" ${page.loading_page ? "disabled" : ""}>${t(page.loading_page ? "loadingSavedPage" : "loadMoreEvents")}</button>` : "";
     const pageError = page?.page_error ? `<p role="status">${t("savedPageChanged")}</p><button type="button" class="text-button" data-action="refresh-memory-events">${t("reloadSavedPages")}</button>` : "";
-    return `<div class="workspace-scroll"><div class="workspace-intro"><div class="workspace-heading-row"><div><h2>${t("timeline")}</h2><p>${t("timelineIntro")}</p></div><button class="button button-secondary button-small" data-add-workspace-memory ${state.loading || state.recallStatus?.payment_required ? "disabled" : ""}>${t("addMemory")}</button></div></div><div class="vis-timeline-adapter" data-renderer="vis-timeline" aria-label="${t("timelineFallback")}"><div class="timeline-list">${items}</div></div>${pagination}${pageError}${referencesWorkspace()}</div>`;
+    return `<div class="workspace-scroll"><div class="workspace-intro"><div class="workspace-heading-row"><p>${t("timelineIntro")}</p><button class="button button-secondary button-small" data-add-workspace-memory ${state.loading || state.recallStatus?.payment_required ? "disabled" : ""}>${t("addMemory")}</button></div></div><div class="vis-timeline-adapter" data-renderer="vis-timeline" aria-label="${t("timelineFallback")}"><div class="timeline-list">${items}</div></div>${pagination}${pageError}${referencesWorkspace()}</div>`;
   }
 
   function memoryEventEditForm() {

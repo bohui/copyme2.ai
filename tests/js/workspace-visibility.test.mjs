@@ -188,9 +188,10 @@ test('the map requires a streamed active location for the current visit and priv
 });
 
 test('debug actions switch between all memoir tabs and the exclusive right-hand game pane', () => {
-  let generations = 0, gameMounts = 0;
+  let generations = 0, timelineRefreshes = 0, gameMounts = 0;
   const {state, context, app} = workspaceHarness({debugEarlyGeneration:true, familyFeaturesEnabled:false}, {
     generatePrivateDraft: () => generations++,
+    refreshFamilyContext: () => timelineRefreshes++,
     render: () => context.renderStory(),
     storyGameDialog: {openWorkspace: render => render(), mountWorkspace: () => gameMounts++},
   });
@@ -199,7 +200,7 @@ test('debug actions switch between all memoir tabs and the exclusive right-hand 
   for (const tab of ['family', 'timeline', 'memoir']) assert.match(app.innerHTML, new RegExp(`data-workspace-tab="${tab}"`));
   assert.doesNotMatch(app.innerHTML, /workspace-media-overview|data-story-game-workspace/);
   assert.equal(generations, 1);
-  assert.equal(state.privateDraftExpanded, true);
+  assert.equal(timelineRefreshes, 1);
   context.openDebugWorkspace('game');
   assert.match(app.innerHTML, /data-story-game-workspace/);
   assert.doesNotMatch(app.innerHTML, /workspace-media-overview|data-workspace-tab/);

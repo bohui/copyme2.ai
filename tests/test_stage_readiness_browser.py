@@ -123,8 +123,7 @@ def test_stage_rings_and_saved_private_draft(locale,mapped):
         expect(page.locator('.life-stage-navigator small, .life-stage-navigator .readiness-note')).to_have_count(0)
         expect(page.locator('#chat-input')).to_be_visible()
         expect(page.locator('[role="dialog"]:visible')).to_have_count(0)
-        page.get_by_text(workspace['readSavedDraft'],exact=True).click()
-        expect(page.locator('.private-draft-status')).to_contain_text('safe synthetic private draft')
+        expect(page.locator('.memoir-chapter')).to_contain_text('safe synthetic private draft')
         destination=ROOT/f'output/preview-debug/stage-rings-{locale}.png'
         destination.parent.mkdir(parents=True,exist_ok=True)
         page.locator('#workspace-detail').screenshot(path=str(destination))
