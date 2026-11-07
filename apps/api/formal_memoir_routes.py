@@ -11,12 +11,13 @@ from uuid import UUID
 from typing import Literal
 
 import httpx
-from fastapi import APIRouter, Header, HTTPException
+from fastapi import APIRouter, Header, HTTPException, Request
 from fastapi.responses import JSONResponse
 from pydantic import BaseModel, Field
 
 from .agent_routes_support import authenticated_storage
 from .conversation_recovery import PROJECT_ID_PATTERN
+from .local_debug import debug_early_generation, debug_generation_rpc
 
 router = APIRouter(tags=['Formal memoir'])
 
@@ -57,14 +58,19 @@ def _rpc_error(error):
     return HTTPException(503, 'Memoir controls are temporarily unavailable.')
 
 
-async def _owned_rpc(project_id, authorization, name, parameters, *, status_code=200):
+async def _owned_rpc(project_id, authorization, name, parameters, *, status_code=200, debug=False):
     if not re.fullmatch(PROJECT_ID_PATTERN, project_id):
         raise HTTPException(422, 'Invalid project')
     storage = await asyncio.to_thread(authenticated_storage, authorization)
     try:
-        response = await asyncio.to_thread(storage.request, 'POST', '/rest/v1/rpc/' + name,
-                                         json={'p_project_id': project_id, **parameters})
-        return JSONResponse(response.json(), status_code=status_code, headers={'Cache-Control': 'no-store'})
+        if debug and storage.is_anonymous:
+            result = await debug_generation_rpc(name + '_for_owner', storage.user_id,
+                p_project_id=project_id, p_debug=True, **parameters)
+        else:
+            response = await asyncio.to_thread(storage.request, 'POST', '/rest/v1/rpc/' + name,
+                                              json={'p_project_id': project_id, **parameters})
+            result = response.json()
+        return JSONResponse(result, status_code=status_code, headers={'Cache-Control': 'no-store'})
     except httpx.HTTPStatusError as error:
         raise _rpc_error(error) from None
     except httpx.RequestError:
@@ -74,11 +80,12 @@ async def _owned_rpc(project_id, authorization, name, parameters, *, status_code
 
 
 @router.post('/projects/{project_id}/formal-memoir', status_code=202)
-async def begin_formal_memoir(project_id: str, payload: BeginFormalMemoir,
+async def begin_formal_memoir(project_id: str, payload: BeginFormalMemoir, request: Request,
                              authorization: str | None = Header(default=None)):
     return await _owned_rpc(project_id, authorization, 'begin_formal_memoir', {
         'p_expected_phase_revision': 0,
-        'p_expected_revision': payload.expected_revision, 'p_request_id': str(payload.request_id)}, status_code=202)
+        'p_expected_revision': payload.expected_revision, 'p_request_id': str(payload.request_id)},
+        status_code=202, debug=debug_early_generation(request))
 
 
 @router.get('/projects/{project_id}/formal-memoir')

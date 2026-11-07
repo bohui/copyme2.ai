@@ -20,7 +20,7 @@ ROOT = Path(__file__).resolve().parents[1]
     ('zh-CN', 390, '我的回忆录', '我的人生游戏', '返回地图'),
 ])
 @pytest.mark.parametrize('anonymous', [True, False], ids=['guest', 'owner'])
-def test_workspace_footer_opens_sign_in_or_a_playable_game_and_memoir(locale, width, memoir_label, game_label, close_label, anonymous):
+def test_debug_footer_opens_a_playable_game_and_memoir(locale, width, memoir_label, game_label, close_label, anonymous):
     base = os.environ['MEMOIR_BROWSER_URL']
     project_id = 'debug-workspace'
     project_path = f'/agent/projects/{project_id}'
@@ -88,9 +88,6 @@ def test_workspace_footer_opens_sign_in_or_a_playable_game_and_memoir(locale, wi
             actions.append('consent')
             assert route.request.post_data_json['action'] == 'grant'
         elif path == project_path + '/story-game':
-            if anonymous:
-                actions.append('unauthorized game request')
-                return route.fulfill(status=403, json={'detail': 'Memoir unavailable.'})
             if method == 'POST':
                 actions.append('scenes')
                 return route.fulfill(status=202, json={'status': 'pending'})
@@ -146,24 +143,13 @@ def test_workspace_footer_opens_sign_in_or_a_playable_game_and_memoir(locale, wi
         game_button = footer.get_by_role('button', name=game_label, exact=True)
         memoir_button = footer.get_by_role('button', name=memoir_label, exact=True)
         expect(memoir_button).to_be_visible()
-        if anonymous:
-            game_button.click()
-            sign_in = page.locator('[data-auth-reminder-dialog][data-auth-sign-in="true"]')
-            expect(sign_in).to_be_visible(timeout=5000)
-            expect(sign_in.locator('[data-provider="google"]')).to_be_visible()
-            expect(workspace.locator('.workspace-media-overview')).to_be_visible()
-            expect(workspace.locator('[data-story-game-workspace]')).to_have_count(0)
-            assert not actions and not languages
-            browser.close()
-            return
-
         with page.expect_response(lambda response: response.url.endswith('/selection'), timeout=20000):
             game_button.click()
             expect(workspace.locator('.preview-spinner')).to_be_visible()
             expect(workspace.locator('.workspace-media-overview, [data-workspace-tab], iframe')).to_have_count(0)
         assert actions == ['formal', 'advance', 'consent', 'scenes', 'build']
         assert languages == [None]
-        expect(page.locator('.story-game-modal, [data-scene-selection]')).to_have_count(0)
+        expect(page.locator('[data-auth-reminder-dialog], .story-game-modal, [data-scene-selection]')).to_have_count(0)
         expect(workspace.locator('.preview-spinner')).to_be_visible()
         expect(close_view).to_be_in_viewport(ratio=1)
         close_view.click()

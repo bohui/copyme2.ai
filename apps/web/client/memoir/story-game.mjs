@@ -291,10 +291,9 @@ export function createStoryGameDialog({ state, storyApi, captureProjectScope, is
     active.revision++;
     active.busy = true; active.error = ""; draw();
     try { await callback(active); if (!active.inline && view === active && current()) await refresh(active); }
-    catch (error) {
+    catch {
       if (view === active && current()) {
-        active.error = active.inline && [401, 403].includes(error?.status) && state.supabase?.user?.is_anonymous
-          ? t("signInToPlay") : t("retry");
+        active.error = t("retry");
         clearRenderer(); active.content = null; clearPool(active);
         try { await refresh(active); if (active.content) active.error = ""; } catch (_) { /* Keep content withheld. */ }
       }
