@@ -100,7 +100,7 @@ export async function harness(provider = 'geoapify', {
     composingWorkspaceActive: () => false, freeRecallFinished: () => false,
     escapeHtml, installMapFlightPreloader, translate: key => key,
   });
-  for (const name of ['placeMapAvailable','workspaceContentAvailable','workspaceHasContent','workspaceIsVisible']) {
+  for (const name of ['placeMapAvailable','workspaceGenerationAvailable','workspaceContentAvailable','workspaceHasContent','workspaceIsVisible']) {
     vm.runInContext(extract(name), context);
   }
   for (const name of ['loadPlaceImagery','syncCesiumPins']) vm.runInContext(extract(name),context);

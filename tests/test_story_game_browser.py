@@ -285,8 +285,9 @@ def test_navigation_closes_game_and_aborts_requests_before_slow_or_failed_recove
         page = context.new_page()
         try:
             page.goto(base + '/memoir/interview/' + project_id)
-            opener = page.locator('[data-story-game]').first
+            opener = page.locator('#workspace-detail .workspace-generation-bar [data-story-game]')
             expect(opener).to_be_visible(timeout=30000)
+            expect(page.locator('[data-story-game]')).to_have_count(1)
             if direction == 'back':
                 page.evaluate("([a,b])=>{history.replaceState({},'',b);history.pushState({},'',a)}",
                     ['/memoir/interview/' + project_id, '/memoir/interview/' + unavailable])

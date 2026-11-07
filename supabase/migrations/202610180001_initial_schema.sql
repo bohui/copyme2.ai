@@ -366,12 +366,6 @@ CREATE TABLE public.lifetime_two_lane_rollout (
     CONSTRAINT lifetime_two_lane_rollout_singleton_check CHECK (singleton)
 );
 
-CREATE TABLE public.original_recording_rollout (
-    singleton boolean DEFAULT true NOT NULL,
-    enabled boolean DEFAULT false NOT NULL,
-    CONSTRAINT original_recording_rollout_singleton_check CHECK (singleton)
-);
-
 CREATE TABLE public.place_photo_search (
     search_key text NOT NULL,
     place text NOT NULL,
@@ -1453,9 +1447,6 @@ ALTER TABLE ONLY public.lifetime_profile_cadence
 
 ALTER TABLE ONLY public.lifetime_two_lane_rollout
     ADD CONSTRAINT lifetime_two_lane_rollout_pkey PRIMARY KEY (singleton);
-
-ALTER TABLE ONLY public.original_recording_rollout
-    ADD CONSTRAINT original_recording_rollout_pkey PRIMARY KEY (singleton);
 
 ALTER TABLE ONLY public.place_photo_search
     ADD CONSTRAINT place_photo_search_pkey PRIMARY KEY (search_key);
@@ -8295,8 +8286,7 @@ begin
      raise exception 'invalid recording consent' using errcode='22023';end if;
    if p_operation='consent_grant' and (not verified
      or p_data->'retain_originals' is distinct from 'true'::jsonb
-     or p_data->'ai_processing' is distinct from 'true'::jsonb
-     or not exists(select 1 from public.original_recording_rollout where enabled)) then
+     or p_data->'ai_processing' is distinct from 'true'::jsonb) then
      raise exception 'verified identity and explicit recording consent required' using errcode='42501';end if;
    insert into public.user_recording_consent(user_id,revision,policy_version,retain_originals,ai_processing,locale,revoked_at)
    values(p_owner,revision+1,'original-recordings-v1',p_operation='consent_grant',p_operation='consent_grant',
@@ -8309,11 +8299,12 @@ begin
  elsif p_operation<>'consent_status' then
    raise exception 'invalid recording consent operation' using errcode='22023';
  end if;
+ -- Keep the legacy response field for API processes running during schema setup.
  return jsonb_build_object('policy_version','original-recordings-v1','revision',revision,
    'recoverable_identity',verified,'consented',exists(select 1 from public.user_recording_consent c
      where c.user_id=p_owner and c.policy_version='original-recordings-v1'
      and c.retain_originals and c.ai_processing and c.revoked_at is null),
-   'rollout_enabled',exists(select 1 from public.original_recording_rollout where enabled));
+   'rollout_enabled',true);
 end $$;
 REVOKE ALL ON FUNCTION public.recording_consent_operation(uuid,text,jsonb) FROM public,anon,authenticated,service_role;
 
@@ -8334,7 +8325,6 @@ CREATE FUNCTION public.original_recording_visible(r public.user_original_recordi
     AS $$
  select r.user_id=p_owner and r.lifecycle<>'deleted'
  and not exists(select 1 from public.user_original_recording_cancel where user_id=p_owner and upload_key=r.upload_key)
- and exists(select 1 from public.original_recording_rollout where enabled)
  and public.original_recording_authorized(p_owner,r.project_id)
  and (r.project_id is null or exists(select 1 from public.user_memoir_project p
    where p.user_id=p_owner and p.project_id=r.project_id))
@@ -11858,15 +11848,8 @@ begin
    end if;
    return jsonb_build_object('cancelled',true,'recording_id',r.id,'already_attached',false);
  end if;
- if p_operation in ('read','begin_upload','finalize','asr_failed','asr_succeeded') then
-   -- Disable is a committed revocation boundary: it waits for admitted reads/
-   -- provider work, and no later guard can admit after it commits.
-   perform 1 from public.original_recording_rollout where enabled for share;
-   if not found then raise exception 'recording unavailable' using errcode='42501';end if;
- end if;
  if p_operation in ('authorize','reserve') then
-   perform 1 from public.original_recording_rollout where enabled for share;
-   if not found or not public.original_recording_authorized(p_owner,project) then
+   if not public.original_recording_authorized(p_owner,project) then
      raise exception 'recording authority required' using errcode='42501';end if;
    if project is not null then
      perform 1 from public.user_memoir_project where user_id=p_owner and project_id=project for share;
@@ -14158,8 +14141,6 @@ CREATE POLICY news_job_owner ON public.user_historical_news_job FOR SELECT TO au
 
 CREATE POLICY news_state_owner ON public.user_historical_news_state FOR SELECT TO authenticated USING ((user_id = auth.uid()));
 
-ALTER TABLE public.original_recording_rollout ENABLE ROW LEVEL SECURITY;
-
 CREATE POLICY place_journey_owner ON public.user_place_journey FOR SELECT TO authenticated USING ((user_id = ( SELECT auth.uid() AS uid)));
 
 ALTER TABLE public.place_photo_search ENABLE ROW LEVEL SECURITY;
@@ -14392,7 +14373,6 @@ revoke all on table public.guest_conversation_transfer from public,anon,authenti
 revoke all on table public.guest_merge_asset_access from public,anon,authenticated,service_role;
 revoke all on table public.lifetime_profile_cadence from public,anon,authenticated,service_role;
 revoke all on table public.lifetime_two_lane_rollout from public,anon,authenticated,service_role;
-revoke all on table public.original_recording_rollout from public,anon,authenticated,service_role;
 revoke all on table public.place_photo_search from public,anon,authenticated,service_role;
 revoke all on table public.story_entitlement from public,anon,authenticated,service_role;
 revoke all on table public.user_agent_session from public,anon,authenticated,service_role;
@@ -15368,7 +15348,6 @@ CREATE TRIGGER tombstone_original_recordings BEFORE DELETE ON auth.users FOR EAC
 
 insert into public.lifetime_two_lane_rollout(singleton,enabled,strategy_enabled,strategy_shadow)
   values (true,true,true,true);
-insert into public.original_recording_rollout(singleton,enabled) values (true,false);
 insert into public.lifetime_profile_cadence(singleton,initial_rounds,interval_rounds)
   values (true,array[1,5],10);
 

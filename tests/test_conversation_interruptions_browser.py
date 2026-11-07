@@ -74,7 +74,7 @@ def chat():
                   }});
                   return new Response(stream,{headers:{'Content-Type':'application/x-ndjson'}});
                 };
-            ''' + '\n'.join(function(name) for name in ['captureProjectScope', 'isCurrentProjectScope',
+            ''' + '\n'.join(function(name) for name in ['captureProjectScope', 'isCurrentProjectScope', 'resizeChatInput',
                 'chatInputLimitReached', 'chatComposer', 'sendChatMessage', 'processChatMessage', 'retryInterviewTurn',
                 'agentTurn', 'streamAgentTurn', 'waitForAssistantStream', 'streamAssistantMessage']) + '''
                 state.photoTurns=createInterviewPhotoState({state,scope:captureProjectScope,render,api:async()=>({})});

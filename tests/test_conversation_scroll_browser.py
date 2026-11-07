@@ -14,19 +14,25 @@ ROOT = Path(__file__).resolve().parents[1]
 
 @pytest.fixture
 def conversation_page(request):
+    variant = getattr(request, 'param', None)
+    locale = 'zh-CN' if variant == 'map' else 'en-AU'
     with sync_playwright() as pw:
         browser = pw.chromium.launch()
-        context = browser.new_context(viewport={'width':390, 'height':844}, reduced_motion='reduce')
-        context.add_cookies([{'name':'copyme2_ui_locale','value':'en-AU','url':os.environ['MEMOIR_BROWSER_URL']},
-                            {'name':'copyme2_ui_locale_source','value':'fixed','url':os.environ['MEMOIR_BROWSER_URL']}])
+        context = browser.new_context(viewport={'width':390, 'height':844}, reduced_motion='reduce', locale=locale)
         base = os.environ['MEMOIR_BROWSER_URL']
-        user = {'id':'scroll-fixture-owner', 'is_anonymous':bool(getattr(request, 'param', False)), 'user_metadata':{}}
+        context.add_cookies([{'name':'copyme2_ui_locale','value':locale,'url':base},
+                            {'name':'copyme2_ui_locale_source','value':'fixed','url':base}])
+        user = {'id':'scroll-fixture-owner', 'is_anonymous':variant is True, 'user_metadata':{}}
         script = f"""window.supabase={{createClient:()=>({{auth:{{
           getSession:async()=>({{data:{{session:{{access_token:'fixture-only',user:{json.dumps(user)}}}}}}}),
           getUser:async()=>({{data:{{user:{json.dumps(user)}}}}}),onAuthStateChange:()=>({{}})
         }}}})}};"""
         install_supabase_fixture(context, script)
-        profile = {'preferred_language':'en-AU', 'name':'Fixture', 'conversation_language':{'initialized':True,'locale':'en-AU','source':'explicit','version':1,'revision':1}}
+        profile = {'preferred_language':locale, 'name':'Fixture', 'conversation_language':{'initialized':True,'locale':locale,'source':'explicit','version':1,'revision':1}}
+        if variant == 'map':
+            profile['memory_places'] = [dict(place='承德', hierarchy=['Earth', '中国', '河北', '承德'],
+                granularity='city', latitude=40.97, longitude=117.93, revision=1, status='active', schema_version=1)]
+            context.route('https://cesium.com/**', lambda route: route.abort())
         def api(route):
             path = route.request.url.split('/api/v1/memoir')[-1].split('?')[0]
             data = {}
@@ -50,6 +56,7 @@ def conversation_page(request):
           window.fetch=(url, options)=>{
             if(!String(url).endsWith('/agent/turn')) return nativeFetch(url, options);
             window.fixtureTurns++;
+            if(window.fixtureHoldReply) return new Promise(() => {});
             const encoder=new TextEncoder();let index=0;
             const stream=new ReadableStream({start(controller){
               setTimeout(()=>{const timer=setInterval(()=>{
@@ -165,6 +172,57 @@ def test_viewport_resize_and_multiline_composer(conversation_page):
         assert page.locator('#chat-input').evaluate('(e)=>e.scrollHeight>e.clientHeight')
         page.locator('#chat-input').fill('')
         expect_bottom(page)
+
+
+def test_composer_collapses_after_sending_while_reply_is_pending(conversation_page):
+    page = conversation_page
+    page.evaluate('window.fixtureHoldReply = true')
+    field = page.locator('#chat-input')
+    form = page.locator('#chat-form')
+    single_row_height = form.bounding_box()['height']
+
+    field.fill('A first memory.')
+    field.press('Enter')
+    page.wait_for_function('fixtureTurns === 1')
+
+    for count, send in [(22, lambda: field.press('Enter')), (23, form.locator('.send-button').click)]:
+        draft = f'Memory {count}\nA second line of detail.'
+        field.fill(draft)
+        assert form.bounding_box()['height'] > single_row_height
+        send()
+        expect(page.locator('.user-message')).to_have_count(count)
+        expect(field).to_have_value('')
+        assert form.bounding_box()['height'] == pytest.approx(single_row_height, abs=1)
+
+    assert page.evaluate('fixtureTurns') == 1
+
+
+@pytest.mark.parametrize('conversation_page', ['map'], indirect=True)
+def test_compact_map_leaves_room_for_the_chat_input(conversation_page):
+    page = conversation_page
+    map_panel = page.locator('.workspace-media-map')
+    expect(map_panel.locator('[data-map-retry]')).to_be_visible()
+    expect(page.locator('html')).to_have_attribute('lang', 'zh-CN')
+    field = page.locator('#chat-input')
+    form = page.locator('#chat-form')
+    for width in [761, 823, 1024, 1199, 1440]:
+        page.set_viewport_size({'width': width, 'height': 844})
+        chat = page.locator('.chat-main').bounding_box()
+        panel = map_panel.bounding_box()
+        assert chat['y'] == pytest.approx(panel['y'], abs=1)
+        assert chat['x'] + chat['width'] == pytest.approx(panel['x'], abs=1)
+        assert panel['x'] + panel['width'] <= width
+
+        field.fill('记')
+        single_row_height = form.bounding_box()['height']
+        field.fill(field.get_attribute('placeholder'))
+        assert form.bounding_box()['height'] == pytest.approx(single_row_height, abs=1), width
+
+    page.set_viewport_size({'width': 760, 'height': 844})
+    chat = page.locator('.chat-main').bounding_box()
+    panel = map_panel.bounding_box()
+    assert chat['y'] >= panel['y'] + panel['height'] - 1
+    assert chat['width'] == pytest.approx(760, abs=1)
 
 
 def test_send_stream_scrollback_late_content_and_keyboard(conversation_page):

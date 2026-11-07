@@ -277,7 +277,7 @@ const {
 });
 
 const storyGameDialog = createStoryGameDialog({state,storyApi,captureProjectScope,isCurrentProjectScope,translate,generatePrivateDraft,
-  onWorkspaceClose: () => { state.debugWorkspace = null; render(); }});
+  onWorkspaceClose: closeDebugWorkspace});
 
 const {
   addPerson, applyPersistedFamilyContext, closeFamilyPerson, familyWorkspace, initFamilyVisualizations,
@@ -329,6 +329,10 @@ function originalConversationText(text = "") {
 function resizeChatInput(input = $("#chat-input")) {
   if (!input) return;
   input.style.height = "auto";
+  if (!input.value) {
+    input.style.overflowY = "hidden";
+    return;
+  }
   const maxHeight = Number.parseFloat(window.getComputedStyle(input).maxHeight);
   const contentHeight = input.scrollHeight;
   const height = Number.isFinite(maxHeight) ? Math.min(contentHeight, maxHeight) : contentHeight;
@@ -2305,7 +2309,7 @@ function renderStory() {
   }
   const thinkingDraft = $(".agent-composer-draft");
   if (thinkingDraft) state.privateDraftThinkingExpanded = thinkingDraft.open;
-  const debugAction = document.activeElement?.closest?.(".debug-generation-bar button")?.dataset.action;
+  const generationButton = document.activeElement?.closest?.(".workspace-generation-bar button");
   const profileFocus = document.activeElement?.dataset?.profileAction;
   const profileTriggerFocused = document.activeElement?.hasAttribute?.("data-profile-trigger");
   const hadRecallPrompt = Boolean($(".recall-package-prompt"));
@@ -2357,7 +2361,6 @@ function renderStory() {
     notices: `<div class="chat-notices">${state.loading && !state.chat.at(-1)?.streaming ? `<div class="thinking" role="status"><em>${state.supabase?.accessToken ? t("thinkingCodex") : t("thinkingSimulated")}</em></div>` : ""}${placeJourneySurface()}${recallPackagePrompt()}</div>`,
     composer: chatComposer(),
     workspace: workspaceAvailable ? workspaceDetail() : "",
-    debug: state.debugEarlyGeneration && state.project?.id ? debugGenerationBar() : "",
   };
   const shell = $(".story-shell");
   const paint = shell?.memoirPaint;
@@ -2365,7 +2368,6 @@ function renderStory() {
   const layoutChanged = shell?.className !== `story-shell ${shellClass}`;
   let retainedWorkspace = sameVisit && parts.workspace === paint.parts.workspace;
   let headerChanged = true;
-  let debugChanged = true;
   let mapPinsChanged = false;
   const previousWorkspace = $("#workspace-detail");
   if (sameVisit && !retainedWorkspace && parts.workspace && previousWorkspace && previousMap
@@ -2376,6 +2378,7 @@ function renderStory() {
     const nextMap = nextWorkspace.querySelector("[data-cesium-place]");
     if (nextMap && previousWorkspace.className === nextWorkspace.className
         && !nextWorkspace.querySelector(".workspace-detail-tabs")
+        && previousWorkspace.querySelector(".workspace-generation-bar")?.outerHTML === nextWorkspace.querySelector(".workspace-generation-bar")?.outerHTML
         && previousMap.dataset.cesiumScope === nextMap.dataset.cesiumScope
         && previousMap.dataset.cesiumUnavailable === nextMap.dataset.cesiumUnavailable) {
       mapPinsChanged = previousMap.dataset.cesiumPins !== nextMap.dataset.cesiumPins;
@@ -2403,7 +2406,6 @@ function renderStory() {
     update("notices", ".chat-notices");
     update("composer", ".composer-wrap", ".chat-main");
     if (!retainedWorkspace) update("workspace", "#workspace-detail", ".conversation-layout");
-    debugChanged = update("debug", ".debug-generation-bar", ".story-shell");
   } else {
     $("#app").innerHTML = `
       <div class="story-shell ${shellClass}">
@@ -2415,7 +2417,6 @@ function renderStory() {
           </main>
           ${parts.workspace}
         </div>
-        ${parts.debug}
       </div>`;
     bindViewActions();
   }
@@ -2483,15 +2484,17 @@ function renderStory() {
     else if (scroll !== previousScroll) conversationScroll.follow();
     if (scroll !== previousScroll) conversationScroll.mount(scroll);
   }
-  if (debugChanged && debugAction) {
-    $(`.debug-generation-bar [data-action="${debugAction}"]`)?.focus({preventScroll:true});
+  if (!retainedWorkspace && generationButton) {
+    const action = generationButton.dataset.action;
+    const selector = action ? `[data-action="${action}"]` : "[data-story-game]";
+    $(`.workspace-generation-bar ${selector}`)?.focus({preventScroll:true});
   }
   persistChatHistory();
 }
 
 function workspaceContentAvailable() {
   const selected = state.debugEarlyGeneration ? state.debugWorkspace : composingWorkspaceActive() || freeRecallFinished();
-  return Boolean(selected || (state.project?.id && placeMapTarget(placeWorkspaceSelection())));
+  return Boolean(selected || workspaceGenerationAvailable() || (state.project?.id && placeMapTarget(placeWorkspaceSelection())));
 }
 
 function workspaceHasContent() {
@@ -2500,8 +2503,12 @@ function workspaceHasContent() {
 
 function workspaceDetail() {
   const t = (key) => escapeHtml(translate(`Memoir.workspace.${key}`));
-  if (state.debugEarlyGeneration && state.debugWorkspace === "game") {
-    return `<aside id="workspace-detail" class="workspace-detail is-debug-game" aria-label="${escapeHtml(translate("Memoir.game.title"))}"><div data-story-game-workspace></div></aside>`;
+  const debugView = state.debugEarlyGeneration ? state.debugWorkspace : null;
+  const closeButton = debugView
+    ? `<div class="workspace-detail-actions"><button type="button" class="button button-secondary button-small" data-action="close-debug-workspace"><span aria-hidden="true">×</span>${t("backToMap")}</button></div>`
+    : "";
+  if (debugView === "game") {
+    return `<aside id="workspace-detail" class="workspace-detail is-debug-game" aria-label="${escapeHtml(translate("Memoir.game.title"))}"><div class="workspace-detail-top">${closeButton}</div><div data-story-game-workspace></div>${workspaceGenerationBar()}</aside>`;
   }
   const expanded = workspaceIsVisible();
   const toggleLabel = t(expanded ? "collapseWorkspace" : "showWorkspace");
@@ -2521,13 +2528,14 @@ function workspaceDetail() {
     ? `<nav class="workspace-detail-tabs" aria-label="${t("workspaceViews")}">${tabs.map(([key, label]) => `<button class="workspace-detail-tab ${active === key ? "active" : ""}" aria-current="${active === key ? "page" : "false"}" data-workspace-tab="${key}">${escapeHtml(label)}</button>`).join("")}</nav>`
     : "";
   const contentMarkup = content ? `${tabsMarkup}${content}` : tabsMarkup;
-  const composing = state.debugEarlyGeneration ? state.debugWorkspace === "memoir" : composingWorkspaceActive();
+  const composing = state.debugEarlyGeneration ? debugView === "memoir" : composingWorkspaceActive();
   const mediaOverview = composing || (tabs.length && !state.placeJourney) ? "" : workspaceMediaOverview(toggle);
-  const workspaceHeader = mediaOverview ? "" : `<div class="workspace-detail-top">${toggle}</div>`;
+  const workspaceHeader = mediaOverview ? "" : `<div class="workspace-detail-top">${toggle}${closeButton}</div>`;
   const ariaLabel = tabs.length
     ? `${escapeHtml(title)} ${t("workspaceSuffix")}`
     : state.placeJourney ? `${t("places")} ${t("workspaceSuffix")}` : t("yourWorkspace");
-  return `<aside id="workspace-detail" class="workspace-detail${mediaOverview && tabs.length ? " has-recall-views" : ""}" aria-label="${ariaLabel}">${workspaceHeader}${mediaOverview}${contentMarkup}${tabs.length || mediaOverview ? lifeStageNavigator(!mediaOverview) : ""}</aside>`;
+  const paneClass = debugView === "memoir" ? " is-debug-memoir" : mediaOverview && tabs.length ? " has-recall-views" : "";
+  return `<aside id="workspace-detail" class="workspace-detail${paneClass}" aria-label="${ariaLabel}">${workspaceHeader}${mediaOverview}${contentMarkup}${tabs.length || mediaOverview ? lifeStageNavigator(!mediaOverview) : ""}${workspaceGenerationBar()}</aside>`;
 }
 
 function currentWorkspaceMemoryFocus() {
@@ -2783,7 +2791,7 @@ function memoirWorkspace() {
   let selected = chapters.findIndex((chapter, index) => memoirChapterKey(chapter, index) === state.selectedMemoirChapter);
   if (selected < 0) selected = 0;
   const chapter = chapters[selected];
-  const draftPreview = privateDraftGenerationStatus() + privateDraftPreview({ inChapters: true }) + storyGameButton();
+  const draftPreview = privateDraftGenerationStatus() + privateDraftPreview({ inChapters: true });
   if (!chapter) return `<div class="workspace-scroll"><div class="workspace-intro"><h2>${t("memoir")}</h2></div>${draftPreview || `<div class="workspace-empty"><span>✦</span><p>${t("firstChapterEmpty")}</p></div>`}</div>`;
   state.selectedMemoirChapter = memoirChapterKey(chapter, selected);
   const button = (index, label, disabled = false) => `<button type="button" data-memoir-chapter="${escapeHtml(memoirChapterKey(chapters[index], index))}" ${disabled ? "disabled" : ""}>${label}</button>`;
@@ -2962,19 +2970,27 @@ function recallPackagePrompt() {
   return `${excerpt}<section class="recall-package-prompt" aria-labelledby="recall-package-title"><h2 id="recall-package-title">${t("title")}</h2><p>${t("description")}</p>${state.supabase?.user?.is_anonymous ? `<p class="fine-print">${t("signIn")}</p>` : ""}${pending ? `<p role="status">${escapeHtml(translate("Memoir.storyFlow.paymentConfirming"))}</p>` : ""}<button type="button" class="text-button" data-check-recall-payment ${state.loading ? "disabled" : ""}>${t("checkPayment")}</button>${storyCheckoutForm()}</section>`;
 }
 
-function storyGameButton() {
-  return !state.debugEarlyGeneration && state.project?.id &&
-    state.currentInterviewMode?.project_id === state.project.id && state.currentInterviewMode.mode === "shape"
-    ? `<div class="workspace-game"><button type="button" class="button button-secondary" data-story-game>${escapeHtml(translate("Memoir.game.button"))}</button></div>` : "";
+function workspaceGenerationAvailable() {
+  return Boolean(state.project?.id && (state.debugEarlyGeneration ||
+    (state.currentInterviewMode?.project_id === state.project.id && state.currentInterviewMode.mode === "shape")));
 }
 
-function debugGenerationBar() {
-  return `<footer class="debug-generation-bar"><button type="button" class="button button-secondary button-small" data-action="generate-private-draft">${escapeHtml(translate("Memoir.storyFlow.generateMemoir"))}</button>
-    <button type="button" class="button button-secondary button-small" data-action="generate-story-game" title="${escapeHtml(translate("Memoir.game.consentIntro"))}">${escapeHtml(translate("Memoir.game.button"))}</button></footer>`;
+function workspaceGenerationBar() {
+  if (!workspaceGenerationAvailable()) return "";
+  const gameLabel = escapeHtml(translate("Memoir.game.button"));
+  const buttons = state.debugEarlyGeneration
+    ? `<button type="button" class="button button-secondary button-small" data-action="generate-private-draft">${escapeHtml(translate("Memoir.storyFlow.generateMemoir"))}</button>
+       <button type="button" class="button button-secondary button-small" data-action="generate-story-game" title="${escapeHtml(translate("Memoir.game.consentIntro"))}">${gameLabel}</button>`
+    : `<button type="button" class="button button-secondary button-small" data-story-game>${gameLabel}</button>`;
+  return `<footer class="workspace-generation-bar">${buttons}</footer>`;
 }
 
 function openDebugWorkspace(kind) {
   if (!state.debugEarlyGeneration || !state.project?.id) return;
+  if (kind === "game" && state.supabase?.user?.is_anonymous) {
+    authReminder.open({ signIn: true });
+    return;
+  }
   state.debugWorkspace = kind;
   state.workspaceCollapsed = false;
   if (kind === "memoir") {
@@ -2985,6 +3001,14 @@ function openDebugWorkspace(kind) {
   } else {
     storyGameDialog.openWorkspace(render);
   }
+}
+
+function closeDebugWorkspace() {
+  const action = state.debugWorkspace === "game" ? "generate-story-game" : "generate-private-draft";
+  state.debugWorkspace = null;
+  state.workspaceCollapsed = false;
+  render();
+  $(`.workspace-generation-bar [data-action="${action}"]`)?.focus({preventScroll: true});
 }
 
 function chatInputLimitReached() {
@@ -3010,8 +3034,7 @@ function chatInputLimitReached() {
 
 function chatComposer() {
   if (state.recallStatus?.payment_required) return "";
-  const game = storyGameButton();
-  const focusControls = workspaceMemoryFocusMarkup()+game+`<button type="button" class="text-button" data-action="recording-consent">${escapeHtml(translate('RecordingConsent.title'))}</button>`;
+  const focusControls = workspaceMemoryFocusMarkup()+`<button type="button" class="text-button" data-action="recording-consent">${escapeHtml(translate('RecordingConsent.title'))}</button>`;
   const t = (key) => escapeHtml(translate(`Memoir.story.${key}`));
   const atLimit = chatInputLimitReached();
   const waitNote = atLimit ? `<div class="composer-note" role="status">${t("sendWait")}</div>` : "";
@@ -3255,6 +3278,7 @@ function bindViewActions(root = document) {
     "add-person": addPerson,
     "generate-private-draft": () => openDebugWorkspace("memoir"),
     "generate-story-game": () => openDebugWorkspace("game"),
+    "close-debug-workspace": closeDebugWorkspace,
     "retry-private-draft": retryPrivateDraft,
     "load-more-private-draft": loadMorePrivateDraft,
     "refresh-private-draft": () => refreshPrivateDraft({restart:true}),
@@ -3361,7 +3385,10 @@ async function sendChatMessage({ voiceTurn = false } = {}) {
   state.freshAnonymousSession = false;
   state.chatHistoryCollapsed = false;
   state.chat.push({role:"user", text:messageText, clientTurnId:id, attachments});
-  if (input) input.value = "";
+  if (input) {
+    input.value = "";
+    resizeChatInput(input);
+  }
   state.audioUploadId = null;
   state.audioTranscript = "";
   state.audioTranscriptKind = "narrator_chat";

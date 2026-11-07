@@ -36,7 +36,8 @@ function workspaceHarness(overrides = {}, dependencies = {}) {
     ...dependencies,
   });
   for (const name of ['freeRecallFinished', 'composingWorkspaceActive', 'workspaceTabs', 'activeWorkspaceTab',
-    'workspaceContentAvailable', 'workspaceHasContent', 'workspaceIsVisible', 'workspaceDetail', 'debugGenerationBar', 'renderStory']) {
+    'workspaceGenerationAvailable', 'workspaceContentAvailable', 'workspaceHasContent', 'workspaceIsVisible',
+    'workspaceDetail', 'workspaceGenerationBar', 'renderStory']) {
     vm.runInContext(extract(name), context);
   }
   return {state, context, app};
@@ -112,7 +113,7 @@ test('live draft previews require only their own flag and a local browser', asyn
   }
 });
 
-test('early generation adds only two footer actions before either workspace is selected', async () => {
+test('early generation adds both actions only inside the workspace', async () => {
   for (const [hostname, flag, enabled] of [['localhost', true, true], ['localhost', false, false],
     ['memoir.example', true, false]]) {
     const {state, context, app} = workspaceHarness({
@@ -128,10 +129,26 @@ test('early generation adds only two footer actions before either workspace is s
     assert.equal(context.freeRecallFinished(), false);
     assert.match(app.innerHTML, /workspace-media-overview/);
     assert.doesNotMatch(app.innerHTML, /data-workspace-tab|private-draft-status|workspace-intro/);
-    const footer = app.innerHTML.match(/<footer class="debug-generation-bar"[^]*?<\/footer>/)?.[0] || '';
+    const workspace = app.innerHTML.match(/<aside id="workspace-detail"[^]*?<\/aside>/)[0];
+    const footer = workspace.match(/<footer class="workspace-generation-bar"[^]*?<\/footer>/)?.[0] || '';
+    assert.equal((app.innerHTML.match(/class="workspace-generation-bar"/g) || []).length, enabled ? 1 : 0);
     assert.equal((footer.match(/<button /g) || []).length, enabled ? 2 : 0);
     assert.equal(footer.includes('data-action="generate-private-draft"'), enabled);
     assert.equal(footer.includes('data-action="generate-story-game"'), enabled);
+  }
+});
+
+test('eligible generation controls stay reachable before a map is available', () => {
+  for (const overrides of [{debugEarlyGeneration:true}, {currentInterviewMode:{project_id:'project', mode:'shape'}}]) {
+    const {state, context, app} = workspaceHarness({placeJourney:null, ...overrides}, {workspaceMediaOverview:() => ''});
+    context.renderStory();
+    const workspace = app.innerHTML.match(/<aside id="workspace-detail"[^]*?<\/aside>/)[0];
+    assert.match(workspace, overrides.debugEarlyGeneration ? /data-action="generate-story-game"/ : /data-story-game>/);
+
+    state.workspaceCollapsed = true;
+    context.renderStory();
+    assert.match(app.innerHTML, /workspace-detail is-collapsed/);
+    assert.doesNotMatch(app.innerHTML, /workspace-generation-bar/);
   }
 });
 
@@ -301,7 +318,7 @@ test('the workspace is available only while there is a map or a tab to open', ()
     placeWorkspaceSelection: () => state.placeJourney,
     placeMapTarget: place => place ? target : null,
   });
-  for (const name of ['workspaceContentAvailable', 'workspaceHasContent', 'workspaceIsVisible']) {
+  for (const name of ['workspaceGenerationAvailable', 'workspaceContentAvailable', 'workspaceHasContent', 'workspaceIsVisible']) {
     vm.runInContext(extract(name), context);
   }
 

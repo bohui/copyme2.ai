@@ -395,6 +395,7 @@
     "workspace": {
       "showWorkspace": "显示工作区",
       "collapseWorkspace": "收起工作区",
+      "backToMap": "返回地图",
       "lifeJourneyEyebrow": "人生时间线",
       "lifeJourneyTitle": "用您的话讲述人生",
       "lifeJourneyIntro": "从哪个人生阶段聊起都可以。选择一个阶段，查看已保存的回忆和帮助您回忆的问题。",

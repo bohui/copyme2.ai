@@ -723,23 +723,24 @@ def build_router(
 
     @router.get('/recording-consent')
     def recording_consent(authorization: str | None = Header(default=None)):
-        from .original_recordings import RecordingStore
+        from .original_recordings import RecordingStore, recording_capture_enabled
         storage = storage_for(authorization)
         try:
             status = RecordingStore(storage).trusted('consent_status')
-            status['enabled'] = os.getenv('MEMOIR_ORIGINAL_RECORDINGS') == '1' and status['rollout_enabled']
+            status['enabled'] = recording_capture_enabled()
             return JSONResponse(status, headers={'Cache-Control':'private, no-store', 'Vary':'Authorization'})
         finally: _close(storage)
 
     @router.put('/recording-consent')
     def update_recording_consent(payload: RecordingConsentInput, authorization: str | None = Header(default=None)):
-        from .original_recordings import RecordingStore, error
+        from .original_recordings import RecordingStore, error, recording_capture_enabled
         storage = storage_for(authorization)
         try:
-            if payload.action == 'grant' and os.getenv('MEMOIR_ORIGINAL_RECORDINGS') != '1':
+            enabled = recording_capture_enabled()
+            if payload.action == 'grant' and not enabled:
                 raise error(503, 'ORIGINAL_RECORDINGS_DISABLED', 'Original recording retention is disabled')
             status = RecordingStore(storage).trusted('consent_' + payload.action, data=payload.model_dump(exclude={'action'}))
-            status['enabled'] = os.getenv('MEMOIR_ORIGINAL_RECORDINGS') == '1' and status['rollout_enabled']
+            status['enabled'] = enabled
             return JSONResponse(status, headers={'Cache-Control':'private, no-store', 'Vary':'Authorization'})
         finally: _close(storage)
 

@@ -437,11 +437,7 @@ export function createStoryGameDialog({ state, storyApi, captureProjectScope, is
       const spinner = `<div class="debug-game-progress" role="status" aria-label="${escapeHtml(t("loading"))}"><span class="preview-spinner" aria-hidden="true"></span></div>`;
       if (content?.status === "published" && !view.busy && !document.hidden) {
         view.body.innerHTML = `<div data-story-game-player>${spinner}</div>`;
-        view.cleanup = mountStoryGameWebpage(view.body.firstElementChild, content.game, t, () => {
-          close();
-          onWorkspaceClose?.();
-          document.querySelector('[data-action="generate-story-game"]')?.focus({preventScroll:true});
-        });
+        view.cleanup = mountStoryGameWebpage(view.body.firstElementChild, content.game, t, onWorkspaceClose);
       } else {
         view.body.innerHTML = view.error ? `<p class="debug-game-progress" role="alert">${escapeHtml(view.error)}</p>` : spinner;
       }

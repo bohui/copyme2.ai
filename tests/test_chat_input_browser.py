@@ -51,7 +51,7 @@ def chat_page():
                 const sendChatMessage = () => sentMessages.push($('#chat-input').value);
             ''' + '\n'.join(function(name) for name in (
                 'captureProjectScope', 'isCurrentProjectScope', 'resizeChatInput',
-                'render', 'renderStory', 'storyGameButton', 'chatInputLimitReached', 'chatComposer', 'bindViewActions',
+                'render', 'renderStory', 'chatInputLimitReached', 'chatComposer', 'bindViewActions',
             )) + '\nrender();')
             yield page
         finally:

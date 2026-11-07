@@ -25,7 +25,7 @@ if (!expected.length) {
 const context = vm.createContext({state, composingWorkspaceActive:() => false, freeRecallFinished:() => false,
   placeWorkspaceSelection:() => state.placeJourney, placeMapTarget:place => place});
 const source = readMemoirClientSource();
-for (const name of ['workspaceContentAvailable', 'workspaceHasContent', 'workspaceIsVisible']) {
+for (const name of ['workspaceGenerationAvailable', 'workspaceContentAvailable', 'workspaceHasContent', 'workspaceIsVisible']) {
   vm.runInContext(source.match(new RegExp(`function ${name}\\([^]*?\\n\\}`))[0], context);
 }
 assert.equal(context.workspaceIsVisible(),expected.length > 0,'The workspace requires an authorized map place');

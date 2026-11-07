@@ -330,7 +330,6 @@ def test_anonymous_outsider_and_direct_table_writes_cannot_grant_consent(consent
     assert client.get(ENDPOINT, headers={'Authorization':'Bearer other'}).json()['consented'] is False
     assert sql(as_user('select * from public.user_recording_consent;'),check=False).returncode != 0
     assert sql(as_user(f"select public.recording_consent_operation('{OTHER}','consent_grant','{{}}');"),check=False).returncode != 0
-    assert sql(as_user("update public.original_recording_rollout set enabled=true;"),check=False).returncode != 0
 
 
 def test_revocation_waits_for_admitted_provider_guard(consent_workflow, media):
@@ -359,15 +358,35 @@ def test_revocation_waits_for_admitted_provider_guard(consent_workflow, media):
     assert client.get(recording['content_url']).status_code == 404
 
 
-def test_rollout_identity_changes_and_invalid_policy_fail_closed(consent_workflow, media):
+def test_identity_changes_and_invalid_policy_fail_closed(consent_workflow, media):
     client,storage,sql,objects,calls,mode = consent_workflow
     assert grant(client, policy_version='outdated').status_code == 422
     assert grant(client, retain_originals='true').status_code == 422
     assert grant(client).status_code == 200
     sql(f"update auth.users set email_confirmed_at=null where id='{OWNER}';")
     assert upload(client, media).status_code == 403
-    sql('update public.original_recording_rollout set enabled=false;')
-    assert client.get(ENDPOINT).json()['enabled'] is False
-    assert grant(client, expected_revision=1).status_code == 403
-    assert client.put(ENDPOINT,json={**POLICY,'action':'revoke','expected_revision':1}).status_code == 200
     assert not calls
+
+
+def test_environment_switch_controls_new_recording_and_consent(consent_workflow, media, monkeypatch):
+    client, _, _, _, calls, _ = consent_workflow
+    monkeypatch.setenv('MEMOIR_ORIGINAL_RECORDINGS', '0')
+    assert client.get(ENDPOINT).json()['enabled'] is False
+    for result in (grant(client), upload(client, media)):
+        assert result.status_code == 503
+        assert result.headers['X-Error-Code'] == 'ORIGINAL_RECORDINGS_DISABLED'
+    assert not calls
+
+    monkeypatch.setenv('MEMOIR_ORIGINAL_RECORDINGS', '1')
+    assert client.get(ENDPOINT).json()['enabled'] is True
+    assert grant(client).json()['enabled'] is True
+    result = upload(client, media)
+    assert result.status_code == 200, result.text
+    content_url = result.json()['recording']['content_url']
+
+    monkeypatch.setenv('MEMOIR_ORIGINAL_RECORDINGS', '0')
+    assert client.get(content_url).content == media[0]
+    revoked = client.put(ENDPOINT, json={**POLICY, 'action':'revoke', 'expected_revision':1})
+    assert revoked.status_code == 200
+    assert revoked.json()['enabled'] is False and revoked.json()['consented'] is False
+    assert client.get(content_url).status_code == 404

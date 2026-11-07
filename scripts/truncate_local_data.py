@@ -134,7 +134,6 @@ APP_TABLES = (
 PRESERVED_TABLES = (
     "public.lifetime_profile_cadence",
     "public.lifetime_two_lane_rollout",
-    "public.original_recording_rollout",
     "public.place_photo_search",
 )
 STORAGE_PAGE_SIZE = 1000

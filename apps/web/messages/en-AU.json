@@ -395,6 +395,7 @@
     "workspace": {
       "showWorkspace": "Show workspace",
       "collapseWorkspace": "Collapse workspace",
+      "backToMap": "Back to map",
       "lifeJourneyEyebrow": "Life timeline",
       "lifeJourneyTitle": "Your life, in your words",
       "lifeJourneyIntro": "Start anywhere. Select a stage to see the memories and invitation waiting there.",

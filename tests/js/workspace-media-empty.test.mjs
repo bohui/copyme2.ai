@@ -73,7 +73,7 @@ test(`background location lookup ${outcome} only shows the workspace when a map 
     escapeHtml: String, translate: String, renderablePictureItems: value => value,
     favoritePhotoWall: () => '',
   });
-  for (const name of ['placeMapTarget', 'resolvePlaceMap', 'freeRecallFinished', 'workspaceContentAvailable', 'workspaceHasContent', 'workspaceMediaOverview']) {
+  for (const name of ['placeMapTarget', 'resolvePlaceMap', 'freeRecallFinished', 'workspaceGenerationAvailable', 'workspaceContentAvailable', 'workspaceHasContent', 'workspaceMediaOverview']) {
     vm.runInContext(source.match(new RegExp(`function ${name}\\([^]*?\\n\\}`))[0], context);
   }
   assert.equal(context.workspaceHasContent(), false);

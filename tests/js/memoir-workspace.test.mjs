@@ -16,7 +16,7 @@ function setup(overrides = {}) {
   const translate = key => messages[key.split('.').at(-1)] || key;
   const context = vm.createContext({state, escapeHtml, translate,
     translateWith:(key, values) => translate(key).replace(/\{(\w+)\}/g, (_, name) => values[name]),
-    formatText:escapeHtml, sourcePills:() => 'sources', referencesWorkspace:() => '',storyGameButton:() => '',
+    formatText:escapeHtml, sourcePills:() => 'sources', referencesWorkspace:() => '',
     privateDraftGenerationStatus:() => '',
     familyWorkspace:() => '<div>family view</div>', timelineWorkspace:() => '<div>timeline view</div>',
     workspaceIsVisible:() => true, workspaceMediaOverview:() => '<section class="workspace-media-overview">places and pictures</section>',
@@ -26,7 +26,8 @@ function setup(overrides = {}) {
     profile:() => state.project.profile || {}, currentUiLocale:() => 'zh-CN',
   });
   for (const name of ['freeRecallFinished','privateDraftPreview','composingWorkspaceActive','workspaceTabs','activeWorkspaceTab','workspaceDetail',
-    'chapterSourceIds','chapterBlockMarkup','memoirChapters','memoirChapterKey','selectMemoirChapter','memoirWorkspace']) vm.runInContext(extract(name), context);
+    'workspaceGenerationAvailable','workspaceGenerationBar','chapterSourceIds','chapterBlockMarkup','memoirChapters','memoirChapterKey',
+    'selectMemoirChapter','memoirWorkspace']) vm.runInContext(extract(name), context);
   return context;
 }
 

@@ -18,6 +18,7 @@ export function readMemoirClientSource() {
 
 export function installConversationInputs(context) {
   context.crypto ||= {randomUUID};
+  context.resizeChatInput ||= () => {};
   const source = readMemoirClientSource();
   for (const name of ['chatInputLimitReached', 'processChatMessage']) {
     vm.runInContext(source.match(new RegExp(`(?:async )?function ${name}\\([^]*?\\n\\}`))[0], context);

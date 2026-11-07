@@ -1,5 +1,3 @@
-from pathlib import Path
-
 import httpx
 import pytest
 
@@ -10,9 +8,10 @@ def test_targeted_setup_contains_only_consent_and_recording_ddl():
     ddl=recording_schema(BASELINE.read_text())
     assert 'CREATE TABLE IF NOT EXISTS public.user_recording_consent' in ddl
     assert 'CREATE OR REPLACE FUNCTION public.original_recording_authorized' in ddl
+    assert 'CREATE OR REPLACE FUNCTION public.original_recording_visible' in ddl
     assert 'CREATE OR REPLACE FUNCTION public.recording_server_operation' in ddl
     assert 'DROP ' not in ddl and 'TRUNCATE ' not in ddl
-    assert 'user_profile' not in ddl and 'storage.objects' not in ddl
+    assert 'user_profile' not in ddl and 'storage.objects' not in ddl and 'original_recording_rollout' not in ddl
 
 
 def test_setup_creates_missing_bucket_privately_and_preserves_existing_bucket():

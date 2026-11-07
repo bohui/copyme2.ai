@@ -180,7 +180,7 @@ test('keeps the last available map when a later selected place cannot be resolve
   profile: () => ({memory_places: [unknown, mapped]}), composingWorkspaceActive: () => false, freeRecallFinished: () => false,
   publishedMap:()=>false,
  });
- for (const name of ['placeMapTarget', 'placeMapRenderKey', 'placeMapAvailable', 'placeWorkspaceSelection', 'freeRecallFinished', 'workspaceContentAvailable', 'workspaceHasContent']) {
+ for (const name of ['placeMapTarget', 'placeMapRenderKey', 'placeMapAvailable', 'placeWorkspaceSelection', 'freeRecallFinished', 'workspaceGenerationAvailable', 'workspaceContentAvailable', 'workspaceHasContent']) {
   vm.runInContext(source.match(new RegExp(`function ${name}\\([^]*?\\n\\}`))[0], context);
  }
  assert.equal(context.workspaceHasContent(), true);

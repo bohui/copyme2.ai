@@ -1,9 +1,4 @@
-"""Complete original audio ingestion. No public URLs or local persistence ledger.
-
-Rollout and the database retention-authority hook both default to denial. The
-hook must be implemented against approved identity/consent authority separately;
-neither a request flag nor user-editable profile metadata is consent evidence.
-"""
+"""Private original audio ingestion with server-verified consent."""
 import asyncio
 import base64
 import binascii
@@ -66,6 +61,10 @@ class RecordingBodyLimit:
 def error(status, code, message, **detail):
     return HTTPException(status, {'code':code, 'message':message, **detail},
                          headers={'X-Error-Code':code, 'Cache-Control':'private, no-store'})
+
+
+def recording_capture_enabled():
+    return os.getenv('MEMOIR_ORIGINAL_RECORDINGS') == '1'
 
 
 def validate_original(encoded, content_type):
@@ -225,7 +224,7 @@ class RecordingStore:
             raise error(503, 'RECORDING_DATABASE_UNAVAILABLE', 'Recording persistence is unavailable') from None
 
     def authorize(self, project_id=None):
-        if os.getenv('MEMOIR_ORIGINAL_RECORDINGS', '') != '1':
+        if not recording_capture_enabled():
             raise error(503, 'ORIGINAL_RECORDINGS_DISABLED', 'Original recording retention is disabled')
         if getattr(self.storage, 'is_anonymous', True):
             raise error(403, 'RECORDING_AUTHORITY_REQUIRED', 'Verify a recoverable identity and recording consent first')

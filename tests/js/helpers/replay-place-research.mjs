@@ -184,7 +184,7 @@ Object.assign(context,{escapeHtml,formatText,translateWith,freeRecallFinished:()
   workspaceIsVisible:()=>true,workspaceTabs:()=>[],composingWorkspaceActive:()=>false,
   workspaceMediaOverview:places.workspaceMediaOverview,lifeStageNavigator:()=>'',
   currentSectionRework:()=>null,sectionReworkNotice:()=>'',currentUiLocale:()=>document.documentElement.lang});
-for (const name of ['privateDraftPreview','workspaceDetail','renderAgentTrace','recordWorkspaceSkillProgress']) {
+for (const name of ['privateDraftPreview','workspaceDetail','workspaceGenerationAvailable','workspaceGenerationBar','renderAgentTrace','recordWorkspaceSkillProgress']) {
   vm.runInContext(source.match(new RegExp(`function ${name}\\([^]*?\\n\\}`))[0],context);
 }
 state.showThinkingSteps=true;state.showDraftUpdates=true;state.privateDraft=packet.private_draft;

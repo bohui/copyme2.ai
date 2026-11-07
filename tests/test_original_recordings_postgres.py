@@ -30,12 +30,12 @@ def info(**extra):
 def approved(sql):
     sql('truncate public.user_original_recording,public.user_original_recording_cancel cascade;')
     # Only this disposable fixture installs synthetic consent authority.
-    sql("update public.original_recording_rollout set enabled=true; create or replace function "
+    sql("create or replace function "
         "public.original_recording_authorized(p_owner uuid,p_project_id text) returns boolean "
         "language sql stable security definer set search_path='' as $$select exists(select 1 from auth.users "
         "where id=p_owner and not is_anonymous)$$;")
     yield sql
-    sql("update public.original_recording_rollout set enabled=false; create or replace function "
+    sql("create or replace function "
         "public.original_recording_authorized(p_owner uuid,p_project_id text) returns boolean "
         "language sql stable security definer set search_path='' as $$select false$$;")
 
@@ -50,7 +50,7 @@ def accept(sql, recordings, turn=None, owner=OWNER, two_lane=False):
         f"'project','{turn or uuid4()}','Edited words and typed clarification','narrator_transcript','en-AU','[]',null,{literal(recordings)}::jsonb",owner=owner)
 
 
-def test_default_database_gate_denies_even_a_permanent_authenticated_owner(sql):
+def test_database_denies_an_owner_without_recording_consent(sql):
     assert server(sql,'reserve',data=info(),check=False).returncode != 0
 
 
@@ -219,26 +219,6 @@ def test_reservation_cannot_escape_a_concurrent_project_deletion(approved):
     finally:
         blocker.close()
         sql('drop trigger fixture_hold_reservation on public.user_original_recording;drop function public.fixture_hold_reservation();')
-
-
-def test_inflight_read_guard_orders_rollout_disablement_before_new_access(approved):
-    from concurrent.futures import ThreadPoolExecutor
-    from psycopg import connect
-    from psycopg.types.json import Jsonb
-    sql=approved;record=ready(sql);dsn=sql.publication_dsn
-    guarded=connect(dsn)
-    guarded.execute('select public.recording_server_operation(%s,%s,%s,%s)',(OWNER,'read',record['id'],Jsonb({})))
-    def disable():
-        with connect(dsn,application_name='issue73-disable-race') as connection:
-            connection.execute('update public.original_recording_rollout set enabled=false')
-    with ThreadPoolExecutor(1) as pool:
-        pending=pool.submit(disable)
-        try:
-            observed=wait_for_database_lock_or_completion(dsn,'issue73-disable-race',pending)
-        finally:guarded.close()
-        pending.result(10)
-    assert observed=='blocked', 'Disable committed while the publication/provider guard still held its read transaction'
-    assert rpc(sql,'read_user_original_recording',literal(record['id'])) is None
 
 
 @pytest.mark.parametrize('proof',['missing','stale'])

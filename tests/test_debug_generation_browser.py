@@ -15,8 +15,12 @@ pytestmark = pytest.mark.skipif(not os.getenv('MEMOIR_BROWSER_URL'), reason='Req
 ROOT = Path(__file__).resolve().parents[1]
 
 
-@pytest.mark.parametrize('locale,width', [('en-AU', 1440), ('zh-CN', 390)])
-def test_debug_footer_switches_from_map_to_a_playable_game_and_memoir(locale, width):
+@pytest.mark.parametrize('locale,width,memoir_label,game_label,close_label', [
+    ('en-AU', 1440, 'Generate my memoir', 'Story game', 'Back to map'),
+    ('zh-CN', 390, '我的回忆录', '我的人生游戏', '返回地图'),
+])
+@pytest.mark.parametrize('anonymous', [True, False], ids=['guest', 'owner'])
+def test_workspace_footer_opens_sign_in_or_a_playable_game_and_memoir(locale, width, memoir_label, game_label, close_label, anonymous):
     base = os.environ['MEMOIR_BROWSER_URL']
     project_id = 'debug-workspace'
     project_path = f'/agent/projects/{project_id}'
@@ -82,6 +86,9 @@ def test_debug_footer_switches_from_map_to_a_playable_game_and_memoir(locale, wi
             actions.append('consent')
             assert route.request.post_data_json['action'] == 'grant'
         elif path == project_path + '/story-game':
+            if anonymous:
+                actions.append('unauthorized game request')
+                return route.fulfill(status=403, json={'detail': 'Memoir unavailable.'})
             if method == 'POST':
                 actions.append('scenes')
                 return route.fulfill(status=202, json={'status': 'pending'})
@@ -109,21 +116,45 @@ def test_debug_footer_switches_from_map_to_a_playable_game_and_memoir(locale, wi
                              {'name': 'copyme2_ui_locale_source', 'value': 'fixed', 'url': base}])
         page = context.new_page()
         page.route('**/*', lambda route: route.continue_() if route.request.url.startswith(base + '/') else route.abort())
-        user = dict(id=STAGE_OWNER, is_anonymous=False, user_metadata={'ui_locale': locale})
+        user = dict(id=STAGE_OWNER, is_anonymous=anonymous, user_metadata={'ui_locale': locale})
         session = json.dumps(dict(access_token='fixture-only', user=user))
         install_supabase_fixture(page, 'window.supabase={createClient:()=>({auth:{getSession:async()=>({data:{session:'
             + session + '}}),onAuthStateChange:()=>({})}})};')
         install_atlas_fixture(page, lambda: atlas)
         page.route('**/api/v1/memoir/**', api)
         page.goto(base + '/memoir/interview/' + project_id)
-        footer = page.locator('.debug-generation-bar')
         workspace = page.locator('#workspace-detail')
-        expect(workspace.locator('.workspace-media-overview')).to_be_visible(timeout=15000)
+        footer = workspace.locator(':scope > .workspace-generation-bar')
+        map_view = workspace.locator('.workspace-media-overview')
+        close_view = workspace.get_by_role('button', name=close_label, exact=True)
+
+        def expect_map_restored(opener):
+            expect(map_view).to_be_visible()
+            expect(workspace.locator('[data-story-game-workspace], [data-workspace-tab]')).to_have_count(0)
+            expect(close_view).to_have_count(0)
+            expect(opener).to_be_focused()
+
+        expect(page.locator('.workspace-generation-bar')).to_have_count(1)
+        expect(map_view).to_be_visible(timeout=15000)
+        expect(close_view).to_have_count(0)
         expect(footer.get_by_role('button')).to_have_count(2)
-        expect(footer).to_be_in_viewport()
+        expect(footer).to_be_in_viewport(ratio=1)
         expect(workspace.locator('h2, [data-workspace-tab], .private-draft-status')).to_have_count(0)
 
-        game_button = footer.locator('[data-action="generate-story-game"]')
+        game_button = footer.get_by_role('button', name=game_label, exact=True)
+        memoir_button = footer.get_by_role('button', name=memoir_label, exact=True)
+        expect(memoir_button).to_be_visible()
+        if anonymous:
+            game_button.click()
+            sign_in = page.locator('[data-auth-reminder-dialog][data-auth-sign-in="true"]')
+            expect(sign_in).to_be_visible(timeout=5000)
+            expect(sign_in.locator('[data-provider="google"]')).to_be_visible()
+            expect(workspace.locator('.workspace-media-overview')).to_be_visible()
+            expect(workspace.locator('[data-story-game-workspace]')).to_have_count(0)
+            assert not actions and not languages
+            browser.close()
+            return
+
         with page.expect_response(lambda response: response.url.endswith('/selection'), timeout=20000):
             game_button.click()
             expect(workspace.locator('.preview-spinner')).to_be_visible()
@@ -132,6 +163,11 @@ def test_debug_footer_switches_from_map_to_a_playable_game_and_memoir(locale, wi
         assert languages == [None]
         expect(page.locator('.story-game-modal, [data-scene-selection]')).to_have_count(0)
         expect(workspace.locator('.preview-spinner')).to_be_visible()
+        expect(close_view).to_be_in_viewport(ratio=1)
+        close_view.click()
+        expect_map_restored(game_button)
+
+        game_button.click()
         published = True
         iframe = workspace.locator('iframe.story-game-frame')
         expect(iframe).to_be_visible(timeout=15000)
@@ -146,14 +182,23 @@ def test_debug_footer_switches_from_map_to_a_playable_game_and_memoir(locale, wi
         frame_node = iframe.element_handle()
         page.locator('[data-action="toggle-chat-history"]').click()
         assert iframe.evaluate('(element, previous) => element === previous', frame_node)
+        close_view.click()
+        expect_map_restored(game_button)
 
-        footer.locator('[data-action="generate-private-draft"]').click()
+        memoir_button.click()
         expect(workspace.locator('[data-workspace-tab]')).to_have_count(3)
         expect(workspace.locator('.workspace-media-overview, iframe, [data-draft-locale], [data-action="retry-private-draft"]')).to_have_count(0)
         expect(workspace.locator('.saved-draft-sections[open]')).to_contain_text('A saved childhood memory.')
+        expect(footer).to_be_in_viewport(ratio=1)
         assert languages == [None, locale]
+        expect(close_view).to_be_in_viewport(ratio=1)
+        close_view.click()
+        expect_map_restored(memoir_button)
+
         game_button.click()
         expect(iframe).to_be_visible()
         expect(workspace.locator('[data-workspace-tab], .workspace-media-overview')).to_have_count(0)
         assert actions == ['formal', 'advance', 'consent', 'scenes', 'build']
+        iframe.content_frame.locator('.game-stage').press('Escape')
+        expect_map_restored(game_button)
         browser.close()
