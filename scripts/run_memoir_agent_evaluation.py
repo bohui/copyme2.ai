@@ -89,8 +89,8 @@ def dataset_rows(cases):
     return {target_dataset(target, suite='campaign-'+digest(rows)[:12]): rows for target, rows in groups.items()}
 
 
-async def background(case, config, directory, timeout):
-    """Real Codex tool loop and production capability checks, disposable host work."""
+async def background(case, config, directory, timeout, *, connection_factory=None):
+    """Native tool loop and production capability checks, disposable host work."""
     from apps.api.memoir_background_agent import BackgroundSkills, SOURCE_SKILLS
     from apps.api.memoir_skill_agent import run_skill_agent
     from apps.api.model_configuration import background_model, background_effort
@@ -136,7 +136,8 @@ async def background(case, config, directory, timeout):
             skills=[*SOURCE_SKILLS, 'memoir-composer'], execute=skills.execute, work=skills.work,
             process_source=skills.process_source, source_skills=SOURCE_SKILLS, publisher=Publisher(), fence=fence,
             schema=dict(type='object', additionalProperties=False, properties=dict(status=dict(type='string', const='finished')), required=['status']),
-            timeout=timeout, apply_owner=False, trace_name='memoir-atlas', phase='orchestrate')
+            timeout=timeout, apply_owner=False, trace_name='memoir-atlas', phase='orchestrate',
+            connection_factory=connection_factory)
     pending = await skills.work()
     return dict(model_invoked=True, executions=executions, pending=bool(pending['work']),
                 reply=result['reply'], skill_receipt=result['skill_receipt'])
