@@ -11267,6 +11267,25 @@ begin
  return result;
 end $$;
 
+CREATE FUNCTION public.read_lifetime_mira_reply_setup(p_fence jsonb, p_before_sequence bigint, p_model text, p_prompt_version text) RETURNS jsonb
+    LANGUAGE plpgsql SECURITY DEFINER
+    SET search_path TO ''
+    AS $$
+declare conversation uuid:=(p_fence->'identity'->>'conversation_id')::uuid;
+  policy_epoch bigint:=(p_fence->>'policy_epoch')::bigint;
+  context jsonb; checkpoint jsonb; tail jsonb;
+begin
+  perform public.lock_lifetime_publication_scope(p_fence);
+  if p_before_sequence is null or p_before_sequence<1 or p_before_sequence>(p_fence->>'source_revision')::bigint then
+    raise exception 'current source position required';
+  end if;
+  context:=public.read_lifetime_interview_context(conversation);
+  checkpoint:=public.read_lifetime_checkpoint_before(conversation,policy_epoch,p_model,p_prompt_version,p_before_sequence,true);
+  tail:=public.read_lifetime_two_lane_tail(conversation,policy_epoch,
+    coalesce((checkpoint->>'coverage_end')::bigint,0),p_before_sequence-1);
+  return jsonb_build_object('context',context,'checkpoint',checkpoint,'tail',tail);
+end $$;
+
 CREATE FUNCTION public.read_memoir_checkpoint(p_lane_id uuid, p_token uuid, p_key text) RETURNS jsonb
     LANGUAGE plpgsql SECURITY DEFINER
     SET search_path TO ''
@@ -14819,6 +14838,7 @@ revoke all on function public.read_lifetime_continuity(uuid, bigint, text, integ
 revoke all on function public.read_lifetime_current_mode(text) from public,anon,authenticated,service_role;
 revoke all on function public.read_lifetime_event_places(text, text, uuid, integer) from public,anon,authenticated,service_role;
 revoke all on function public.read_lifetime_interview_context(uuid) from public,anon,authenticated,service_role;
+revoke all on function public.read_lifetime_mira_reply_setup(jsonb, bigint, text, text) from public,anon,authenticated,service_role;
 revoke all on function public.read_lifetime_lane_policy_source(uuid, uuid) from public,anon,authenticated,service_role;
 revoke all on function public.read_lifetime_memoir_lane_page(uuid, uuid) from public,anon,authenticated,service_role;
 revoke all on function public.read_lifetime_memoir_lane_page_before_attribution(uuid, uuid) from public,anon,authenticated,service_role;
@@ -15145,6 +15165,7 @@ grant EXECUTE on function public.read_lifetime_event_places(text, text, uuid, in
 grant EXECUTE on function public.read_lifetime_event_places(text, text, uuid, integer) to service_role;
 grant EXECUTE on function public.read_lifetime_interview_context(uuid) to authenticated;
 grant EXECUTE on function public.read_lifetime_interview_context(uuid) to service_role;
+grant EXECUTE on function public.read_lifetime_mira_reply_setup(jsonb, bigint, text, text) to authenticated;
 grant EXECUTE on function public.read_lifetime_lane_policy_source(uuid, uuid) to service_role;
 grant EXECUTE on function public.read_lifetime_memoir_lane_page(uuid, uuid) to service_role;
 grant EXECUTE on function public.read_lifetime_memory_obligations(uuid, uuid, integer) to authenticated;

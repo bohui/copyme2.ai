@@ -283,26 +283,12 @@ async def run_lifetime_turn(runtime,storage,text,*,publication,project_id=None,l
                 if on_event:await on_event({'type':'source_accepted','data':{'client_turn_id':client_turn_id,'project_id':project_id,
                     'accepted_source_id':source['id'],'recordings':accepted.get('recordings',[]),**public_interview_fields(accepted)}})
                 await progress.update('memory-context','Loading saved profile and memory context','正在加载个人资料和回忆背景')
-                from .agent_lock import AgentTurnLease
                 collector=collector_configuration(runtime.model)
-                def read_window():
-                    window_args={'p_conversation_id':str(identity.conversation_id),'p_policy_epoch':fence['policy_epoch']}
-                    checkpoint={**window_args,'p_model':collector.model,'p_prompt_version':'lifetime-v1',
-                        'p_before_sequence':source['sequence']}
-                    saved=storage.lifetime_rpc('read_lifetime_checkpoint_before',**checkpoint,p_require_accepted=True)
-                    if saved and saved['coverage_end']>=source['sequence']:
-                        saved=storage.lifetime_rpc('read_lifetime_checkpoint_before',**checkpoint,p_require_accepted=False)
-                    tail=storage.lifetime_rpc('read_lifetime_two_lane_tail',**window_args,
-                        p_after_sequence=saved['coverage_end'] if saved else 0,p_through_sequence=source['sequence']-1)
-                    return saved,tail
-                try:
-                    context,(saved,tail)=await AgentTurnLease.reads(
-                        lambda:storage.lifetime_rpc('read_lifetime_interview_context',p_conversation_id=str(identity.conversation_id)),
-                        read_window)
-                except httpx.HTTPStatusError as error:
-                    if is_policy_pending(error):
-                        raise await policy_pending() from None
-                    raise
+                setup=await call('read_lifetime_mira_reply_setup',p_fence=fence,
+                    p_before_sequence=source['sequence'],p_model=collector.model,p_prompt_version='lifetime-v1')
+                context=setup['context']
+                saved=setup['checkpoint']
+                tail=setup['tail']
                 if workspace_focus:
                     from .workspace_memory_actions import read_workspace_focus, apply_workspace_focus
                     try:

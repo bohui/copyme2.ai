@@ -40,16 +40,18 @@ class Storage:
             return FENCE.model_dump(mode='json')
         if name == 'validate_lifetime_replay_input':
             return False
-        if name in {'read_lifetime_two_lane_reply', 'read_lifetime_checkpoint_before',
-                    'read_lifetime_policy_review', 'read_lifetime_workspace_focus'}:
+        if name in {'read_lifetime_two_lane_reply', 'read_lifetime_policy_review', 'read_lifetime_workspace_focus'}:
             return None
         if name == 'read_lifetime_policy_status':
             return {'pending': False}
-        if name == 'read_lifetime_interview_context':
-            return {'historical_news': {},
-                    'has_accepted_narration': False, 'events': [], 'photo_context': []}
-        if name == 'read_lifetime_two_lane_tail':
-            return {'records': [], 'tombstones': [], 'complete': True}
+        if name == 'read_lifetime_place_journeys':
+            return []
+        if name == 'read_lifetime_mira_reply_setup':
+            return {
+                'context': {'historical_news': {}, 'has_accepted_narration': False, 'events': [], 'photo_context': []},
+                'checkpoint': None,
+                'tail': {'records': [], 'tombstones': [], 'complete': True},
+            }
         if name == 'commit_lifetime_strategy_turn':
             return {'fence': FENCE.model_dump(mode='json'), 'interview': {'plan': kwargs['p_plan']},
                     'memory': [{'id': str(uuid4())}]}

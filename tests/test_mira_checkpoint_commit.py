@@ -36,6 +36,31 @@ def pointer(sql, column='runtime_checkpoint'):
     return json.loads(sql("select coalesce(" + column + ",'null'::jsonb) from public.user_lifetime_conversation;").stdout)
 
 
+def test_reply_setup_preserves_authorized_context_and_history_under_one_fence(sql):
+    identity, turn, _, fence = prepare(sql)
+    value = commit(sql, turn, fence)
+    next_turn = str(uuid4())
+    accepted = rpc(sql, 'accept_user_interview_turn', literal(identity['project_id'])
+        + ", '" + next_turn + "','I remember the shed','narrator_chat','en-AU'")
+    conversation = literal(identity['conversation_id'])
+    fence = rpc(sql, 'capture_lifetime_fence', f"{conversation},'{OLD}'")
+    sequence = accepted['source']['sequence']
+    epoch = fence['policy_epoch']
+    setup_args = f"{literal(fence)}::jsonb,{sequence},'fixture-model','lifetime-v1'"
+    setup = rpc(sql, 'read_lifetime_mira_reply_setup', setup_args)
+    assert setup['context'] == rpc(sql, 'read_lifetime_interview_context', conversation)
+    assert setup['checkpoint'] == rpc(sql, 'read_lifetime_checkpoint_before',
+        f"{conversation},{epoch},'fixture-model','lifetime-v1',{sequence},true")
+    after = setup['checkpoint']['coverage_end'] if setup['checkpoint'] else 0
+    assert setup['tail'] == rpc(sql, 'read_lifetime_two_lane_tail', f'{conversation},{epoch},{after},{sequence - 1}')
+    assert value['interview']['reply'] in [row['assistant_reply'] for row in setup['tail']['records']]
+    assert rpc(sql, 'read_lifetime_mira_reply_setup', setup_args, owner=OTHER, check=False).returncode != 0
+
+    sql('update public.user_lifetime_conversation set execution_generation=execution_generation+1;')
+    stale = rpc(sql, 'read_lifetime_mira_reply_setup', setup_args, check=False)
+    assert stale.returncode != 0 and 'stale lifetime fence' in stale.stderr
+
+
 def test_uploaded_archive_is_not_a_usable_checkpoint(sql):
     identity, turn, accepted, fence = prepare(sql)
     checkpoint(sql, identity, accepted['source'])
