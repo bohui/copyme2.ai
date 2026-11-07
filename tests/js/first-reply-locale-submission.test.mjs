@@ -281,10 +281,14 @@ test('automatic first-reply localization updates the fixed opening message', asy
 });
 
 test('a manual change superseding in-flight automatic localization reaches the backend', async () => {
-  const h = harness(), response = deferred();
-  h.setWrite(args => args.p_source === 'first_reply' ? response.promise : Promise.resolve({data:manual(args.p_locale)}));
+  const h = harness(), response = deferred(), started = deferred();
+  h.setWrite(args => {
+    if (args.p_source !== 'first_reply') return Promise.resolve({data:manual(args.p_locale)});
+    started.resolve();
+    return response.promise;
+  });
   const sending = h.context.sendChatMessage();
-  await tick();
+  await started.promise;
   assert.deepEqual(h.calls, {detection:1, localization:1});
   const changing = h.context.__copyme2SetUiLocale('en-AU');
   response.resolve({data:{locale:'zh-CN', source:'first_reply', revision:1}});

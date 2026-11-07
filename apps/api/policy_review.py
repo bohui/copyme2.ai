@@ -15,6 +15,7 @@ from .diagnostics import configure_diagnostic_logger, failure_class, log_diagnos
 
 
 diagnostic_logger = configure_diagnostic_logger(logging.getLogger('memoir.policy_review'))
+REVIEW_SEPARATOR = '\n\n'
 
 
 class PolicyReviewPublication(ProviderPublication):
@@ -77,8 +78,25 @@ def validate_review(output, source):
     return value.model_dump(exclude={'reason'})
 
 
+def reviews_by_source(output, model_source, sources):
+    review = validate_review(output, model_source)
+    if len(sources) == 1:
+        return [review]
+    reviews = []
+    start = 0
+    for source in sources:
+        end = start + len(source['text'])
+        restrictions = [dict(item, char_start=item['char_start']-start, char_end=item['char_end']-start)
+            for item in review['restrictions'] if start <= item['char_start'] < item['char_end'] <= end]
+        reviews.append(dict(complete=True, restrictions=restrictions))
+        start = end + len(REVIEW_SEPARATOR)
+    if sum(len(item['restrictions']) for item in reviews) != len(review['restrictions']):
+        raise ValueError('Policy restriction crosses original source boundaries')
+    return reviews
+
+
 async def _review_pending_policy(storage, lease, conversation_id, *, model=None, base_url=None, api_key=None,
-                                 language=None, fallback_language='en-AU', include_decision=False):
+                                 language=None, fallback_language='en-AU', include_decision=False, batch_turn_ids=None):
     """An unavailable review leaves durable pending state and all other work closed."""
     from psycopg import AsyncConnection
     from psycopg.types.json import Jsonb
@@ -86,20 +104,31 @@ async def _review_pending_policy(storage, lease, conversation_id, *, model=None,
 
     fence = await lease.io(storage.lifetime_rpc, 'capture_lifetime_fence',
                            p_conversation_id=conversation_id, p_lease_token=lease.lease_token)
-    source = await lease.io(storage.lifetime_rpc, 'read_lifetime_policy_review', p_fence=fence)
-    if source is None:
+    if batch_turn_ids:
+        sources = await lease.io(storage.lifetime_rpc, 'read_lifetime_policy_review_batch',
+                                 p_fence=fence, p_client_turn_ids=batch_turn_ids)
+    else:
+        source = await lease.io(storage.lifetime_rpc, 'read_lifetime_policy_review', p_fence=fence)
+        sources = [source] if source is not None else []
+    if not sources:
         return
+    source = sources[-1]
     publisher = PolicyReviewPublication(os.getenv('MEMOIR_PUBLICATION_DATABASE_URL'), authenticated_owner=storage.user_id)
     saved_language = source.pop('interview_language', None)
     selected_language = language or saved_language or fallback_language
     if selected_language not in {'en-AU', 'zh-CN'}:
         selected_language = 'en-AU'
-    opening = early_ack_enabled()
+    opening = len(sources) == 1 and early_ack_enabled()
     schema = (PolicyReviewOpening if opening else PolicyReview).model_json_schema()
     schema['required'] = list(schema['properties'])
     for field in schema['properties'].values():
         field.pop('default', None)
-    payload = {'source': source}
+    model_source = source
+    if len(sources) > 1:
+        model_source = {'text': REVIEW_SEPARATOR.join(item['text'] for item in sources)}
+        if len(model_source['text'].encode('utf-8')) > 16000:
+            raise ValueError('Policy review batch exceeds the request budget')
+    payload = {'source': model_source}
     if opening:
         payload.update(acknowledgement_requested=True, interview_language=selected_language)
     prompt = 'memoir/agents/mira/policy-review'
@@ -134,12 +163,19 @@ async def _review_pending_policy(storage, lease, conversation_id, *, model=None,
         invalid_review = False
         if parsed.complete:
             try:
-                validate_review(parsed.model_dump(exclude={'acknowledgement'}), source)
+                reviews = reviews_by_source(parsed.model_dump(exclude={'acknowledgement'}), model_source, sources)
             except ValueError:
                 invalid_review = True
                 attempts[-1]['validation_error'] = 'invalid_review'
             else:
                 break
+        elif len(sources) > 1 and reason and reason['code'] == 'too_many_restrictions':
+            # The existing prompt can report up to eight controls per review.
+            for item in sources:
+                decision = await _review_pending_policy(storage, lease, conversation_id, model=model,
+                    base_url=base_url, api_key=api_key, language=language, fallback_language=fallback_language,
+                    include_decision=include_decision, batch_turn_ids=[item['client_turn_id']])
+            return decision
         # Free-form audit detail stays in private model traces/receipts, never general logs.
         log_diagnostic(diagnostic_logger, 'policy_review_invalid' if invalid_review else 'policy_review_incomplete', request_id,
             component='memoir.policy_review', status='retrying' if attempt == 0 else 'failed',
@@ -154,8 +190,6 @@ async def _review_pending_policy(storage, lease, conversation_id, *, model=None,
     acknowledgement = None
     if opening:
         acknowledgement = parsed.acknowledgement.strip() if parsed.acknowledgement else None
-    output = parsed.model_dump(exclude={'acknowledgement'})
-    output = validate_review(output, source)
     if acknowledgement:
         receipt = {**receipt, 'acknowledgement': acknowledgement,
                    'acknowledgement_language': selected_language}
@@ -164,26 +198,30 @@ async def _review_pending_policy(storage, lease, conversation_id, *, model=None,
         async with connection.transaction():
             await connection.execute('set local role service_role')
             await connection.execute("set local lock_timeout='5s'")
-            await connection.execute('select public.complete_lifetime_policy_review(%s,%s,%s,%s,%s)',
-                (Jsonb(fence), source['id'], source['version'], Jsonb(output), Jsonb(receipt)))
+            for item, review in zip(sources, reviews, strict=True):
+                cursor = await connection.execute('select public.complete_lifetime_policy_review(%s,%s,%s,%s,%s)',
+                    (Jsonb(fence), item['id'], item['version'], Jsonb(review), Jsonb(receipt)))
+                if item is not source:
+                    # A restrictive receipt advances the fence within this transaction.
+                    fence = (await cursor.fetchone())[0]
     finally:
         await _settle(asyncio.create_task(connection.close()))
     opening = (dict(source_id=source['id'], source_version=source['version'],
                     language=selected_language, text=acknowledgement) if acknowledgement else None)
     if include_decision:
         return dict(source_id=source['id'], source_version=source['version'],
-                    restricted=bool(output['restrictions']), acknowledgement=opening)
+                    restricted=any(review['restrictions'] for review in reviews), acknowledgement=opening)
     return opening
 
 
 async def review_pending_policy(storage, lease, conversation_id, *, model=None, base_url=None, api_key=None,
-                                language=None, fallback_language='en-AU', include_decision=False):
+                                language=None, fallback_language='en-AU', include_decision=False, batch_turn_ids=None):
     import httpx
     import psycopg
     try:
         return await _review_pending_policy(storage, lease, conversation_id,
             model=model, base_url=base_url, api_key=api_key, language=language, fallback_language=fallback_language,
-            include_decision=include_decision)
+            include_decision=include_decision, batch_turn_ids=batch_turn_ids)
     except (ValueError, KeyError, TypeError, OSError, httpx.HTTPError, psycopg.Error) as error:
         status = getattr(getattr(error, 'response', None), 'status_code', None)
         log_diagnostic(diagnostic_logger, 'policy_review_failed', conversation_id,

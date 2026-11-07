@@ -74,14 +74,21 @@ export function createInterviewPhotoState({state, scope, render, api, storage,
   function prepare(options) {
     const previous = pending();
     const retry = options.retry || (options.id && options.id !== previous?.id ? null : previous);
-    if (current(retry) && (options.retry || retry.conversationText === options.conversationText && retry.text === options.text && JSON.stringify(retry.recordingIds || []) === JSON.stringify(options.recordingIds || []) && JSON.stringify(retry.workspaceFocus || null) === JSON.stringify(options.workspaceFocus || null))) return retry;
+    const priorInputs = options.priorInputs || [];
+    if (current(retry) && (options.retry || (
+      retry.conversationText === options.conversationText && retry.text === options.text
+      && JSON.stringify(retry.recordingIds || []) === JSON.stringify(options.recordingIds || [])
+      && JSON.stringify(retry.workspaceFocus || null) === JSON.stringify(options.workspaceFocus || null)
+      && JSON.stringify(retry.priorInputs || []) === JSON.stringify(priorInputs)
+    ))) return retry;
     const saved = state.project?.profile?.photo_memories?.[scope().projectId] || {};
     const attachments = options.attachments || [];
     const turn = {...scope(), id:options.id || uuid(), text:options.text, conversationText:options.conversationText,
       recordingIds:[...(options.recordingIds || [])], sourceKind:options.sourceKind || 'narrator_chat', language:options.language,
       workspaceFocus:options.workspaceFocus ? {...options.workspaceFocus} : null,
       firstReplyLocalization:options.firstReplyLocalization || false, serverAction:options.serverAction || null,
-      photoSelection:saved.selected ? {key:saved.selected, revision:saved.selection_revision || null} : null,
+      ...(priorInputs.length ? {priorInputs} : {}),
+      photoSelection:saved.selected && !priorInputs.length ? {key:saved.selected, revision:saved.selection_revision || null} : null,
       uploadedPhotoIds:attachments.map(item => item.privatePhoto?.id).filter(Boolean),
       // Non-photo attachments remain supported, but cannot become private photo IDs.
       attachmentIds:attachments.map(item => item.privatePhoto?.id || item.asset?.id).filter(Boolean), accepted:false};
