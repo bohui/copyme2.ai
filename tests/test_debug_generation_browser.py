@@ -37,6 +37,10 @@ def test_debug_footer_opens_a_playable_game_and_memoir(locale, width, memoir_lab
     languages, actions = [], []
     draft_checked, published = False, False
     digest = 'a' * 64
+    title = '家属院里捉虫的日子' if locale == 'zh-CN' else 'The garden'
+    paragraphs = ['一放学，我就和朋友到院里捉虫。', '雨后，我们在叶子上找到了蜗牛。'] if locale == 'zh-CN' else [
+        'After school, I searched the garden for insects with my friends.', 'After rain, we found snails on the leaves.']
+    passages = [dict(id=str(index), preview=dict(title=title, text=text)) for index,text in enumerate(paragraphs)]
     atlas = dict(project_id=project_id, profile=profile, current_mode=dict(project_id=project_id, mode='explore'),
         derived_workspace=dict(project_id=project_id, authoritative=True, policy_epoch=1, source_revision=1,
             places=[place], current_active_location=place))
@@ -65,19 +69,26 @@ def test_debug_footer_opens_a_playable_game_and_memoir(locale, width, memoir_lab
             data = dict(status='READY', target=place)
         elif path == '/story/atlas-events':
             data = atlas
+        elif path == '/story/events':
+            data = dict(events=[dict(id='saved-memory', revision=1, title='Looking for snails', kind='event', status='active',
+                original_excerpt=paragraphs[1], uncertainty='The city is a weak guess.')])
         elif path == draft_path + '/generate':
             assert method == 'POST' and route.request.post_data_json['project_id'] == project_id
-            languages.append(route.request.post_data_json['language'])
+            payload = route.request.post_data_json
+            assert payload.get('recompose', False) == (payload['language'] is not None)
+            languages.append(payload['language'])
             return route.fulfill(status=202, json={'status': 'queued'})
         elif path == draft_path:
             if route.request.headers.get('accept') == 'application/x-ndjson':
                 data = dict(status='ready', coverage_round=1, revision=1, updating=False,
-                    snapshot_id='saved-draft', root_digest=digest, page_complete=True,
-                    preview=dict(title='The garden', text='A saved childhood memory.'))
+                    snapshot_id='saved-draft', root_digest=digest, page_complete=False, next_cursor='next',
+                    preview=passages[0]['preview'], first_record=passages[0])
                 return route.fulfill(content_type='application/x-ndjson',
                     body=json.dumps({'type': 'draft_update', 'data': data}) + '\n{"type":"complete"}\n')
             draft_checked = True
             data = {'status': 'pending', 'updating': True}
+        elif path == draft_path + '/page':
+            data = dict(snapshot_id='saved-draft', complete=True, records=passages[1:])
         elif path == project_path + '/formal-memoir':
             actions.append('formal')
             data = dict(run_id='memoir-run', status='pending')
@@ -173,10 +184,19 @@ def test_debug_footer_opens_a_playable_game_and_memoir(locale, width, memoir_lab
         close_view.click()
         expect_map_restored(game_button)
 
-        memoir_button.click()
+        with page.expect_response(lambda response: draft_path + '/page?' in response.url, timeout=8000) as next_page:
+            memoir_button.click()
+        assert next_page.value.json()['records'] == passages[1:]
         expect(workspace.locator('[data-workspace-tab]')).to_have_count(3)
         expect(workspace.locator('.workspace-media-overview, iframe, [data-draft-locale], [data-action="retry-private-draft"]')).to_have_count(0)
-        expect(workspace.locator('.saved-draft-sections[open]')).to_contain_text('A saved childhood memory.')
+        chapter = workspace.locator('.memoir-chapter')
+        expect(chapter.get_by_role('heading')).to_have_text(title)
+        expect(chapter.locator('p')).to_have_text(paragraphs)
+        assert chapter.evaluate('(element) => getComputedStyle(element).borderTopWidth') == '0px'
+        workspace.locator('[data-workspace-tab="timeline"]').click()
+        expect(workspace.locator('.timeline-description')).to_have_text(paragraphs[1])
+        expect(workspace.locator('.workspace-scroll h2')).to_have_count(0)
+        expect(workspace.get_by_text('The city is a weak guess.')).to_have_count(0)
         expect(footer).to_be_in_viewport(ratio=1)
         assert languages == [None, locale]
         expect(close_view).to_be_in_viewport(ratio=1)

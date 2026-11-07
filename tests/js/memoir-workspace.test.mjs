@@ -3,6 +3,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import fs from 'node:fs';
 import vm from 'node:vm';
+import { memoirParagraphs } from '../../apps/web/client/memoir/dom.mjs';
 
 const source = readMemoirClientSource();
 const messages = JSON.parse(fs.readFileSync(new URL('../../apps/web/messages/zh-CN.json', import.meta.url))).Memoir.workspace;
@@ -16,7 +17,7 @@ function setup(overrides = {}) {
   const translate = key => messages[key.split('.').at(-1)] || key;
   const context = vm.createContext({state, escapeHtml, translate,
     translateWith:(key, values) => translate(key).replace(/\{(\w+)\}/g, (_, name) => values[name]),
-    formatText:escapeHtml, sourcePills:() => 'sources', referencesWorkspace:() => '',
+    formatText:escapeHtml, memoirParagraphs, referencesWorkspace:() => '',
     privateDraftGenerationStatus:() => '',
     familyWorkspace:() => '<div>family view</div>', timelineWorkspace:() => '<div>timeline view</div>',
     workspaceIsVisible:() => true, workspaceMediaOverview:() => '<section class="workspace-media-overview">places and pictures</section>',
@@ -26,7 +27,7 @@ function setup(overrides = {}) {
     profile:() => state.project.profile || {}, currentUiLocale:() => 'zh-CN',
   });
   for (const name of ['freeRecallFinished','privateDraftPreview','composingWorkspaceActive','workspaceTabs','activeWorkspaceTab','workspaceDetail',
-    'workspaceGenerationAvailable','workspaceGenerationBar','chapterSourceIds','chapterBlockMarkup','memoirChapters','memoirChapterKey',
+    'workspaceGenerationAvailable','workspaceGenerationBar','chapterBlockMarkup','memoirChapters','memoirChapterKey',
     'selectMemoirChapter','memoirWorkspace']) vm.runInContext(extract(name), context);
   return context;
 }
@@ -67,7 +68,8 @@ test('memoir pages show one chapter, persist selection and handle removed chapte
   ];
   const context = setup({compositionStage:3, chapters});
   let markup = context.memoirWorkspace();
-  assert.equal((markup.match(/class="workspace-card chapter-card"/g) || []).length, 1);
+  assert.equal((markup.match(/class="memoir-chapter"/g) || []).length, 1);
+  assert.doesNotMatch(markup, /workspace-card|source-pills/);
   assert.equal((markup.match(/aria-current="(?:page|false)"/g) || []).length, 3);
   assert.match(markup, /童年 &lt;故事&gt;|第一章正文/);
   assert.doesNotMatch(markup, /第二章正文/);
@@ -99,6 +101,20 @@ test('empty compositions and text-only first chapters remain readable', () => {
 });
 
 const savedDraft = {covered_round:5, preview:{title:'童年草稿', text:'已保存的童年回忆'}};
+
+test('saved passages read as one chapter with a single title and ordered paragraphs', () => {
+  const title = '家属院里捉虫的日子';
+  const first = {id:'first', preview:{title, text:'放学后，院里就热闹起来。\n\n我们四处找虫。'}};
+  const second = {id:'second', preview:{title, text:'下过雨，蜗牛爬到了叶子上。'}};
+  const context = setup({showDraftUpdates:true,
+    privateDraft:{...savedDraft, preview:first.preview, first_record:first, pages:[second]}});
+  const html = context.memoirWorkspace();
+  assert.equal((html.match(/<h2>.*?<\/h2>/g) || []).length, 1);
+  assert.match(html, /<h2>家属院里捉虫的日子<\/h2>/);
+  assert.deepEqual([...html.matchAll(/<p class="chapter-body-block">(.*?)<\/p>/g)].map(match => match[1]),
+    ['放学后，院里就热闹起来。','我们四处找虫。','下过雨，蜗牛爬到了叶子上。']);
+  assert.doesNotMatch(html, /workspace-card|<summary>/);
+});
 
 test('ordinary storytellers cannot see early draft content or background status', () => {
   for (const rounds of [0, 5, 19]) {

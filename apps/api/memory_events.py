@@ -12,6 +12,7 @@ from pathlib import Path
 from typing import Literal
 
 from pydantic import BaseModel, ConfigDict, Field, model_validator
+from pydantic.json_schema import SkipJsonSchema
 from pydantic_core import PydanticCustomError
 
 from .stage_readiness import LIFE_STAGES
@@ -47,7 +48,7 @@ class TemporalEstimate(BaseModel):
     age_end: int | None = Field(default=None, ge=0, le=130, strict=True)
     confidence: float = Field(gt=0, lt=1, strict=True)
     reference_year: int | None = Field(default=None, ge=1, le=9999, strict=True)
-    rationale: str = Field(min_length=1, max_length=1000)
+    rationale: SkipJsonSchema[str | None] = Field(default=None, min_length=1, max_length=1000, exclude=True)
     basis: list[EvidenceRef] = Field(min_length=1, max_length=20)
 
     @model_validator(mode='after')
@@ -95,6 +96,7 @@ class EventProposal(BaseModel):
     expected_revision: int | None = Field(default=None, ge=1)
     kind: Literal['event', 'period']
     title: str = Field(min_length=1, max_length=300)
+    description: str | None = Field(default=None, min_length=1, max_length=500)
     life_stage: str | None = None
     temporal: TemporalPlacement | None = None
     temporal_estimate: TemporalEstimate | None = Field(default=None, description=(
@@ -108,7 +110,7 @@ class EventProposal(BaseModel):
         'Required on model drafts, including very uncertain events. This is not a period bound.'))
     stage_evidence: list[EvidenceRef] | None = Field(default=None, max_length=100)
     source_refs: list[EvidenceRef] = Field(min_length=1, max_length=100)
-    uncertainty: str | None = Field(default=None, max_length=2000)
+    uncertainty: SkipJsonSchema[str | None] = Field(default=None, max_length=2000, exclude=True)
     location: EventLocation | None = None
     location_basis: list[EvidenceRef] | None = Field(default=None, max_length=20)
     locationConfidenceScore: float | None = Field(default=None, ge=0, le=1, strict=True)
@@ -310,8 +312,7 @@ def validate_extraction(raw, sources, saved_events, *, allow_draft_relations=Fal
         if event.location:
             normalized = validate_event_location(event.location.model_dump())
             contextual_city = (event.location.granularity == 'city'
-                and 0 < (event.locationConfidenceScore or 0) < .2 and event.location_basis
-                and event.uncertainty and event.uncertainty.strip())
+                and 0 < (event.locationConfidenceScore or 0) < .2 and event.location_basis)
             if (not normalized or event.location.hierarchy[-1] != event.location.place
                     or not contextual_city and not any(event.location.place in ref.quote for ref in event.location_basis or [])):
                 raise ValueError('Location requires a named place in its evidence')
@@ -418,10 +419,12 @@ def extraction_schema(*, allow_draft_relations=False):
                     if option['type']==('integer' if unit in ranges else 'null'))
         estimates.append(variant)
     schema['$defs']['TemporalEstimate']={'anyOf':estimates}
-    hint = schema['$defs']['EventProposal']['properties']['timing_hint']
+    fields = schema['$defs']['EventProposal']['properties']
+    fields['description'] = next(option for option in fields['description']['anyOf'] if option.get('type') == 'string')
+    hint = fields['timing_hint']
     hint['anyOf'] = [option for option in hint['anyOf'] if option.get('type') != 'null']
     for field in ('locationConfidenceScore', 'yearConfidenceScore'):
-        schema['$defs']['EventProposal']['properties'][field] = {'type':'number','minimum':0,'maximum':1}
+        fields[field] = {'type':'number','minimum':0,'maximum':1}
     return schema
 
 

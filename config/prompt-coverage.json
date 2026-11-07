@@ -626,7 +626,7 @@
     },
     "memoir/skills/author-timeline/extract": {
       "use": "conditional",
-      "scenario": "Draft grounded events, cited numeric display hints with confidence, supported period bounds, geography and narrated order in an authorized window. The compatibility branch also extracts coarse place cues.",
+      "scenario": "Draft event descriptions grounded in the original testimony, cited timing hints, supported period bounds, geography and narrated order. The compatibility branch also extracts coarse place cues.",
       "consumers": [
         "apps/api/memory_events.py:extraction_instructions",
         "apps/api/two_lane_memory.py:extraction_contract",
@@ -645,19 +645,21 @@
         "tests/test_memoir_background_agent_workflow.py::test_timeline_reconciles_and_revises_a_city_period",
         "tests/test_timeline_reported_places.py::test_map_city_chronology_preserves_skill_relations_across_paginated_api",
         "tests/js/map-memory-journey.test.mjs",
-        "tests/test_memoir_background_agent_workflow.py::test_pending_place_journey_resumes_in_author_timeline"
+        "tests/test_memoir_background_agent_workflow.py::test_pending_place_journey_resumes_in_author_timeline",
+        "tests/test_memoir_background_agent_workflow.py::test_resolved_language_reaches_background_skills_and_map_cards",
+        "tests/js/timeline-uncertainty.test.mjs"
       ],
       "review": {
-        "prompt_sha256": "5daafc2ba8e297a9f795ead9c952ad139dce3ae5516e8c4692a682425b46a346",
+        "prompt_sha256": "c06587e8f26a919bbacbfba6af08f1d3c975fbdcd6d2def61a312a35168dd930",
         "datasets_sha256": "7d821a1f429f8e4e864890553c05633c8a9c5a60b6404c77db64d87f647a94fb",
         "evaluators_sha256": "f70a9875838d8eceee035ff5dab5561c0311048f017d1cd14f3dbc635f10a9f5",
-        "dataset_decision": "Reuse the frozen bilingual correction, uncertain-year and event-grounding gold. A provisional display hint leaves the stated dates, supported intervals, attribution and empty output expectations intact. The controlled Sydney replay covers a current residence with a known birth year and no move-in date, and the childhood case checks one age inside uncertain bounds.",
-        "evaluator_decision": "Reuse the scoped source, uncertainty, attribution and correction rubrics against their existing gold. Validate the added field in the strict runtime schema, the same-window retry, original evidence withdrawal and the SQL-to-card replay. Frozen dataset scores do not establish the quality of the new hint."
+        "dataset_decision": "Reuse the bilingual event grounding, correction and temporal placement gold. Expected dates, confidence, original citations and event identities remain the same. The bilingual controlled replay exercises an event description through extraction, canonical publication and the timeline, including fallback to a primary excerpt for older events.",
+        "evaluator_decision": "Reuse grounding, attribution and placement graders for their existing gold. The structured-schema check removes both placement explanation fields, and the API-to-client replay checks that the event description replaces those notes in the reader. Current prompt quality requires a fresh model run."
       }
     },
     "memoir/skills/composer/draft": {
       "use": "conditional",
-      "scenario": "Composer prepare/draft/review; batch variants and editorial components are conditional on phase and saved source authority.",
+      "scenario": "Compose source-grounded memoir chapters as continuous prose under a single title. Progressive batch and selected-passage revision instructions are conditional on the request.",
       "consumers": [
         "apps/api/memoir_preview.py:composer_instructions",
         "apps/api/lifetime_memory_lane_engine.py:lane_contract"
@@ -668,14 +670,17 @@
         "tests/test_automatic_prompt_evaluation.py",
         "tests/test_memory_context_transport.py",
         "tests/test_assembled_prompts.py",
-        "tests/test_prompt_publication.py"
+        "tests/test_prompt_publication.py",
+        "tests/test_progressive_composer.py",
+        "tests/test_story_game_runtime_postgres.py::test_local_debug_generates_a_private_draft_and_game_from_one_round",
+        "tests/js/memoir-workspace.test.mjs"
       ],
       "review": {
-        "prompt_sha256": "ce8358f7c5902de600309719363876c937c01715034fbf76c638a785071a830a",
+        "prompt_sha256": "f20e646b8abd567980c3ebdd8c6e9e58797aad40cfbfb62631b22ed5e5ea9715",
         "datasets_sha256": "d815a758ae31ff92555c7053befe06a842e673af3ef5679cc78dfd32fe68c3d6",
         "evaluators_sha256": "378c16d56d3527155ecd3c97d9c8522290bdf90137c1c0e8a231e1b1d59fb063",
-        "dataset_decision": "Reuse the bilingual source/gold cases reviewed for instruction preloading: exact and uncertain testimony, Unicode spans, manual values/blanks, other-person facts, place ambiguity and composer checkpoints. Output contracts are unchanged. New fixed-worker HTTP replays verify one request, selected documents and exact budgets; Higgsfield replays retain optional-reference and HTML validation checks. Reuse the reviewed bilingual testimony, manual-authority, privacy, attribution, continuity, geography and composer gold. The assembled-template parity matrix preserves the exact original fixed-worker instruction bytes for all 84 supported locale/optional-output variants. News and game stages retain their phase schemas and preloaded upstream documents. Source components remain explicit dependencies; archived historical experiment manifests retain their old pins. Development version 1 does not inherit a model-quality pass from deleted publication IDs. For the one-file consolidation, reuse the reviewed scenario inputs and gold: all 26 published skill texts, 84 rendered variants and controlled extraction/composer requests retain their instruction bytes and schemas. Current bindings identify the actual operation rather than former source fragments. Historical experiment manifests remain unchanged.",
-        "evaluator_decision": "Reuse source/span, manual-authority, privacy, schema, geographic and prose-evidence graders. Check actual prompt manifests and request counts; instruction delivery no longer earns skill-reader credit on fixed workers. Controlled transport checks and unchanged pins alone do not establish model quality for the new assembly. Reuse the existing source/span, manual-authority, schema, geography, publication and game-outcome graders: output rules and supported actions are unchanged. Add whole-template publication, section validation, local-component provenance, primary-prompt linkage and scoped/idempotent history-reset checks. Hash parity and contract regressions establish assembly equivalence, not fresh model-quality or human acceptance. Fixed-worker provenance credits one published operation template and only active local source hashes. A shared grounding substring cannot earn execution credit for another operation template. Reuse the existing output gold and graders because request instruction bytes and schemas remain unchanged; native gateway prompt-use links remain outside this cleanup. Reuse the current schema, attribution, continuity, geography, prose and stage graders: the consolidation changes source layout and provenance, not what the model must return. Standalone-template, exact-version, transport-hash and tool-document regressions cover the new wiring. These checks do not establish a new model-quality score."
+        "dataset_decision": "Reuse the bilingual progressive bicycle and school memories, including later details about the same scene, and the existing single-event and privacy cases. The new instructions ask for a coherent chapter and selective quotation using the same source facts and draft contract.",
+        "evaluator_decision": "Reuse the source and exact-span validator, evidence review, and composer craft rubric for grounding, scene development, voice and readability. Controlled regressions verify paragraph order and explicit background composition; they do not grade the literary quality of this prompt version."
       }
     },
     "memoir/skills/composer/outline/leaf/en-AU": {

@@ -64,8 +64,7 @@ def test_a_very_uncertain_city_can_use_context_without_a_named_city(text):
     from apps.api.memory_events import validate_extraction
     ref=dict(source_id='source',version=1,quote=text)
     event=dict(kind='event',title='Childhood outing',source_refs=[ref],location=CHENGDE,
-        location_basis=[ref],locationConfidenceScore=.15,yearConfidenceScore=0,
-        uncertainty='Chengde is a provisional city inferred from the broader setting; confirm the city.')
+        location_basis=[ref],locationConfidenceScore=.15,yearConfidenceScore=0)
     saved=validate_extraction(dict(events=[event]),[dict(id='source',version=1,text=text)],[])[0]
     assert saved['location']==CHENGDE and saved['locationConfidenceScore']==.15
     assert placement_links([saved])==[]
@@ -75,29 +74,27 @@ def test_a_very_uncertain_city_can_use_context_without_a_named_city(text):
 
 
 @pytest.mark.parametrize('change', [dict(locationConfidenceScore=0),dict(locationConfidenceScore=.2),
-    dict(locationConfidenceScore=.85),dict(uncertainty=''),dict(location_basis=[]),
+    dict(locationConfidenceScore=.85),dict(location_basis=[]),
     dict(location={**CHENGDE,'granularity':'suburb'})])
-def test_an_unquoted_city_requires_very_low_confidence_context_and_rationale(change):
+def test_an_unquoted_city_requires_very_low_confidence_and_context(change):
     from apps.api.memory_events import validate_extraction
     text='As a child I played in the school compound in China.'
     ref=dict(source_id='source',version=1,quote=text)
     event=dict(kind='event',title='Childhood play',source_refs=[ref],location=CHENGDE,
-        location_basis=[ref],locationConfidenceScore=.15,yearConfidenceScore=0,
-        uncertainty='Chengde is only a provisional city.')
+        location_basis=[ref],locationConfidenceScore=.15,yearConfidenceScore=0)
     event.update(change)
     with pytest.raises(ValueError,match='Location requires'):
         validate_extraction(dict(events=[event]),[dict(id='source',version=1,text=text)],[])
 
 
 @pytest.mark.parametrize('change,accepted', [({},True),(dict(locationConfidenceScore=.2),False),
-    (dict(uncertainty=''),False),(dict(location_basis=[]),False)])
+    (dict(location_basis=[]),False)])
 def test_database_keeps_the_same_boundary_for_contextual_city_guesses(sql,change,accepted):
     text='As a child I played in the school compound in China.'
     source=rpc(sql,'accept_user_narrator_source',f"'project','00000000-0000-4000-8000-000000000001',{literal(text)}")
     ref=dict(source_id=source['id'],version=1,quote=text)
     event=dict(kind='event',title='Childhood play',source_refs=[ref],location=CHENGDE,
-        location_basis=[ref],locationConfidenceScore=.19,yearConfidenceScore=0,
-        uncertainty='Chengde is a provisional city inferred from the broader setting.')
+        location_basis=[ref],locationConfidenceScore=.19,yearConfidenceScore=0)
     event.update(change)
     result=rpc(sql,'apply_user_memory_events',f"'project',{literal([dict(id=source['id'],version=1)])}::jsonb,"+
         f"{literal([event])}::jsonb",check=False)
