@@ -645,7 +645,7 @@
         "tests/test_memoir_background_agent_workflow.py::test_pending_place_journey_resumes_in_author_timeline"
       ],
       "review": {
-        "prompt_sha256": "18699462f40413d0a4eb8d4ed725c1a620df69ffa76227f3d18bae45c38181f9",
+        "prompt_sha256": "5daafc2ba8e297a9f795ead9c952ad139dce3ae5516e8c4692a682425b46a346",
         "datasets_sha256": "7d821a1f429f8e4e864890553c05633c8a9c5a60b6404c77db64d87f647a94fb",
         "evaluators_sha256": "f70a9875838d8eceee035ff5dab5561c0311048f017d1cd14f3dbc635f10a9f5",
         "dataset_decision": "Reuse the frozen bilingual correction, uncertain-year and event-grounding gold. A provisional display hint leaves the stated dates, supported intervals, attribution and empty output expectations intact. The controlled Sydney replay covers a current residence with a known birth year and no move-in date, and the childhood case checks one age inside uncertain bounds.",
