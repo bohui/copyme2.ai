@@ -1,4 +1,4 @@
-import { $, escapeHtml, formatText } from "./dom.mjs";
+import { $, escapeHtml, formatText, memoirParagraphs } from "./dom.mjs";
 import { blobToBase64 } from "./audio-utils.mjs";
 import { createPhotoWorkspace } from "./photo-workspace.mjs";
 import { createPlaceWorkspace, PLACE_JOURNEY_PROJECT_STORAGE_KEY } from "./place-workspace.mjs";
@@ -67,7 +67,7 @@ const state = {
   showDraftUpdates: false,
   debugEarlyGeneration: false,
   debugWorkspace: null,
-  privateDraftExpanded: false,
+  privateDraftEditing: false,
   privateDraftThinkingExpanded: false,
   profileIntakePending: true,
   placeJourney: null,
@@ -423,7 +423,7 @@ function invalidateProjectNavigation() {
   state.debugWorkspace = null;
   state.atlasUpdates?.stop();
   state.stageReadinessRefresh?.controller.abort();
-  state.privateDraftExpanded = false;
+  state.privateDraftEditing = false;
   state.privateDraftThinkingExpanded = false;
   state.photoRequests?.clear();
   state.pendingConversationTurn = null;
@@ -2753,10 +2753,6 @@ function selectLifeStage(stageId, focus = false) {
   if (focus) document.querySelector(`[data-life-stage-tab="${stageId}"]`)?.focus({ preventScroll: true });
 }
 
-function chapterSourceIds(chapter) {
-  return chapter.source_memory_ids || chapter.source_ids || (chapter.source_refs || []).map((item) => item.source_id).filter(Boolean);
-}
-
 function chapterBlockMarkup(block) {
   const type = block?.type || "paragraph";
   if (type === "heading") return `<h4 class="chapter-block-heading">${escapeHtml(block.text || "")}</h4>`;
@@ -2765,7 +2761,7 @@ function chapterBlockMarkup(block) {
     const label = block.alt || translate("Memoir.workspace.personalSource");
     return `<figure class="chapter-photo-slot"><div role="img" aria-label="${escapeHtml(label)}">${escapeHtml(block.caption || label)}</div>${block.credit ? `<figcaption>${escapeHtml(block.credit)}</figcaption>` : ""}</figure>`;
   }
-  return block.text ? `<p class="chapter-body-block">${formatText(block.text)}</p>` : "";
+  return block.text ? memoirParagraphs(block.text) : "";
 }
 
 async function loadAllChapters(projectId) {
@@ -2802,14 +2798,15 @@ function memoirWorkspace() {
   if (selected < 0) selected = 0;
   const chapter = chapters[selected];
   const draftPreview = privateDraftGenerationStatus() + privateDraftPreview({ inChapters: true });
-  if (!chapter) return `<div class="workspace-scroll"><div class="workspace-intro"><h2>${t("memoir")}</h2></div>${draftPreview || `<div class="workspace-empty"><span>✦</span><p>${t("firstChapterEmpty")}</p></div>`}</div>`;
+  if (!chapter || state.debugEarlyGeneration && draftPreview) return `<div class="workspace-scroll memoir-workspace">${draftPreview || `<div class="workspace-empty"><span>✦</span><p>${t("firstChapterEmpty")}</p></div>`}</div>`;
   state.selectedMemoirChapter = memoirChapterKey(chapter, selected);
   const button = (index, label, disabled = false) => `<button type="button" data-memoir-chapter="${escapeHtml(memoirChapterKey(chapters[index], index))}" ${disabled ? "disabled" : ""}>${label}</button>`;
   const pagination = `<nav class="chapter-pagination" aria-label="${t("chapterPagination")}">${button(Math.max(0, selected - 1), t("previousChapter"), selected === 0)}<div class="chapter-page-numbers">${chapters.map((item, index) => `<button type="button" data-memoir-chapter="${escapeHtml(memoirChapterKey(item, index))}" aria-current="${index === selected ? "page" : "false"}" aria-label="${t("chapterPage", { number: item.chapter_number || index + 1, title: item.title || "" })}" title="${escapeHtml(item.title || "")}">${item.chapter_number || index + 1}</button>`).join("")}</div>${button(Math.min(chapters.length - 1, selected + 1), t("nextChapter"), selected === chapters.length - 1)}</nav>`;
-  const sourceIds = chapterSourceIds(chapter);
-  const blocks = Array.isArray(chapter.blocks) ? chapter.blocks.map(chapterBlockMarkup).join("") : "";
-  const body = blocks || (chapter.text ? `<div class="chapter-body-block">${formatText(chapter.text)}</div>` : `<p>${t("chapterContentPending")}</p>`);
-  return `<div class="workspace-scroll memoir-workspace"><div class="workspace-intro"><h2>${t("memoir")}</h2><p>${t("chapterPosition", { current: selected + 1, total: chapters.length })}</p></div>${pagination}<article class="workspace-card chapter-card" data-chapter-id="${escapeHtml(chapter.id || `chapter-${selected + 1}`)}"><div class="card-topline"><span class="tag">${t("chapter")} ${chapter.chapter_number || selected + 1}</span></div><h3>${escapeHtml(chapter.title || `${t("chapter")} ${selected + 1}`)}</h3><div class="chapter-body">${body}</div>${sourceIds.length ? `<div class="source-pills">${sourcePills(sourceIds)}</div>` : ""}</article>${referencesWorkspace()}${draftPreview}</div>`;
+  const title = chapter.title || `${t("chapter")} ${selected + 1}`;
+  const blocks = Array.isArray(chapter.blocks) ? chapter.blocks
+    .filter(block => block?.type !== "heading" || block.text?.trim() !== title.trim()).map(chapterBlockMarkup).join("") : "";
+  const body = blocks || (chapter.text ? memoirParagraphs(chapter.text) : `<p>${t("chapterContentPending")}</p>`);
+  return `<div class="workspace-scroll memoir-workspace"><article class="memoir-chapter" data-chapter-id="${escapeHtml(chapter.id || `chapter-${selected + 1}`)}"><h2>${escapeHtml(title)}</h2>${body}</article>${chapters.length > 1 ? pagination : ""}</div>`;
 }
 
 function referencesWorkspace() {
@@ -2817,11 +2814,6 @@ function referencesWorkspace() {
   const references = state.sources.slice(0, 5);
   if (!references.length) return `<div class="reference-shelf"><div class="eyebrow">${t("references")}</div><p class="fine-print">${t("referencesEmpty")}</p></div>`;
   return `<div class="reference-shelf"><div class="eyebrow">${t("references")}</div><p class="fine-print">${t("referencesDescription")}</p>${references.map((item) => `<div class="reference-row"><span class="reference-icon">${item.kind === "photo" ? "▧" : "✎"}</span><div><strong>${escapeHtml(item.filename || item.historical_date_expression || translate("Memoir.workspace.personalSource"))}</strong><small>${escapeHtml(item.kind || translate("Memoir.workspace.source"))} · ${item.original_retained ? t("originalRetained") : t("sourceNote")}</small></div></div>`).join("")}</div>`;
-}
-
-function sourcePills(memoryIds) {
-  if (!memoryIds.length) return `<span class="source-pill">${escapeHtml(translate("Memoir.workspace.noMemoryLinks"))}</span>`;
-  return memoryIds.map((id) => `<span class="source-pill">${escapeHtml(id.slice(-8))}</span>`).join("");
 }
 
 function composerIcon(name) {
@@ -3004,19 +2996,21 @@ function openDebugWorkspace(kind) {
   state.workspaceCollapsed = false;
   if (kind === "memoir") {
     state.workspaceTab = "memoir";
-    state.privateDraftExpanded = true;
     render();
     void generatePrivateDraft();
+    void refreshFamilyContext();
   } else {
     storyGameDialog.openWorkspace(render);
   }
 }
 
 function closeDebugWorkspace() {
+  const wasMemoir = state.debugWorkspace === "memoir";
   const action = state.debugWorkspace === "game" ? "generate-story-game" : "generate-private-draft";
   state.debugWorkspace = null;
   state.workspaceCollapsed = false;
   render();
+  if (wasMemoir && !state.familyFeaturesEnabled) void refreshFamilyContext();
   $(`.workspace-generation-bar [data-action="${action}"]`)?.focus({preventScroll: true});
 }
 
@@ -3244,10 +3238,10 @@ function bindViewActions(root = document) {
   root.querySelectorAll("[data-memoir-chapter]").forEach((button) => button.addEventListener("click", () => selectMemoirChapter(button.dataset.memoirChapter)));
   root.querySelectorAll("[data-workspace-tab]").forEach((button) => button.addEventListener("click", () => { state.workspaceTab = button.dataset.workspaceTab; render(); document.querySelector(`.workspace-detail-tab[data-workspace-tab="${state.workspaceTab}"]`)?.focus({ preventScroll: true }); }));
   root.querySelectorAll("[data-draft-locale]").forEach(select => select.addEventListener("change", () => selectPrivateDraftLocale(select.value)));
-  root.querySelectorAll(".saved-draft-sections").forEach(details => {
+  root.querySelectorAll(".draft-edit-controls").forEach(details => {
     const scope = captureProjectScope();
     details.addEventListener("toggle", () => {
-      if (details.isConnected && isCurrentProjectScope(scope)) state.privateDraftExpanded = details.open;
+      if (details.isConnected && isCurrentProjectScope(scope)) state.privateDraftEditing = details.open;
     });
   });
   root.querySelectorAll("[data-proposal-id]").forEach(button => button.addEventListener("click", () => decidePrivateDraftProposal(button.dataset.proposalId, button.dataset.proposalAccept === "true")));

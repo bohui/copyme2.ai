@@ -81,7 +81,7 @@ test('debug memoir generation queues the current project and streams the saved d
   s.state.debugEarlyGeneration = true;
   await s.context.generatePrivateDraft();
   await settled(s.state);
-  assert.deepEqual(calls, [['/v1/story/private-draft/generate', {project_id:'p', language:'zh-CN'}]]);
+  assert.deepEqual(calls, [['/v1/story/private-draft/generate', {project_id:'p', language:'zh-CN', recompose:true}]]);
   assert.equal(s.state.privateDraft.preview.text, '童年回忆');
   await s.context.generatePrivateDraft({forGame:true});
   await settled(s.state);
@@ -185,10 +185,10 @@ test('draft streaming works with thinking steps disabled',async()=>{
   assert.equal(s.state.privateDraft.preview.text,'童年回忆');
 });
 
-test('an update preserves an opened preview before the toggle callback has run',async()=>{
+test('an update preserves the opened editing controls before the toggle callback has run',async()=>{
   const s=setup();s.context.document={querySelector:()=>({open:true})};
   await s.context.refreshPrivateDraft();await settled(s.state);
-  assert.equal(s.state.privateDraftExpanded,true);
+  assert.equal(s.state.privateDraftEditing,true);
 });
 
 test('locale switch aborts the old subscription and rejects its late updates', async()=>{

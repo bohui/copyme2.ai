@@ -249,8 +249,7 @@ def test_final_reply_package_selection_refresh_and_payment(locale, anonymous, sh
         expect(chapters).to_have_text(copy['Memoir']['workspace']['chapters'])
         draft = page.locator('#workspace-detail .private-draft-status')
         expect(draft).to_have_count(1)
-        draft.locator('summary').click()
-        expect(draft).to_contain_text('Saved garden draft' if locale == 'en-AU' else '已保存的花园草稿')
+        expect(draft.locator('.memoir-chapter')).to_contain_text('Saved garden draft' if locale == 'en-AU' else '已保存的花园草稿')
         expect(page.locator('.chat-main .private-draft-status')).to_have_count(0)
         assert model['turns'] == 1
         assert not any(name in prompt.inner_text().lower() for name in ('codex', 'supabase', '20 free', '五轮'))

@@ -111,7 +111,7 @@ def _merge_update(current, draft):
             if any(previous.get(field) != value.get(field) for field in (previous.keys() | value.keys()) - {'basis'}):
                 raise ValueError(DRAFT_CONFLICT)
             _append_distinct(previous.setdefault('basis', []), value.get('basis', []))
-        elif key not in {'id', 'title', 'uncertainty'} and current[key] != value:
+        elif key not in {'id', 'title', 'description'} and current[key] != value:
             raise ValueError(DRAFT_CONFLICT)
 
 

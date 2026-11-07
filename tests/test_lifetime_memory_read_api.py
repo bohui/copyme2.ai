@@ -301,11 +301,13 @@ def test_atlas_map_exposes_inline_order_without_original_evidence(mapped):
     result.clear()
     relations = [dict(kind='before', event_id=f'event-{i}') for i in range(10)]
     result.update(events=[dict(id='shanghai', status='active', candidate_ids=['private-candidate'],
+        original_excerpt='Original private testimony', description='Moved to Shanghai.',
         relations=[dict(relation, source_refs=[dict(quote='Original private testimony')]) for relation in relations])],
         complete=False, next_cursor='bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb')
     response = client.get('/v1/story/atlas-events?view=map&project_id=read-project')
     assert response.status_code == 200, response.text
     assert response.json()['events'][0]['relations'] == relations
+    assert 'description' not in response.json()['events'][0]
     assert 'Original private testimony' not in response.text and 'private-candidate' not in response.text
     assert response.json()['next_cursor'] == result['next_cursor']
     _, arguments = next(call for call in calls if call[0]=='read_lifetime_collection_page')
@@ -313,7 +315,7 @@ def test_atlas_map_exposes_inline_order_without_original_evidence(mapped):
     assert calls[-1][0] == 'actual_send_guard'
 
 
-def test_map_estimates_retain_confidence_and_rationale_without_original_quotes(mapped):
+def test_map_estimates_retain_confidence_without_explanations_or_original_quotes(mapped):
     client, storage, _, result = mapped
     storage.story_entitlement = lambda: None
     result.update(events=[dict(id='home',status='active',temporal_estimate=dict(year_start=2011,year_end=2026,
@@ -322,7 +324,19 @@ def test_map_estimates_retain_confidence_and_rationale_without_original_quotes(m
     assert response.status_code==200
     estimate=response.json()['events'][0]['temporal_estimate']
     assert estimate['year_start']==2011 and estimate['confidence']==.8
-    assert 'basis' not in estimate and 'Original private testimony' not in response.text
+    assert 'basis' not in estimate and 'rationale' not in estimate and 'Original private testimony' not in response.text
+
+
+def test_local_memoir_timeline_can_read_legacy_excerpts_without_family_access(mapped, monkeypatch):
+    client, storage, _, result = mapped
+    storage.story_entitlement = lambda: None
+    result.update(events=[dict(id='garden', status='active', original_excerpt='I caught snails after the rain.')])
+    path = '/v1/story/events?project_id=read-project'
+    monkeypatch.setenv('MEMORY_SPARK_DEBUG_EARLY_GENERATION', '1')
+    assert client.get(path, headers={'Host':'memoir.example'}).status_code == 403
+    local = client.get(path, headers={'Host':'localhost'})
+    assert local.status_code == 200
+    assert local.json()['events'][0]['original_excerpt'] == 'I caught snails after the rain.'
 
 
 def test_page_parameter_bounds_reject_before_database(mapped):

@@ -40,7 +40,7 @@ test('renders the backend timeline in its supplied order without merging or extr
   const html = setup(state).timelineWorkspace();
   assert.equal((html.match(/class="timeline-list"/g) || []).length, 1);
   assert.equal((html.match(/class="timeline-row"/g) || []).length, 4);
-  assert.equal((html.match(/<h2>/g) || []).length, 1);
+  assert.doesNotMatch(html, /<h2>/);
   assert.doesNotMatch(html, /timeline-periods|class="eyebrow"/);
   assert.deepEqual([...html.matchAll(/<strong>(.*?)<\/strong>/g)].map(match => match[1]),
     ['回到大石庙镇', '在承德市做木工', '暑假看外祖母', '童年玩耍']);
@@ -48,6 +48,18 @@ test('renders the backend timeline in its supplied order without merging or extr
   assert.match(html, /1958年暑假/);
   assert.match(html, /童年 · datePrecision/);
   assert.deepEqual(state, original);
+});
+
+test('timeline rows show the event description and use the original excerpt for older events', () => {
+  const html = setup({timeline: [
+    {id:'snails', kind:'event', title:'捉蜗牛', description:'雨后和朋友在叶子上找蜗牛。',
+      uncertainty:'The year was inferred from the earlier memory.'},
+    {id:'courtyard', kind:'period', title:'家属院', original_excerpt:'小时候常和小朋友在院里玩。',
+      uncertainty:'The city was inferred from the narrator’s birthplace.'},
+  ]}).timelineWorkspace();
+  assert.match(html, /<p class="timeline-description">雨后和朋友在叶子上找蜗牛。<\/p>/);
+  assert.match(html, /<p class="timeline-description">小时候常和小朋友在院里玩。<\/p>/);
+  assert.doesNotMatch(html, /was inferred/);
 });
 
 test('event-only and period-only timelines have no empty state', () => {

@@ -90,9 +90,12 @@ def test_model_can_leave_an_unsupported_estimate_null_without_losing_the_event()
 
 def test_model_draft_requires_a_number_and_confidence_even_without_a_timing_range():
     schema = extraction_contract(attribution=True, continuity=True)[1]
+    assert 'uncertainty' not in schema['$defs']['EventProposal']['properties']
+    assert all('rationale' not in variant['properties'] for variant in schema['$defs']['TemporalEstimate']['anyOf'])
     validator = Draft202012Validator({'$defs':schema['$defs'],'$ref':'#/$defs/EventProposal'})
     draft = dict.fromkeys(schema['$defs']['EventProposal']['required'])
-    draft.update(kind='period',title='Sydney residence',source_refs=[REF | dict(char_start=None,char_end=None,attribution=None)],
+    draft.update(kind='period',title='Sydney residence',description=SOURCE['text'],
+        source_refs=[REF | dict(char_start=None,char_end=None,attribution=None)],
         locationConfidenceScore=0,yearConfidenceScore=0)
     basis = draft['source_refs']
     for hint in (dict(age=0,confidence=0,basis=basis),dict(year=2026,confidence=.3,basis=basis)):

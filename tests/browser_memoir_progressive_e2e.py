@@ -372,12 +372,13 @@ def run_case(browser, base_url: str, locale: str) -> None:
                 expect(page.locator("[data-workspace-tab='memoir']")).to_be_visible()
                 expect(page.locator(".workspace-media-overview")).to_have_count(0)
                 page.locator("[data-workspace-tab='memoir']").click()
-                expect(page.locator(".chapter-card")).to_have_count(1)
-                expect(page.locator(".chapter-body")).to_have_count(1)
+                chapter_view = page.locator(".memoir-chapter[data-chapter-id]")
+                expect(chapter_view).to_have_count(1)
+                expect(chapter_view.get_by_role("heading", level=2)).to_have_count(1)
                 expect(page.locator(".chapter-body-block")).to_have_count(1)
                 for chapter in chapters:
                     page.locator('.chapter-page-numbers button').nth(chapter['chapter_number'] - 1).click()
-                    expect(page.locator(".chapter-card")).to_contain_text(chapter["blocks"][1]["text"])
+                    expect(chapter_view).to_contain_text(chapter["blocks"][1]["text"])
                 expect(page.locator(".workspace-media-gallery")).to_have_count(0)
 
         expect(page.locator(".user-message")).to_have_count(31)

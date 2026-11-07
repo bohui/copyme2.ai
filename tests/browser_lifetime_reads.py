@@ -43,7 +43,8 @@ def run(base, output):
                 def event(identifier='first-event'):
                     return {'id':identifier,'revision':1,'title':'Ming at school' if identifier=='first-event' else 'Later memory',
                         'kind':'event','life_stage':'unplaced','status':'unresolved','assertion':'inferred',
-                        'uncertainty':'Name and year uncertain','timing_conflict':True,'temporal':{'expression':'unknown','precision':'unknown'},
+                        'description':'I went to school with Ming.', 'uncertainty':'Name and year uncertain',
+                        'timing_conflict':True,'temporal':{'expression':'unknown','precision':'unknown'},
                         'source_refs':[{'source_id':'source-one','version':1,'quote':'Maybe 1963'}],
                         'evidence_next_cursor':CURSOR,'evidence_complete':False,'details_complete':False}
                 def api(route):
@@ -86,10 +87,9 @@ def run(base, output):
                 page.goto(base+'/memoir/interview/lifetime-fixture',wait_until='networkidle')
                 expect(page.locator('[data-draft-locale]')).to_be_visible(timeout=30000)
                 expect(page.locator('.private-draft-status')).to_contain_text('Protected English original.')
-                page.locator('.private-draft-status details').first.locator('summary').click()
-                page.locator('[data-action=load-more-private-draft]').click()
                 expect(page.locator('.private-draft-status')).to_contain_text('Later saved draft section.')
                 expect(page.locator('[data-action=load-more-private-draft]')).to_have_count(0)
+                assert pages[0]==1
                 page.locator('[data-draft-locale]').select_option('zh-CN')
                 expect(page.locator('.private-draft-status')).to_contain_text('受保护的中文原稿。')
                 assert profile['preferred_language']=='en-AU'
@@ -97,10 +97,10 @@ def run(base, output):
                 page.locator('.private-draft-status details').filter(has=page.locator('[data-proposal-accept="false"]')).locator('summary').click()
                 page.locator('[data-proposal-accept="false"]').click()
                 expect(page.locator('[data-proposal-accept]')).to_have_count(0)
-                assert len(decisions)==1 and pages[0]==1 and 'zh-CN' in editions
+                assert len(decisions)==1 and 'zh-CN' in editions
                 page.locator('[data-workspace-tab="timeline"]').click()
-                expect(page.locator('.timeline-list')).to_contain_text('Name and year uncertain')
-                page.locator('[data-action=load-more-memory-events]').click()
+                expect(page.locator('.timeline-list')).to_contain_text('I went to school with Ming.')
+                expect(page.locator('.timeline-list')).not_to_contain_text('Name and year uncertain')
                 expect(page.locator('.timeline-list')).to_contain_text('Later memory')
                 page.locator('[data-more-event-details="first-event"]').click()
                 expect(page.locator('.timeline-list')).to_contain_text('1964')

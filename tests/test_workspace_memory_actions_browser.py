@@ -150,7 +150,7 @@ def test_focus_is_a_visit_task_and_does_not_survive_reload(workspace_page):
 
 def test_section_rework_calls_composer_and_reviews_replacement_before_acceptance(workspace_page):
     page,calls,copy,record,draft,_ = workspace_page
-    page.locator('.saved-draft-sections summary').click()
+    page.locator('.draft-edit-controls summary').click()
     page.locator('[data-rework-section=garden-partition]').click()
     page.locator('#section-rework-instruction').fill('Make this section shorter.')
     if evidence := os.getenv('MEMOIR_BROWSER_EVIDENCE_DIR'):
@@ -171,7 +171,7 @@ def test_section_rework_calls_composer_and_reviews_replacement_before_acceptance
 def test_lost_acknowledgement_retries_the_exact_revision_request(workspace_page):
     page,calls,copy,_,_,control = workspace_page
     control['fail_once']=True
-    page.locator('.saved-draft-sections summary').click()
+    page.locator('.draft-edit-controls summary').click()
     page.locator('[data-rework-section=garden-partition]').click()
     page.locator('#section-rework-instruction').fill('Keep the wording simple.')
     page.locator('#section-rework-form button[type=submit]').click()
@@ -191,7 +191,7 @@ def test_language_switch_discards_old_rewrite_and_submits_against_selected_editi
     other['first_record']['preview']={'title':'Other edition','text':'Saved prose in the other edition.'}
     other['preview']=other['first_record']['preview']
     control['editions']={draft['locale']:draft,other_locale:other}
-    page.locator('.saved-draft-sections summary').click()
+    page.locator('.draft-edit-controls summary').click()
     page.locator('[data-rework-section=garden-partition]').click()
     page.locator('#section-rework-instruction').fill('Old edition instruction.')
     page.locator('[data-draft-locale]').select_option(other_locale)
