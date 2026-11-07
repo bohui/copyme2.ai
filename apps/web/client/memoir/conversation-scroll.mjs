@@ -85,6 +85,8 @@ export function createConversationScroll() {
 
 export function installConversationViewport(onResize) {
   let frame = null;
+  let keyboardOpen = false;
+  const isMobile = () => window.innerWidth <= 1024 && window.matchMedia('(pointer: coarse)').matches;
   const update = () => {
     frame = null;
     const viewport = window.visualViewport;
@@ -94,11 +96,23 @@ export function installConversationViewport(onResize) {
     const top = normalScale ? viewport.offsetTop : 0;
     document.documentElement.style.setProperty('--conversation-height', `${height}px`);
     document.documentElement.style.setProperty('--conversation-top', `${top}px`);
+    // Focus alone also happens with a hardware keyboard. Require a substantial
+    // unzoomed visual-viewport loss on a phone-sized touch layout. offsetTop is
+    // Safari's viewport pan, not extra space to subtract from keyboard height.
+    const layoutHeight = Math.max(window.innerHeight, document.documentElement.clientHeight);
+    const occluded = normalScale && layoutHeight - height > Math.max(150, layoutHeight * 0.2);
+    // Keep suppression through transient blur/repaint or a Send tap until the
+    // keyboard is dismissed. Never change the user's manual collapse state.
+    keyboardOpen = Boolean(isMobile() && occluded && (document.activeElement?.id === 'chat-input' || keyboardOpen));
+    document.documentElement.classList.toggle('conversation-keyboard-open', keyboardOpen);
     onResize();
   };
   const schedule = () => {
     if (frame === null) frame = requestAnimationFrame(update);
   };
+  const focus = () => { if (isMobile()) schedule(); };
+  document.addEventListener('focusin', focus);
+  document.addEventListener('focusout', focus);
   window.addEventListener('resize', schedule);
   window.visualViewport?.addEventListener('resize', schedule);
   window.visualViewport?.addEventListener('scroll', schedule);
