@@ -1,8 +1,8 @@
 ---
 name: memoir-story-game
-description: Recommend memoir scenes by life stage, wait for the owner's selection, then build a continuous illustrated RPG with the separately installed NovelToGame skills. Keep Higgsfield available as a backup.
+description: Build a continuous illustrated memoir RPG with NovelToGame, using all scenes for short timelines and recommending a selection for longer ones. Keep Higgsfield available as a backup.
 metadata:
-  version: "0.6.1"
+  version: "0.6.2"
   product: "CopyMe2 Memoir"
 ---
 
@@ -12,7 +12,7 @@ Turn composer chapters and the canonical timeline into a playable journey throug
 the author's memories. Use GPT-6.1 Sol with max effort for planning and the default
 NovelToGame builder. The separate Higgsfield backup retains Astra.
 
-## 1. Chapters + timeline → scene pool → human selection
+## 1. Chapters + timeline → scene pool → saved selection
 
 Use [proposal.md](prompts/proposal.md) to propose all distinct playable moments
 supported by the supplied material, across every supplied life stage. Cover every
@@ -20,20 +20,20 @@ timeline event; do not reduce a whole stage to a small sample. Mark recommended
 options and explain their play value. The host validates quotations and event
 references, derives life stages from the timeline and assigns option IDs.
 
-Stop after returning the validated pool. The UI groups options by life stage and
-preselects recommendations. The owner can change the count and individual options;
-more scenes increase generation cost. **Wait for explicit confirmation of the
-chosen option IDs against this exact pool.** A recommendation, prior consent to
-adapt the memoir, a timeout or a previous build is not scene confirmation.
+Stop after returning the full pool. The host validates and saves it. For one to
+four timeline events, the host saves every scene and starts the background build.
+For five or more events, the UI groups scenes by life stage and preselects the
+recommendations. The owner can change the count and options. The host waits for
+explicit confirmation of the scene IDs against that pool's digest.
 
-## 2. Confirmed scenes → game brief → NovelToGame
+## 2. Saved scenes → game brief → NovelToGame
 
-After the host supplies a saved human selection, use [brief.md](prompts/brief.md)
+After the host supplies the saved scene set, use [brief.md](prompts/brief.md)
 to compose the visual and interaction brief for exactly those scenes. Preserve
 their order, quotations, attribution and uncertain chronology. Never add back
 unselected material. Return the brief and the complete ordered scene indices.
 
-The host passes only the confirmed passages, their timeline metadata and the
+The host passes only the selected passages, their timeline metadata and the
 saved brief into the installed NovelToGame analysis, concept, world design,
 whitebox, art direction and production stages. Read the complete
 [template for the current NovelToGame stage](prompts/novel-to-game/). Keep upstream skills separate
@@ -58,7 +58,6 @@ testimony, motives or personal facts. Creative freedom applies to scenery,
 presentation and pacing. Keep private provenance out of the webpage.
 
 Authentication, source access, private saving, sharing and publication belong to
-Memoir. The scene-selection pause is the human decision inside this workflow;
-there is no additional publishing or person-permission review step here. Do not
-deploy to Higgsfield or publish a community listing. For integration, read the
-[runtime contract](references/runtime-contract.md).
+Memoir. Save successful games for immediate private play after the background build. Do not
+deploy to Higgsfield or publish a community listing. For builder integration and playback, read the
+[runtime contract](references/runtime-contract.md#noveltogame-stages).

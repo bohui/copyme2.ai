@@ -222,6 +222,7 @@ export function createStoryGameDialog({ state, storyApi, captureProjectScope, is
   const t = key => translate(`Memoir.game.${key}`);
   const path = active => `/v1/agent/projects/${encodeURIComponent(active.scope.projectId)}`;
   const current = () => view && isCurrentProjectScope(view.scope);
+  const generating = job => ["pending", "running"].includes(job?.status) && !job.retryable;
   const request = (suffix, options = {}, active = view) => {
     if (view !== active || !isCurrentProjectScope(active.scope)) throw new DOMException("Closed", "AbortError");
     return storyApi(path(active) + suffix, { ...options, signal: active.controller.signal });
@@ -234,7 +235,7 @@ export function createStoryGameDialog({ state, storyApi, captureProjectScope, is
   function close() {
     if (!view) return;
     const old = view; view = null;
-    old.controller.abort(); old.cleanup?.(); clearInterval(old.poll);
+    old.controller.abort(); old.cleanup?.(); clearTimeout(old.poll);
     document.removeEventListener("visibilitychange", old.visibility);
     old.dialog?.remove();
     if (!old.inline) (old.opener?.isConnected ? old.opener : document.querySelector("[data-story-game]"))?.focus();
@@ -251,54 +252,61 @@ export function createStoryGameDialog({ state, storyApi, captureProjectScope, is
     if (view !== active) return;
     if (!current()) return close();
     const revision = active.revision;
-    const before = JSON.stringify([active.status?.adaptation, active.status?.eligibility, active.status?.composer_ready]);
+    const previousJob = active.status?.adaptation;
+    const before = JSON.stringify([previousJob, active.status?.eligibility, active.status?.composer_ready]);
+    const previousPool = active.pool, previousContent = active.content, previousError = active.error;
     const status = await request("/story-game", {}, active);
     if (view !== active || !current() || active.revision !== revision) return;
     active.status = status;
     if (status.adaptation?.status === "stale") active.gameRequest = crypto.randomUUID();
     if (status.formal?.run?.status === "stale") active.formalRequest = crypto.randomUUID();
-    const adaptation = view.status.adaptation;
+    const adaptation = status.adaptation;
     const after = JSON.stringify([adaptation, status.eligibility, status.composer_ready]);
-    const wasPlaying = Boolean(active.content);
-    if (view.status.eligibility?.available && status.composer_ready !== false && adaptation?.game_id && adaptation.status === "published") {
+    const available = status.eligibility?.available && status.composer_ready !== false;
+    if (available && adaptation?.status === "published") {
       if (!view.content || before !== after || !view.rendered) {
         const content = await request(`/story-game/${adaptation.game_id}`, {}, active);
         if (view !== active || !current() || active.revision !== revision) return;
-        if (active.inline && content?.status !== "published") throw new Error("game_not_published");
+        if (content?.status !== "published") throw new Error("game_not_published");
         active.content = content;
-        if (active.inline) active.error = "";
       }
     } else {
       view.content = null; clearRenderer();
-      if (adaptation?.pool_digest && (!active.inline || adaptation.status === "selection_required")) {
-        const plan = await request(`/story-game/${adaptation.game_id}`, {}, active);
-        if (view !== active || !current() || active.revision !== revision) return;
-        if (plan.pool && active.poolDigest !== plan.pool_digest) {
-          active.pool = plan.pool;
-          active.poolDigest = plan.pool_digest;
-          active.selected = new Set(plan.selected_scene_ids || plan.pool.scenes.filter(s => s.recommended).map(s => s.id));
+      if (available && adaptation?.pool_digest && !adaptation.auto_select_all && !generating(adaptation)) {
+        if (!active.pool || before !== after) {
+          const plan = await request(`/story-game/${adaptation.game_id}`, {}, active);
+          if (view !== active || !current() || active.revision !== revision) return;
+          if (plan.pool && (active.poolDigest !== plan.pool_digest || previousJob?.game_id !== adaptation.game_id)) {
+            active.pool = plan.pool;
+            active.poolDigest = plan.pool_digest;
+            active.selected = new Set(plan.pool.scenes.filter(s => s.recommended).map(s => s.id));
+          }
+          active.confirmed = !!plan.selected_scene_ids;
+          if (active.confirmed) active.selected = new Set(plan.selected_scene_ids);
         }
-        active.confirmed = !!plan.selected_scene_ids;
-        if (active.confirmed) active.selected = new Set(plan.selected_scene_ids);
       } else clearPool(active);
     }
-    if (active.inline && wasPlaying && !active.content) active.error = t("unavailable");
-    if ((before !== after || !view.rendered) && !(active.inline && active.busy)) draw();
+    if (available && (active.content || active.pool || generating(adaptation))) active.error = "";
+    if (active.inline && previousContent && !active.content) active.error = t("unavailable");
+    if (!active.busy && (before !== after || !active.rendered || previousPool !== active.pool ||
+        previousContent !== active.content || previousError !== active.error)) draw();
   }
   async function action(callback) {
     if (!current() || view.busy) return;
     const active = view;
     active.revision++;
     active.busy = true; active.error = ""; draw();
-    try { await callback(active); if (!active.inline && view === active && current()) await refresh(active); }
+    try { await callback(active); }
     catch {
       if (view === active && current()) {
-        active.error = t("retry");
-        clearRenderer(); active.content = null; clearPool(active);
-        try { await refresh(active); if (active.content) active.error = ""; } catch (_) { /* Keep content withheld. */ }
+        clearRenderer(); active.content = null;
+        try { await refresh(active); } catch (_) { clearPool(active); }
+        if (!active.content) active.error = t("retry");
       }
     }
-    finally { if (view === active && current()) { active.busy = false; draw(); } }
+    finally {
+      if (view === active && current()) { active.busy = false; draw(); schedulePoll(active); }
+    }
   }
   async function completeMemoir(active) {
     let result = active.status.formal?.run;
@@ -321,19 +329,22 @@ export function createStoryGameDialog({ state, storyApi, captureProjectScope, is
       method:"PUT",body:JSON.stringify({edition_id:edition.edition_id,expected_digest:edition.manuscript_digest,
         expected_revision:status.eligibility.consent_revision,action:"grant"})}, active);
     await request("/story-game", {method:"POST",body:JSON.stringify({request_id:active.gameRequest})}, active);
+    await refresh(active);
   }
   async function revoke(active) {
     const status = active.status, edition = status.formal.edition;
     clearRenderer(); active.content = null;
     await request("/story-game/consent", {method:"PUT",body:JSON.stringify({edition_id:edition.edition_id,
       expected_digest:edition.manuscript_digest,expected_revision:status.eligibility.consent_revision,action:"revoke"})}, active);
+    await refresh(active);
   }
   async function confirmSelection(active) {
     await request(`/story-game/${active.status.adaptation.game_id}/selection`, {
       method: "POST", body: JSON.stringify({expected_pool_digest: active.poolDigest,
         scene_ids: active.pool.scenes.filter(s => active.selected.has(s.id)).map(s => s.id)})}, active);
+    await refresh(active);
   }
-  async function buildInWorkspace(active) {
+  async function prepareWorkspaceGame(active) {
     const deadline = Date.now() + 75 * 60 * 1000;
     const waitForUpdate = async () => {
       if (Date.now() >= deadline) throw new Error("game_timeout");
@@ -365,25 +376,10 @@ export function createStoryGameDialog({ state, storyApi, captureProjectScope, is
       }
     }
     if (view !== active || !current() || active.content) return;
-    const adaptation = active.status.adaptation;
-    if (adaptation?.status !== "selection_required" && (adaptation?.status !== "running" || adaptation.retryable)) {
-      await generate(active);
-      await refresh(active);
-    }
-    let submitted = false;
-    while (view === active && current() && !active.content) {
-      const game = active.status.adaptation;
-      if (!active.status.eligibility?.available || active.status.composer_ready === false ||
-          !game || game.retryable || !["pending", "running", "selection_required"].includes(game.status)) {
-        throw new Error("game_build_unavailable");
-      }
-      if (game.status === "selection_required" && !submitted) {
-        if (!active.pool || !active.selected.size) throw new Error("game_scenes_unavailable");
-        await confirmSelection(active);
-        submitted = true;
-      }
-      await waitForUpdate();
-    }
+    const job = active.status.adaptation;
+    if (generating(job) || (job?.status === "selection_required" && !job.auto_select_all)) return;
+    if (active.confirmed) await confirmSelection(active);
+    else await generate(active);
   }
   function selectionMarkup(disabled) {
     const options = view.pool.scenes, groups = new Map();
@@ -432,36 +428,41 @@ export function createStoryGameDialog({ state, storyApi, captureProjectScope, is
     if (!view?.body) return;
     clearRenderer(); view.rendered = true;
     const status = view.status, content = view.content;
+    const working = status?.eligibility?.available && status.composer_ready !== false && generating(status.adaptation);
+    const progress = key => `<p class="game-progress" role="status"><span class="preview-spinner" aria-hidden="true"></span>${escapeHtml(t(key))}</p>`;
+    const error = view.error ? `<p role="alert">${escapeHtml(view.error)}</p>` : "";
     if (view.inline) {
-      const spinner = `<div class="debug-game-progress" role="status" aria-label="${escapeHtml(t("loading"))}"><span class="preview-spinner" aria-hidden="true"></span></div>`;
-      if (content?.status === "published" && !view.busy && !document.hidden) {
-        view.body.innerHTML = `<div data-story-game-player>${spinner}</div>`;
-        view.cleanup = mountStoryGameWebpage(view.body.firstElementChild, content.game, t, onWorkspaceClose);
+      if (content?.status === "published" && !view.busy) {
+        view.body.innerHTML = `<div data-story-game-player>${progress("loading")}</div>`;
+        if (!document.hidden) view.cleanup = mountStoryGameWebpage(view.body.firstElementChild, content.game, t, onWorkspaceClose);
+      } else if (working || view.busy || (!status && !view.error)) {
+        view.body.innerHTML = progress(working ? "generating" : "loading");
+      } else if (view.pool && status.adaptation.status === "selection_required") {
+        view.body.innerHTML = `<div class="story-game-body">${error}${selectionMarkup("")}</div>`;
+        bindSelection();
       } else {
-        view.body.innerHTML = view.error ? `<p class="debug-game-progress" role="alert">${escapeHtml(view.error)}</p>` : spinner;
+        view.body.innerHTML = `<p class="game-progress" role="alert">${escapeHtml(view.error || t("retry"))}</p>`;
       }
       return;
     }
-    const building = status?.adaptation?.status === "running" && !status.adaptation.retryable;
-    const disabled = view.busy || building ? "disabled" : "";
-    let markup = `<p role="status">${escapeHtml(t("loading"))}</p>`;
+    const disabled = view.busy ? "disabled" : "";
+    let markup = view.error ? "" : progress("loading");
     if (status) {
       if (status.composer_ready === false) {
         markup = `<p role="status">${escapeHtml(t("composerRequired"))}</p>`;
       } else if (content?.status === "published") {
         markup = `<a data-game-page-link href="/memoir/game/${encodeURIComponent(view.scope.projectId)}">${escapeHtml(t("openGamePage"))}</a>
-          <div data-story-game-player></div><button type="button" class="text-button" data-revoke-game ${disabled}>${escapeHtml(t("revoke"))}</button>`;
-      } else if (building && !view.pool) {
-        markup = `<p role="status">${escapeHtml(t("loading"))}</p>`;
+          <div data-story-game-player>${progress("loading")}</div><button type="button" class="text-button" data-revoke-game ${disabled}>${escapeHtml(t("revoke"))}</button>`;
+      } else if (working || view.busy) {
+        markup = progress(working ? "generating" : "loading");
       } else if (view.pool) {
-        markup = `${building ? `<p role="status">${escapeHtml(t("loading"))}</p>` : ""}${selectionMarkup(disabled)}`;
+        markup = selectionMarkup(disabled);
       } else {
         markup = `<p>${escapeHtml(t("consentIntro"))}</p><form data-game-consent>
           <button type="submit" data-generate-game ${disabled}>${escapeHtml(t("generate"))}</button></form>`;
       }
     }
-    view.body.innerHTML = `${view.busy ? `<p role="status">${escapeHtml(t("loading"))}</p>` : ""}
-      ${view.error ? `<p role="alert">${escapeHtml(view.error)}</p>` : ""}${markup}`;
+    view.body.innerHTML = error + markup;
     view.body.querySelector("[data-game-consent]")?.addEventListener("submit", event => { event.preventDefault(); void action(generate); });
     view.body.querySelector("[data-revoke-game]")?.addEventListener("click", () => action(revoke));
     bindSelection();
@@ -479,6 +480,14 @@ export function createStoryGameDialog({ state, storyApi, captureProjectScope, is
       }
     } finally { active.polling = false; }
   }
+  function schedulePoll(active) {
+    if (view !== active) return;
+    clearTimeout(active.poll);
+    active.poll = setTimeout(async () => {
+      await poll(active);
+      schedulePoll(active);
+    }, generating(active.status?.adaptation) ? 2500 : 15000);
+  }
   function startView(dialog, opener) {
     close();
     const active = view = {scope:captureProjectScope(), inline:!dialog, dialog, body:dialog?.querySelector(".story-game-body"), opener,
@@ -486,13 +495,12 @@ export function createStoryGameDialog({ state, storyApi, captureProjectScope, is
       busy:false, error:"", rendered:false, revision:0, polling:false, selected:new Set(), confirmed:false,
       visibility:() => {
         if (document.hidden) clearRenderer();
-        else if (view === active && active.inline && active.content) { active.rendered = false; void poll(active); }
+        else if (view === active && active.inline) { if (active.content) active.rendered = false; void poll(active); }
         else if (view === active && !active.inline) { active.content = null; active.rendered = false; void action(refresh); }
       }};
     document.addEventListener("visibilitychange", active.visibility);
     window.addEventListener("popstate", close, {signal:active.controller.signal});
     window.addEventListener("pagehide", close, {signal:active.controller.signal});
-    active.poll = setInterval(() => { if (!active.inline || active.content) void poll(active); }, 15000);
   }
   async function open(opener) {
     const dialog = document.createElement("dialog"); dialog.className = "story-game-modal";
@@ -503,14 +511,17 @@ export function createStoryGameDialog({ state, storyApi, captureProjectScope, is
     dialog.querySelector("[data-close-game]").addEventListener("click", close);
     dialog.addEventListener("cancel", event => { event.preventDefault(); close(); });
     document.body.append(dialog); dialog.showModal(); draw();
-    await action(refresh);
+    await action(async active => {
+      await refresh(active);
+      if (active.status?.eligibility?.available && active.status.adaptation?.auto_select_all) await generate(active);
+    });
   }
   function openWorkspace(render) {
     if (!view?.inline || !current()) {
       startView(null);
       render();
     }
-    if (!view.content) void action(buildInWorkspace);
+    if (!view.content) void action(prepareWorkspaceGame);
   }
   function mountWorkspace(root) {
     if (!view?.inline || view.body === root) return;

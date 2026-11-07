@@ -273,6 +273,7 @@
       "title": "Your private story game",
       "close": "Close game",
       "loading": "Preparing your story game…",
+      "generating": "Generating your game… You can leave and come back.",
       "completeIntro": "Freeze a complete private memoir edition before adapting it into a game. Your original memories remain linked to the edition.",
       "composerRequired": "Your memoir chapters are still being prepared. The game will be available when writing finishes.",
       "complete": "Prepare completed memoir",

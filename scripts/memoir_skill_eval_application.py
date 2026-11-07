@@ -271,15 +271,17 @@ async def _execute(value):
                     async def composer(packet, scenes):
                         return dict(design_brief='A coherent memoir journey.', scene_indices=list(range(len(scenes['scenes'])))), receipt('brief')
                     try:
-                        offered = await generate_story_game(Broker(sql), game['game_id'], provider=provider, builder=builder)
-                        if offered['status'] != 'selection_required': raise ValueError('human_pause_missing')
-                        options = read(sql, project, game)
-                        chosen = [s['id'] for s in options['pool']['scenes'] if s['recommended']]
-                        # Explicit synthetic user action; never treated as live-owner approval.
-                        rpc(sql, 'confirm_story_game_scenes', f"{literal(project)},'{game['game_id']}',"
-                            + literal(options['pool_digest']) + ',' + literal(chosen))
-                        phase.update(selection_scope='synthetic_user_action', pool_digest=options['pool_digest'], selected_ids=chosen)
-                        generated = await generate_story_game(Broker(sql), game['game_id'], composer=composer, builder=builder)
+                        generated = await generate_story_game(Broker(sql), game['game_id'],
+                            provider=provider, composer=composer, builder=builder)
+                        if generated['status'] == 'selection_required':
+                            options = read(sql, project, game)
+                            chosen = [s['id'] for s in options['pool']['scenes'] if s['recommended']]
+                            rpc(sql, 'confirm_story_game_scenes', f"{literal(project)},'{game['game_id']}',"
+                                + literal(options['pool_digest']) + ',' + literal(chosen))
+                            phase.update(selection_scope='synthetic_user_action', pool_digest=options['pool_digest'], selected_ids=chosen)
+                            generated = await generate_story_game(Broker(sql), game['game_id'], composer=composer, builder=builder)
+                        else:
+                            phase.update(selection_scope='all_events', pool_digest=generated['pool_digest'])
                     except ValueError as error:
                         expected = {'timeline-coverage': 'game_timeline_coverage_required',
                                     'unsafe-webpage': 'game_webpage_element_invalid'}
