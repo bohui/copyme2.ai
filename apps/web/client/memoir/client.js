@@ -980,7 +980,10 @@ async function streamAgentTurn(text, onDelta, onEvent = async () => {}, language
       source_kind:request.turn.sourceKind, recording_ids:request.turn.recordingIds || [], uploaded_photo_ids:request.turn.uploadedPhotoIds || [],
       photo_selection:request.turn.photoSelection || null, workspace_focus:request.turn.workspaceFocus || null});
   }
-  const response = await fetch(memoirApiPath(isGreeting ? "/v1/agent/greeting" : "/v1/agent/turn"), {
+  const priorInputs = request.turn?.priorInputs;
+  if (!isGreeting && priorInputs?.length) body.prior_inputs = priorInputs;
+  const path = isGreeting ? "/v1/agent/greeting" : priorInputs?.length ? "/v1/agent/turn-batch" : "/v1/agent/turn";
+  const response = await fetch(memoirApiPath(path), {
     method: "POST",
     headers: { "Content-Type": "application/json", Accept: "application/x-ndjson",
       Authorization: `Bearer ${state.supabase.accessToken}`,
@@ -3062,7 +3065,7 @@ function chatComposer() {
 
 async function retryInterviewTurn() {
   if (state.loading) return;
-  if (chatInputLimitReached() && state.conversationInputs?.pending()) return state.conversationInputs.restore();
+  if (state.conversationInputs?.pending()) return state.conversationInputs.restore();
   const turn = state.photoTurns?.pending();
   if (!turn) return;
   state.audioTranscript = $("#chat-input")?.value || state.audioTranscript;
@@ -3400,7 +3403,9 @@ async function sendChatMessage({ voiceTurn = false } = {}) {
   state.audioTranscriptKind = "narrator_chat";
   conversationScroll.follow();
   const queuedBehindAnother = reserved.length > 0;
-  const sending = state.conversationInputs.enqueue({id, text, messageText, sourceKind, uploadId, attachments, recordingIds, firstReply});
+  const batchable = Boolean(text && !state.voiceMode && sourceKind === "narrator_chat" && !uploadId
+    && !attachments.length && !recordingIds.length && !state.project?.profile?.photo_memories?.[scope.projectId]?.selected);
+  const sending = state.conversationInputs.enqueue({id, text, messageText, sourceKind, uploadId, attachments, recordingIds, firstReply, batchable});
   // An active queue skips the initial loading render.
   if (queuedBehindAnother) render();
   return sending;
@@ -3409,9 +3414,15 @@ async function sendChatMessage({ voiceTurn = false } = {}) {
 async function processChatMessage(message, delivery) {
   const scope = captureProjectScope();
   const current = () => isCurrentProjectScope(scope);
-  const {id, text, messageText=text, sourceKind, uploadId, attachments=[], recordingIds=[], firstReply} = message;
-  if (!state.chat.some(item => item.role === "user" && item.clientTurnId === id))
-    state.chat.push({role:"user", text:messageText, clientTurnId:id, attachments});
+  const {id, text, sourceKind, uploadId, attachments=[], recordingIds=[]} = message;
+  const priorInputs = delivery.priorInputs || [];
+  const inputs = [...priorInputs, message];
+  const firstReply = inputs[0].firstReply;
+  const sessionText = inputs.map(input => input.messageText ?? input.text).join("\n\n");
+  for (const input of inputs) {
+    if (!state.chat.some(item => item.role === "user" && item.clientTurnId === input.id))
+      state.chat.push({role:"user", text:input.messageText ?? input.text, clientTurnId:input.id, attachments:input.attachments});
+  }
   const retry = state.photoTurns?.pending()?.id === id ? state.photoTurns.pending() : null;
   if (attachments.length && !retry?.accepted) {
     try { await uploadAttachments(attachments); }
@@ -3445,7 +3456,7 @@ async function processChatMessage(message, delivery) {
     if (session && (session.follow_ups_used || 0) < 3 && (session.turns?.length || 0) < 5) {
       try {
         const turnType = session.turns?.length ? "follow_up" : "initial";
-        const answerOptions = { method: "POST", body: JSON.stringify({ text: messageText, upload_id: uploadId, turn_type: turnType }) };
+        const answerOptions = { method: "POST", body: JSON.stringify({ text: sessionText, upload_id: uploadId, turn_type: turnType }) };
         try {
           const answer = await api(`/v1/memory-sessions/${session.id}/answers`, answerOptions);
           if (!current()) return;
@@ -3474,7 +3485,7 @@ async function processChatMessage(message, delivery) {
     if (!current()) return;
     const configuredConversationLanguage = conversationLanguage() || currentUiPreference()?.locale;
     const detectedFirstReplyLanguage = firstReply && !configuredConversationLanguage
-      ? firstReplyLanguage(messageText)
+      ? firstReplyLanguage(inputs[0].messageText ?? inputs[0].text)
       : undefined;
     if (detectedFirstReplyLanguage) {
       const uiLocaleChanged = await applyFirstReplyLocalization(detectedFirstReplyLanguage);
@@ -3492,13 +3503,15 @@ async function processChatMessage(message, delivery) {
       null,
       sourceKind,
       {id, retry, attachments, recordingIds, controller:delivery.controller,
+        priorInputs:priorInputs.map(input => ({client_turn_id:input.id, text:input.text})),
         onAccepted:delivery.accepted, onSaved:delivery.saved},
     );
     if (result.detached || !current()) return result;
     if (result.blocked) {
       // Another tab may have used the final free reply. Keep the unsent draft.
-      state.chat = state.chat.filter(item => item.clientTurnId !== id);
-      state.audioTranscript = messageText;
+      const ids = new Set(inputs.map(input => input.id));
+      state.chat = state.chat.filter(item => !ids.has(item.clientTurnId));
+      state.audioTranscript = sessionText;
       state.loading = false;
       render();
       return;

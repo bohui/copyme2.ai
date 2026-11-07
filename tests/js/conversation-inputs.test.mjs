@@ -12,6 +12,24 @@ function fixture(run) {
   return {owner, values, loading, options, queue:createConversationInputs(options)};
 }
 
+test('queued text sends one batch and keeps every original through an uncertain retry', async () => {
+  const calls = [];
+  const h = fixture(async (input, delivery) => {
+    calls.push([...delivery.priorInputs, input].map(item => item.id));
+    if (calls.length === 1) return {failed:true};
+    delivery.accepted();
+    assert.equal(delivery.controller.signal.aborted, false);
+    delivery.saved();
+  });
+  const finished = h.queue.enqueue({id:'one', text:'We moved in 1985.', batchable:true});
+  h.queue.enqueue({id:'two', text:'Actually, it was 1986.', batchable:true});
+  await finished;
+  assert.deepEqual(h.queue.inputs().map(input => input.id), ['one', 'two']);
+  await h.queue.restore();
+  assert.deepEqual(calls, [['one', 'two'], ['one', 'two']]);
+  assert.equal(h.queue.pending(), false);
+});
+
 test('rapid inputs stay separate and only cancel after each source is accepted', async () => {
   const calls = [], saved = [], controls = [];
   const h = fixture(async (input, delivery) => {

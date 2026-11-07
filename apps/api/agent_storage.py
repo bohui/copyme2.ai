@@ -446,6 +446,10 @@ class UserStorage:
             'p_uploaded_photo_ids':[str(UUID(value)) for value in (uploaded_photo_ids or [])],
             'p_photo_selection':photo_selection, **({'p_recording_ids':[str(UUID(value)) for value in recording_ids]} if recording_ids else {})}).json()
 
+    def accept_interview_batch(self, project_id, inputs):
+        return self.request('POST', '/rest/v1/rpc/accept_two_lane_interview_batch',
+                            json={'p_project_id':project_id, 'p_inputs':inputs}).json()
+
     def source_recordings(self, project_id, source_id):
         import os
         if os.getenv('MEMOIR_ORIGINAL_RECORDINGS', '') != '1': return []

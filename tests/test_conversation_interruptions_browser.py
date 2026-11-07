@@ -62,7 +62,7 @@ def chat():
                 }
                 const requests=[];
                 window.fetch=async(path,options)=>{
-                  const input=JSON.parse(options.body), request={input,aborted:false};requests.push(request);
+                  const input=JSON.parse(options.body), request={path,input,aborted:false};requests.push(request);
                   const stream=new ReadableStream({start(controller){
                     request.emit=event=>controller.enqueue(new TextEncoder().encode(JSON.stringify(event)+'\\n'));
                     request.accept=()=>request.emit({type:'source_accepted',data:{project_id:'project',client_turn_id:input.client_turn_id}});
@@ -99,27 +99,28 @@ def test_send_interrupts_mira_and_keeps_three_separate_inputs(chat, before_accep
     if not before_acceptance:
         page.evaluate("requests[0].accept();requests[0].token('An outdated partial reply.');")
         expect(page.locator('.assistant')).to_have_text('An outdated partial reply.')
-    page.locator('#chat-input').fill(originals[1])
-    page.locator('#chat-input').press('Enter')
+    page.evaluate("""originals => {
+        $('#chat-input').value=originals[0];
+        $('#chat-input').dispatchEvent(new KeyboardEvent('keydown', {key:'Enter',cancelable:true}));
+        $('#chat-input').value=originals[1];
+        $('#chat-form').requestSubmit();
+    }""", originals[1:])
     assert page.locator('#chat-input').input_value() == ''
-    assert page.locator('.user').all_text_contents() == originals[:2]
-    page.locator('#chat-input').fill(originals[2])
-    page.locator('.send-button').click()
     assert page.locator('.user').all_text_contents() == originals
     if before_acceptance:
         assert page.evaluate('requests.length') == 1
         assert not page.evaluate('requests[0].aborted')
         page.evaluate('requests[0].accept()')
-    page.wait_for_function('requests.length>=2')
+    page.wait_for_function('requests.length===2')
     assert page.evaluate('requests[0].aborted')
-    page.evaluate('requests[1].accept()')
-    page.wait_for_function('requests.length===3')
-    assert page.evaluate('requests[1].aborted')
-    page.evaluate("requests[2].accept();requests[2].finish('Your sister moved with you in 1986.');")
+    assert page.evaluate('requests[1].path') == '/v1/agent/turn-batch'
+    assert page.evaluate('requests[1].input.prior_inputs[0].text') == originals[1]
+    assert page.evaluate('requests[1].input.text') == originals[2]
+    page.evaluate("requests[1].accept();requests[1].finish('Your sister moved with you in 1986.');")
     page.wait_for_function('!state.loading')
     expect(page.locator('.user')).to_have_text(originals)
     expect(page.locator('.assistant')).to_have_text('Your sister moved with you in 1986.')
-    assert page.evaluate('new Set(requests.map(request=>request.input.client_turn_id)).size') == 3
+    assert page.evaluate('new Set(requests.flatMap(({input}) => [input.client_turn_id, ...(input.prior_inputs || []).map(item=>item.client_turn_id)])).size') == 3
     assert page.evaluate('errors') == []
     expect(page.locator('.send-button')).to_be_enabled()
 
@@ -131,10 +132,12 @@ def test_send_waits_for_mira_after_eight_inputs(chat, failure):
     send = page.locator('.send-button')
     note = page.get_by_role('status')
     originals = [f'Memory {number}' for number in range(1, 9)]
-    for original in originals:
+    for index, original in enumerate(originals):
         expect(send).to_be_enabled()
         box.fill(original)
         send.click()
+        if index == 0:
+            page.wait_for_function('requests.length===1')
     expect(send).to_be_disabled()
     expect(note).to_be_visible()
     expect(note).to_have_text('您说的太快了，请稍等')
@@ -145,26 +148,27 @@ def test_send_waits_for_mira_after_eight_inputs(chat, failure):
     expect(box).to_have_value('One more memory')
     expect(page.locator('.user')).to_have_text(originals)
 
-    for index in range(7):
-        page.wait_for_function('count => requests.length === count', arg=index + 1)
-        page.evaluate('index => requests[index].accept()', index)
-    page.wait_for_function('requests.length === 8')
+    page.evaluate('requests[0].accept()')
+    page.wait_for_function('requests.length===2')
+    assert page.evaluate('requests[1].input.prior_inputs.map(input=>input.text)') == originals[1:7]
+    assert page.evaluate('requests[1].input.text') == originals[7]
     if failure != 'before_acceptance':
-        page.evaluate("requests[7].accept(); requests[7].token('A partial reply.');")
+        page.evaluate("requests[1].accept(); requests[1].token('A partial reply.');")
         expect(page.locator('.assistant')).to_have_text('A partial reply.')
         expect(send).to_be_disabled()
         expect(note).to_have_text('您说的太快了，请稍等')
 
     if failure:
-        page.evaluate('requests[7].fail()')
+        page.evaluate('requests[1].fail()')
         page.wait_for_function('!state.loading')
         if failure == 'before_acceptance':
             page.evaluate("state.chat = restoreChatHistory('project'); render();")
         expect(send).to_be_disabled()
         page.locator('.retry-interview-turn').click()
-        page.wait_for_function('requests.length === 9')
-        assert page.evaluate('requests[8].input.client_turn_id === requests[7].input.client_turn_id')
-        page.evaluate('requests[8].accept()')
+        page.wait_for_function('requests.length===3')
+        assert page.evaluate('requests[2].input.client_turn_id === requests[1].input.client_turn_id')
+        assert page.evaluate('requests[2].input.prior_inputs') == page.evaluate('requests[1].input.prior_inputs')
+        page.evaluate('requests[2].accept()')
 
     page.evaluate("requests.at(-1).finish('I heard all eight memories.');")
     page.wait_for_function('!state.loading')
