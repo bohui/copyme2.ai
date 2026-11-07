@@ -283,7 +283,26 @@ async def run_lifetime_turn(runtime,storage,text,*,publication,project_id=None,l
                 if on_event:await on_event({'type':'source_accepted','data':{'client_turn_id':client_turn_id,'project_id':project_id,
                     'accepted_source_id':source['id'],'recordings':accepted.get('recordings',[]),**public_interview_fields(accepted)}})
                 await progress.update('memory-context','Loading saved profile and memory context','正在加载个人资料和回忆背景')
-                context=await call('read_lifetime_interview_context',p_conversation_id=str(identity.conversation_id))
+                from .agent_lock import AgentTurnLease
+                collector=collector_configuration(runtime.model)
+                def read_window():
+                    window_args={'p_conversation_id':str(identity.conversation_id),'p_policy_epoch':fence['policy_epoch']}
+                    checkpoint={**window_args,'p_model':collector.model,'p_prompt_version':'lifetime-v1',
+                        'p_before_sequence':source['sequence']}
+                    saved=storage.lifetime_rpc('read_lifetime_checkpoint_before',**checkpoint,p_require_accepted=True)
+                    if saved and saved['coverage_end']>=source['sequence']:
+                        saved=storage.lifetime_rpc('read_lifetime_checkpoint_before',**checkpoint,p_require_accepted=False)
+                    tail=storage.lifetime_rpc('read_lifetime_two_lane_tail',**window_args,
+                        p_after_sequence=saved['coverage_end'] if saved else 0,p_through_sequence=source['sequence']-1)
+                    return saved,tail
+                try:
+                    context,(saved,tail)=await AgentTurnLease.reads(
+                        lambda:storage.lifetime_rpc('read_lifetime_interview_context',p_conversation_id=str(identity.conversation_id)),
+                        read_window)
+                except httpx.HTTPStatusError as error:
+                    if is_policy_pending(error):
+                        raise await policy_pending() from None
+                    raise
                 if workspace_focus:
                     from .workspace_memory_actions import read_workspace_focus, apply_workspace_focus
                     try:
@@ -328,20 +347,13 @@ async def run_lifetime_turn(runtime,storage,text,*,publication,project_id=None,l
                     context['reviewed_acknowledgement']=opening
                 else:
                     opening=None
-                collector=collector_configuration(runtime.model)
                 context['reply_contract'] = 'reply-v2'
                 if revisable:
                     context.update(revisable_reply=True, policy_review_pending=pending_review)
                 overall=ContextBudget(model=collector.model,context_window=131072,input_budget=65536,output_headroom=8192,framing_headroom=2048)
                 overhead=governed_request_overhead(context,overall)
                 packet_budget=overall.model_copy(update={'input_budget':overall.input_budget-overhead})
-                saved=await call('read_lifetime_checkpoint_before' if two_lane else 'read_lifetime_checkpoint',p_conversation_id=str(identity.conversation_id),p_policy_epoch=fence['policy_epoch'],p_model=collector.model,p_prompt_version='lifetime-v1',
-                    **({'p_before_sequence':source['sequence'],'p_require_accepted':True} if two_lane else {}))
-                if saved and saved['coverage_end']>=source['sequence']:
-                    saved=await call('read_lifetime_checkpoint_before',p_conversation_id=str(identity.conversation_id),p_policy_epoch=fence['policy_epoch'],
-                        p_model=collector.model,p_prompt_version='lifetime-v1',p_before_sequence=source['sequence'],p_require_accepted=False)
                 after=saved['coverage_end'] if saved else 0
-                tail=await call('read_lifetime_two_lane_tail' if two_lane else 'read_lifetime_tail',p_conversation_id=str(identity.conversation_id),p_policy_epoch=fence['policy_epoch'],p_after_sequence=after,p_through_sequence=source['sequence']-1)
                 def row(value):return ContextSource(identity=identity,policy_epoch=fence['policy_epoch'],source_id=value['id'],version=value['version'],sequence=value['sequence'],original=value['text'],language=value['language'],kind=value['kind'],conversation_saved=value.get('conversation_saved',False),assistant_reply=value.get('assistant_reply'),reply_policy_epoch=value.get('reply_policy_epoch'))
                 coverage=TailCoverage(identity=identity,policy_epoch=fence['policy_epoch'],after_sequence=after,through_sequence=source['sequence']-1,complete=tail['complete'],tombstones=tail['tombstones'])
                 service=LifetimeMemoryService(storage.lifetime_rpc,budget=packet_budget)

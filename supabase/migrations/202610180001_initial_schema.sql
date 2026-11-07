@@ -5667,15 +5667,49 @@ begin
    'home_checkpoint',(select runtime_checkpoint from public.user_lifetime_conversation where user_id=owner and conversation_id=conversation));
 end $$;
 
-CREATE FUNCTION public.stage_lifetime_runtime_checkpoint(p_fence jsonb, p_checkpoint jsonb, p_draft boolean DEFAULT false) RETURNS void
+CREATE FUNCTION public.stage_lifetime_runtime_checkpoint(p_fence jsonb, p_checkpoint jsonb, p_draft boolean, p_allow_committed boolean) RETURNS void
     LANGUAGE plpgsql SECURITY DEFINER SET search_path TO '' AS $$
 declare owner uuid:=auth.uid(); conversation uuid:=(p_fence->'identity'->>'conversation_id')::uuid;
  expected_path text; source public.user_narrator_source%rowtype;
+ project text:=p_fence->'identity'->>'project_id'; epoch bigint;
+ execution public.user_lifetime_conversation%rowtype; committed record;
+ promote boolean:=false; verified jsonb;
 begin
- -- The caller is the server that performed exact object readback. End-user
- -- JWTs cannot attest verification or write either checkpoint column.
- if p_draft then perform public.lock_lifetime_draft_reply(p_fence);
- else perform public.lock_lifetime_publication(p_fence);end if;
+ -- The worker can finish after the reply releases its lease. A late receipt
+ -- only attaches to the exact current committed execution.
+ if p_allow_committed then
+   select p.policy_epoch into epoch from public.user_memoir_project p
+     where p.user_id=owner and p.project_id=project for update;
+   select l.* into execution from public.user_lifetime_conversation l
+     where l.user_id=owner and l.project_id=project and l.conversation_id=conversation;
+   if not found or p_draft or owner::text is distinct from p_fence->'identity'->>'owner_id'
+     or epoch::text is distinct from p_fence->>'policy_epoch'
+     or execution.execution_generation::text is distinct from p_fence->>'execution_generation' then
+     raise exception 'stale runtime checkpoint authority' using errcode='PT409';end if;
+   select r.source_revision,r.policy_epoch,r.execution_generation,r.preference_revision,
+       t.source_id,t.source_version,t.collector->>'thread_id' thread_id,
+       encode(sha256(convert_to(t.collector->>'reply','UTF8')),'hex') reply_sha256 into committed
+     from public.user_lifetime_reply r join public.user_interview_turn t
+       on t.user_id=r.user_id and t.project_id=project and t.client_turn_id=r.client_turn_id
+     where r.user_id=owner and r.conversation_id=conversation order by r.source_revision desc limit 1;
+   if found and committed.source_revision>=(p_fence->>'source_revision')::bigint then
+     if committed.source_revision::text is distinct from p_fence->>'source_revision'
+       or committed.policy_epoch is distinct from epoch
+       or committed.execution_generation is distinct from execution.execution_generation
+       or committed.preference_revision is distinct from execution.preference_revision
+       or committed.thread_id is distinct from execution.thread_id
+       or committed.thread_id is distinct from p_checkpoint->>'thread_id'
+       or committed.source_id::text is distinct from p_checkpoint->>'source_id'
+       or committed.source_version::text is distinct from p_checkpoint->>'source_version'
+       or committed.reply_sha256 is distinct from p_checkpoint->>'reply_sha256' then
+       raise exception 'committed runtime checkpoint changed' using errcode='PT409';end if;
+     promote:=true;
+   end if;
+ end if;
+ if not promote then
+   if p_draft then perform public.lock_lifetime_draft_reply(p_fence);
+   else perform public.lock_lifetime_publication(p_fence);end if;
+ end if;
  if jsonb_typeof(p_checkpoint) is distinct from 'object' or length(p_checkpoint::text)>4096
    or coalesce(p_checkpoint->>'scope','') !~ '^[a-f0-9]{64}$'
    or coalesce(p_checkpoint->>'archive_sha256','') !~ '^[a-f0-9]{64}$'
@@ -5699,13 +5733,24 @@ begin
  if not exists(select 1 from storage.objects where bucket_id='memory-spark' and name=expected_path
    and (metadata->>'size')::bigint=(p_checkpoint->>'byte_size')::bigint) then
    raise exception 'runtime checkpoint object unavailable' using errcode='PT409';end if;
- update public.user_lifetime_conversation set runtime_checkpoint_candidate=p_checkpoint||
-   jsonb_build_object('policy_epoch',p_fence->'policy_epoch','execution_generation',p_fence->'execution_generation',
-     'verified_at',clock_timestamp()) where user_id=owner and conversation_id=conversation;
+ verified:=p_checkpoint||jsonb_build_object('policy_epoch',p_fence->'policy_epoch',
+   'execution_generation',p_fence->'execution_generation','verified_at',clock_timestamp());
+ if promote then
+   update public.user_lifetime_conversation set runtime_checkpoint=verified where user_id=owner and conversation_id=conversation;
+ else
+   update public.user_lifetime_conversation set runtime_checkpoint_candidate=verified where user_id=owner and conversation_id=conversation;
+ end if;
 end $$;
+
+CREATE FUNCTION public.stage_lifetime_runtime_checkpoint(p_fence jsonb, p_checkpoint jsonb, p_draft boolean DEFAULT false) RETURNS void
+    LANGUAGE sql SECURITY DEFINER SET search_path TO '' AS $$
+ select public.stage_lifetime_runtime_checkpoint(p_fence,p_checkpoint,p_draft,false)
+$$;
 
 revoke all on function public.stage_lifetime_runtime_checkpoint(jsonb,jsonb,boolean) from public,anon,authenticated;
 grant execute on function public.stage_lifetime_runtime_checkpoint(jsonb,jsonb,boolean) to service_role;
+revoke all on function public.stage_lifetime_runtime_checkpoint(jsonb,jsonb,boolean,boolean) from public,anon,authenticated;
+grant execute on function public.stage_lifetime_runtime_checkpoint(jsonb,jsonb,boolean,boolean) to service_role;
 
 CREATE FUNCTION public.commit_user_agent_turn(p_lease_token uuid, p_thread_id text, p_content text, p_source_paths text[] DEFAULT '{}'::text[], p_source_sequence bigint DEFAULT NULL::bigint, p_project_id text DEFAULT NULL::text, p_client_turn_id uuid DEFAULT NULL::uuid, p_user_response boolean DEFAULT true, p_life_stage text DEFAULT 'unplaced'::text) RETURNS jsonb
     LANGUAGE plpgsql SECURITY DEFINER
