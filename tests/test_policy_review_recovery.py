@@ -27,6 +27,82 @@ def database():
     yield from base_database.__wrapped__(publication_tcp=True)
 
 
+@pytest.mark.parametrize('first_outcome', ['complete', 'invalid_span', 'overflow'])
+def test_queued_inputs_share_one_policy_review_and_keep_exact_sources(sql, tmp_path, monkeypatch, first_outcome):
+    from test_conversation_attribution import Conversation, empty
+    from test_shared_memory_events_postgres import rpc
+
+    monkeypatch.setenv('MEMORY_SPARK_PARALLEL_POLICY_REVIEW', '0')
+    monkeypatch.setenv('MEMORY_SPARK_EARLY_POLICY_ACK', '0')
+    conversation = Conversation(sql, tmp_path, monkeypatch, empty)
+    project = rpc(sql, 'resolve_lifetime_conversation', 'null')['project_id']
+    controls = ['请先别聊我家的搬迁。', '以后请不要再提我的学校。']
+    originals = ['我们小时候在院子里玩。🌳' + controls[0], controls[1]]
+    turns = [str(uuid4()), str(uuid4())]
+    requests = []
+    joined = '\n\n'.join(originals)
+    crosses_sources = first_outcome == 'invalid_span'
+
+    def gateway(request):
+        payload = json.loads(json.loads(request.content)['input'])
+        text = payload['source']['text']
+        requests.append(text)
+        if first_outcome == 'overflow' and text == joined:
+            output = dict(complete=False, restrictions=[], reason={
+                'code':'too_many_restrictions', 'detail':'Review the sources separately.'})
+        else:
+            restrictions = []
+            for quote in [joined] if crosses_sources else controls:
+                if quote in text:
+                    start = text.index(quote)
+                    restrictions.append(dict(kind='excluded_topic', quote=quote, char_start=start, char_end=start + len(quote)))
+            output = dict(complete=True, restrictions=restrictions, reason=None)
+        return httpx.Response(200, json=dict(id=f'grouped-review-{len(requests)}', status='completed', output=[
+            dict(type='message', status='completed', content=[dict(type='output_text', text=json.dumps(output))])]))
+
+    async def review(*args, **kwargs):
+        kwargs.update(base_url='http://controlled.invalid/v1', api_key='synthetic-policy-key')
+        return await complete_json(*args, **kwargs, transport=httpx.MockTransport(gateway))
+
+    monkeypatch.setattr(policy_review, 'complete_json', review)
+    payload = dict(project_id=project, client_turn_id=turns[1], text=originals[1], language='zh-CN',
+        prior_inputs=[dict(client_turn_id=turns[0], text=originals[0])])
+    path = '/api/v1/memoir/agent/turn-batch'
+    with conversation.client as client:
+        if first_outcome == 'invalid_span':
+            rejected = client.post(path, json=payload)
+            assert rejected.status_code == 503 and rejected.headers['X-Error-Code'] == 'LIFETIME_POLICY_PENDING'
+            assert requests == [joined, joined] and not conversation.foreground
+            assert sql('select count(*) from public.user_lifetime_pending_policy;').stdout.strip() == '2'
+            assert sql('select count(*) from public.user_lifetime_source_policy_receipt;').stdout.strip() == '0'
+            crosses_sources = False
+        response = client.post(path, json=payload, headers={'Accept':'application/x-ndjson'})
+        assert response.status_code == 200, response.text
+        events = [json.loads(line) for line in response.text.splitlines()]
+        assert events[-1]['type'] == 'result', events
+        assert events[-1]['data']['conversation_saved']
+        assert [event['data']['client_turn_id'] for event in events if event['type'] == 'source_accepted'] == turns[1:]
+        replay = client.post(path, json=payload)
+        assert replay.status_code == 200 and replay.json()['cached']
+        expected = [joined, *originals] if first_outcome == 'overflow' else [joined] * (3 if first_outcome == 'invalid_span' else 1)
+        assert requests == expected
+        assert len(conversation.foreground) == 1
+    sources = json.loads(sql('select jsonb_agg(to_jsonb(s) order by sequence) from public.user_narrator_source s;').stdout)
+    assert [row['text'] for row in sources] == originals
+    assert [row['client_turn_id'] for row in sources] == turns
+    assert sql('select count(*) from public.user_lifetime_pending_policy;').stdout.strip() == '0'
+    assert sql('select count(*) from public.user_completed_round;').stdout.strip() == '1'
+    evidence = json.loads(sql("select jsonb_agg(data->'source_refs'->0) from public.user_lifetime_continuity "
+        "where kind='excluded_topic';").stdout)
+    by_source = {ref['source_id']:ref for ref in evidence}
+    for source, quote in zip(sources, controls, strict=True):
+        ref = by_source[source['id']]
+        start = source['text'].index(quote)
+        assert (ref['char_start'], ref['char_end'], ref['quote']) == (start, start + len(quote), quote)
+    receipts = sql("select distinct review#>>'{receipt,response_id}' from public.user_lifetime_source_policy_receipt;")
+    assert len(receipts.stdout.splitlines()) == (2 if first_outcome == 'overflow' else 1)
+
+
 @pytest.mark.parametrize('fault', ['once','persistent','unauthorized'])
 def test_gateway_failure_is_bounded_and_recovered_before_foreground_reply(sql,tmp_path,monkeypatch,fault):
     from test_conversation_attribution import Conversation, empty

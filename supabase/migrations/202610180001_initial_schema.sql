@@ -2503,6 +2503,29 @@ begin
  return result;
 end $$;
 
+CREATE FUNCTION public.accept_two_lane_interview_batch(p_project_id text, p_inputs jsonb) RETURNS jsonb
+    LANGUAGE plpgsql SECURITY DEFINER SET search_path TO '' AS $$
+declare item jsonb; result jsonb; current_sequence bigint; previous_sequence bigint;
+begin
+ if jsonb_typeof(p_inputs) is distinct from 'array' or jsonb_array_length(p_inputs) not between 2 and 8 then
+   raise exception 'bounded narration batch required' using errcode='22023';
+ end if;
+ if (select sum(octet_length(value->>'text')) + 2 * (count(*) - 1) from jsonb_array_elements(p_inputs))>16000 then
+   raise exception 'narration batch exceeds the request budget' using errcode='22023';
+ end if;
+ for item in select value from jsonb_array_elements(p_inputs) loop
+   result:=public.accept_two_lane_interview_turn(p_project_id,(item->>'client_turn_id')::uuid,
+     item->>'text','narrator_chat',item->>'language');
+   current_sequence:=(result->'source'->>'sequence')::bigint;
+   if current_sequence is null or result->'source'->>'text' is distinct from item->>'text'
+      or (previous_sequence is not null and current_sequence<>previous_sequence+1) then
+     raise exception 'active consecutive batch sources required' using errcode='PT409';
+   end if;
+   previous_sequence:=current_sequence;
+ end loop;
+ return result;
+end $$;
+
 CREATE FUNCTION public.accept_user_interview_turn(p_project_id text, p_client_turn_id uuid, p_text text, p_kind text DEFAULT 'narrator_chat'::text, p_language text DEFAULT 'en-AU'::text, p_uploaded_photo_ids jsonb DEFAULT '[]'::jsonb, p_photo_selection jsonb DEFAULT NULL::jsonb, p_recording_ids jsonb DEFAULT '[]'::jsonb) RETURNS jsonb
     LANGUAGE sql SECURITY DEFINER
     SET search_path TO ''
@@ -2908,6 +2931,22 @@ begin
    raise exception 'pending source policy review required' using errcode='PT409';
  end if;
  return remaining;
+end $$;
+
+CREATE FUNCTION public.read_lifetime_policy_review_batch(p_fence jsonb, p_client_turn_ids jsonb) RETURNS jsonb
+    LANGUAGE plpgsql SECURITY DEFINER SET search_path TO '' AS $$
+begin
+ perform public.lock_lifetime_publication_scope(p_fence);
+ if jsonb_typeof(p_client_turn_ids) is distinct from 'array' or jsonb_array_length(p_client_turn_ids) not between 1 and 8 then
+   raise exception 'bounded policy review batch required' using errcode='22023';
+ end if;
+ return (select coalesce(jsonb_agg(public.narrator_source_record(s)||jsonb_build_object('interview_language',
+     (select profile->>'preferred_language' from public.user_profile where user_id=auth.uid())) order by s.sequence),'[]')
+   from public.user_lifetime_pending_policy p join public.user_narrator_source s
+     on s.user_id=p.user_id and s.project_id=p.project_id and s.id=p.source_id
+     and s.version=p.source_version and s.status='active'
+   where p.user_id=auth.uid() and p.conversation_id=(p_fence->'identity'->>'conversation_id')::uuid
+     and p_client_turn_ids ? p.client_turn_id::text);
 end $$;
 
 CREATE FUNCTION public.complete_lifetime_policy_review(p_fence jsonb, p_source_id uuid, p_version bigint, p_review jsonb, p_receipt jsonb) RETURNS jsonb
@@ -14694,9 +14733,13 @@ revoke all on function public.pending_memoir_lanes(integer) from public,anon,aut
 revoke all on function public.pending_memoir_receipts(integer) from public,anon,authenticated,service_role;
 revoke all on function public.persist_lifetime_chosen_name(uuid, uuid, bigint, text) from public,anon,authenticated,service_role;
 revoke all on function public.read_lifetime_policy_review(jsonb) from public,anon,authenticated,service_role;
+revoke all on function public.read_lifetime_policy_review_batch(jsonb,jsonb) from public,anon,authenticated,service_role;
+revoke all on function public.accept_two_lane_interview_batch(text,jsonb) from public,anon,authenticated,service_role;
 revoke all on function public.lock_lifetime_policy_review(jsonb) from public,anon,authenticated,service_role;
 revoke all on function public.complete_lifetime_policy_review(jsonb,uuid,bigint,jsonb,jsonb) from public,anon,authenticated,service_role;
 grant execute on function public.read_lifetime_policy_review(jsonb) to authenticated;
+grant execute on function public.read_lifetime_policy_review_batch(jsonb,jsonb) to authenticated;
+grant execute on function public.accept_two_lane_interview_batch(text,jsonb) to authenticated;
 grant execute on function public.lock_lifetime_policy_review(jsonb) to authenticated;
 grant execute on function public.complete_lifetime_policy_review(jsonb,uuid,bigint,jsonb,jsonb) to service_role;
 revoke all on function public.persist_lifetime_continuity_updates(jsonb, jsonb, boolean) from public,anon,authenticated,service_role;

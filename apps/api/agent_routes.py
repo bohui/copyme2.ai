@@ -30,6 +30,11 @@ router.include_router(story_game_router)
 runtime = CodexRuntime()
 
 
+class PriorTurnInput(BaseModel):
+    client_turn_id: UUID
+    text: str = Field(min_length=1, max_length=16000)
+
+
 class TurnInput(BaseModel):
     text: str = Field(default="", max_length=100000)
     client_turn_id: UUID | None = None
@@ -48,6 +53,7 @@ class TurnInput(BaseModel):
     # compatibility hint. The server's durable first-reply state decides
     # whether detection is still eligible; this cannot override saved settings.
     first_reply_localization: bool = False
+    prior_inputs: list[PriorTurnInput] = Field(default_factory=list, max_length=7)
 
 
     @model_validator(mode='after')
@@ -55,6 +61,14 @@ class TurnInput(BaseModel):
         original = self.conversation_text if self.conversation_text is not None else self.text
         if not original.strip() and not self.uploaded_photo_ids and not self.photo_selection:
             raise ValueError('Enter an answer or select a photo')
+        if self.prior_inputs:
+            ids = {self.client_turn_id, *(item.client_turn_id for item in self.prior_inputs)}
+            texts = [*(item.text for item in self.prior_inputs), original]
+            if (None in ids or len(ids) != len(texts) or any(not text.strip() for text in texts)
+                    or len('\n\n'.join(texts).encode('utf-8')) > 16000
+                    or self.source_kind != 'narrator_chat' or self.recording_ids
+                    or self.uploaded_photo_ids or self.photo_selection):
+                raise ValueError('A batch requires distinct, bounded text inputs')
         if (self.uploaded_photo_ids or self.photo_selection) and not self.project_id:
             raise ValueError('Photo cues require an interview project')
         if len(self.recording_ids) != len(set(self.recording_ids)):
@@ -408,6 +422,7 @@ async def greeting(payload: GreetingInput, authorization: str | None = Header(de
         'client_turn_id': str(payload.client_turn_id) if payload.client_turn_id else None})
 
 
+@router.post('/turn-batch')
 @router.post('/turn')
 async def turn(payload: TurnInput, request: Request, authorization: str | None = Header(default=None),
                accept: str = Header(default='application/json')):
@@ -422,7 +437,9 @@ async def turn(payload: TurnInput, request: Request, authorization: str | None =
         'conversation_text': payload.conversation_text, 'source_kind': payload.source_kind,
         'uploaded_photo_ids': [str(id) for id in payload.uploaded_photo_ids],
         'photo_selection': payload.photo_selection, 'workspace_focus': focus,
-        'recording_ids': [str(id) for id in payload.recording_ids]})
+        'recording_ids': [str(id) for id in payload.recording_ids],
+        **({'prior_inputs': [item.model_dump(mode='json') for item in payload.prior_inputs]}
+            if payload.prior_inputs else {})})
 
 
 @router.get('/family-context')

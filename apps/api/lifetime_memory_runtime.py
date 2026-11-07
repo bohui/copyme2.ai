@@ -110,7 +110,7 @@ def lifetime_generation_paused():
 
 async def run_lifetime_turn(runtime,storage,text,*,publication,project_id=None,language='en-AU',
         client_turn_id=None,source_kind='narrator_chat',uploaded_photo_ids=None,photo_selection=None,recording_ids=None,
-        user_response=True,on_delta=None,on_event=None,workspace_focus=None,evaluation=None,trajectory=None,**unused):
+        prior_inputs=None,user_response=True,on_delta=None,on_event=None,workspace_focus=None,evaluation=None,trajectory=None,**unused):
     turn_started=time.monotonic()
     from .collector_configuration import collector_configuration, CollectorConfigurationError
     from .two_lane_memory import two_lanes_enabled
@@ -156,7 +156,9 @@ async def run_lifetime_turn(runtime,storage,text,*,publication,project_id=None,l
                 if is_policy_pending(error):
                     raise await policy_pending() from None
                 raise
-        async def review_policy(*, include_decision=False):
+        requested_language=next((locale for original in (text, *(item['text'] for item in reversed(prior_inputs or [])))
+            if (locale:=explicit_request(original))), None)
+        async def review_policy(*, include_decision=False, batch_ids=None):
             # Reviewing original narration is provider dispatch too.
             if lifetime_generation_paused():
                 raise GenerationPaused('Conversation generation is paused; saved history and receipts remain available')
@@ -165,22 +167,24 @@ async def run_lifetime_turn(runtime,storage,text,*,publication,project_id=None,l
                 return await review_pending_policy(storage, lease, str(identity.conversation_id),
                     model=collector_configuration(runtime.model).model,
                     base_url=runtime.base_url, api_key=runtime.api_key,
-                    language=explicit_request(text), fallback_language=language, include_decision=include_decision)
+                    language=requested_language, fallback_language=language, include_decision=include_decision,
+                    **({'batch_turn_ids':batch_ids} if batch_ids else {}))
             except (PolicyUnavailable, ValueError, OSError) as error:
                 raise await policy_pending() from error
         async def select_language():
             profile=await lease.io(storage.profile)
-            selected=explicit_request(text) or profile.get('preferred_language') or language or detect_reply_locale(text)
+            selected=requested_language or profile.get('preferred_language') or language or detect_reply_locale(text)
             if selected not in {'en-AU','zh-CN'}: selected='en-AU'
             if profile.get('preferred_language')!=selected:
                 language_fence=await call('capture_lifetime_fence',p_conversation_id=str(identity.conversation_id),p_lease_token=lease.lease_token)
-                selected=await call('set_lifetime_language',p_fence=language_fence,p_language=selected,p_explicit=bool(explicit_request(text)))
+                selected=await call('set_lifetime_language',p_fence=language_fence,p_language=selected,p_explicit=bool(requested_language))
             return selected
         entitlement=await lease.io(storage.story_entitlement)
         access=await lease.io(storage_recall_status,storage,entitlement)
         fence=await call('capture_lifetime_fence',p_conversation_id=str(identity.conversation_id),p_lease_token=lease.lease_token)
         publication.set_fence(fence)
         client_turn_id=client_turn_id or str(uuid4())
+        batch_ids=[*(item['client_turn_id'] for item in prior_inputs),client_turn_id] if prior_inputs else []
         replay=None
         already_accepted=False
         if user_response:
@@ -188,11 +192,15 @@ async def run_lifetime_turn(runtime,storage,text,*,publication,project_id=None,l
             replay=await call('read_lifetime_two_lane_reply' if two_lane else 'read_lifetime_reply',p_conversation_id=str(identity.conversation_id),p_client_turn_id=client_turn_id)
         policy_status=await call('read_lifetime_policy_status',p_conversation_id=str(identity.conversation_id))
         if policy_status.get('pending'):
-            await review_policy()
+            await review_policy(batch_ids=batch_ids if policy_status.get('pending_client_turn_id') in batch_ids else None)
             policy_status=await call('read_lifetime_policy_status',p_conversation_id=str(identity.conversation_id))
             if policy_status.get('pending'):
                 raise await policy_pending(policy_status)
         if replay is not None:
+            for item in prior_inputs or []:
+                if not await call('validate_lifetime_replay_input',p_conversation_id=str(identity.conversation_id),
+                        p_client_turn_id=item['client_turn_id'],p_text=item['text'],p_kind='narrator_chat'):
+                    raise HTTPException(409,'The original batch input is unavailable')
             response={**replay,'cached':True,'recall_status':access}
             response['recordings']=await lease.io(storage.source_recordings,project_id,replay['accepted_source_id']) if callable(getattr(storage,'source_recordings',None)) else []
             if replay.get('reply'):
@@ -239,20 +247,25 @@ async def run_lifetime_turn(runtime,storage,text,*,publication,project_id=None,l
                 from .workspace_memory_actions import read_workspace_focus
                 await lease.io(read_workspace_focus, storage, project_id, workspace_focus)
             accepted_start=time.monotonic()
-            accepted=await lease.io(storage.accept_interview_turn,project_id,client_turn_id,text,kind=source_kind,
-                language=detect_reply_locale(text) or language,uploaded_photo_ids=uploaded_photo_ids,photo_selection=photo_selection,
-                **({'recording_ids':recording_ids} if recording_ids else {}),
-                **({'two_lane':True} if two_lane else {}))
+            if prior_inputs:
+                inputs=[*prior_inputs, {'client_turn_id':client_turn_id, 'text':text}]
+                accepted=await lease.io(storage.accept_interview_batch,project_id,[
+                    {**item, 'language':detect_reply_locale(item['text']) or language or 'en-AU'} for item in inputs])
+            else:
+                accepted=await lease.io(storage.accept_interview_turn,project_id,client_turn_id,text,kind=source_kind,
+                    language=detect_reply_locale(text) or language,uploaded_photo_ids=uploaded_photo_ids,photo_selection=photo_selection,
+                    **({'recording_ids':recording_ids} if recording_ids else {}),
+                    **({'two_lane':True} if two_lane else {}))
             source=accepted.get('source')
             if not source:raise ValueError('Governed narrator turn requires a canonical source')
             accepted_source_id=source['id']
             from .parallel_reply import parallel_policy_enabled, RevisableReplyStream, reviewed_reply
             revisable=(parallel_policy_enabled() and two_lane and publication.emitter is not None
-                and on_delta is not None and not already_accepted)
+                and on_delta is not None and not already_accepted and not prior_inputs)
             reviewed_opening=None
             pending_review=revisable
             if not revisable:
-                reviewed_opening=await review_policy()
+                reviewed_opening=await review_policy(batch_ids=batch_ids)
                 if recording_ids:
                     # Acceptance can precede policy clearance; publish the
                     # current authorized descriptors after that review.
