@@ -98,7 +98,7 @@ export function eventAgeLabel(age, t) {
 }
 
 // A display estimate supplies an age without dating the event for chronology.
-function displayTimingEstimate(stage, profile, timing, present) {
+function displayTimingEstimate(stage, profile, timing, present, hint, priorAge) {
   const currentYear = new Date().getUTCFullYear();
   const birth = number(profile.birth_year);
   const birthYear = birth && birth <= currentYear ? birth : null;
@@ -108,11 +108,17 @@ function displayTimingEstimate(stage, profile, timing, present) {
   const start = stageFits ? stageStart : 0;
   const next = stageFits ? stageAgeStarts[stage + 1] : undefined;
   const end = next === undefined ? limit : Math.min(next - 1,limit);
-  const currentResidence = present && timing.year === null;
-  const age = currentResidence && birthYear !== null ? limit : Math.round((start + end) / 2);
-  const year = timing.year ?? (currentResidence ? currentYear : birthYear === null ? null : birthYear + age);
+  const proposedYear = number(hint?.year);
+  const hintedAge = number(hint?.age) ?? (proposedYear !== null && birthYear !== null ? proposedYear - birthYear : null);
+  const validHintAge = hintedAge !== null && hintedAge >= 0 && hintedAge <= maximumAge;
+  const hintYear = validHintAge || birthYear === null ? proposedYear : null;
+  const currentResidence = present && timing.year === null && hintYear === null && !validHintAge;
+  const fallbackAge = currentResidence && birthYear !== null ? limit : Math.round((start + end) / 2);
+  const age = validHintAge ? hintedAge : priorAge ?? fallbackAge;
+  const year = timing.year ?? hintYear ?? (currentResidence ? currentYear : birthYear === null ? null : birthYear + age);
   return {...timing, age:{start:age,end:age,approximate:true}, year,
-    yearEnd:timing.year === null ? year : timing.yearEnd, approximateYear:timing.year === null || timing.approximateYear};
+    yearEnd:timing.year === null ? year : timing.yearEnd, approximateYear:timing.year === null || timing.approximateYear,
+    confidence:validHintAge ? hint.confidence : 0};
 }
 
 export function memoryEventTiming(event, profile = {}, index = 0) {
@@ -138,10 +144,14 @@ export function memoryEventTiming(event, profile = {}, index = 0) {
   const timing = {year,yearEnd,approximateYear,approximateYearEnd};
   const validAge = age.start !== null && age.start <= maximumAge
     && (age.end === null || (age.end >= age.start && age.end <= maximumAge));
-  const displayEstimate = validAge ? null : displayTimingEstimate(lifeStage,profile,timing,present);
-  const confidence = event.yearConfidenceScore ?? (inferred || approximateYearEnd ? estimate?.confidence : null);
+  const hint = event.timing_conflict ? null : event.timing_hint;
+  const preferHint = hint && event.kind !== "period" && !stated && (!validAge || age.approximate);
+  const displayEstimate = !validAge || preferHint ? displayTimingEstimate(lifeStage,profile,
+    preferHint ? {year:null,yearEnd:null} : timing,present,hint,validAge ? representativeAge(age).start : null) : null;
+  const confidence = displayEstimate?.confidence ?? event.yearConfidenceScore
+    ?? (inferred || approximateYearEnd ? estimate?.confidence : null);
   return {age, ...timing, calendar, stage, index, inferred, displayEstimate,
-    uncertain:displayEstimate !== null || Number.isFinite(confidence) && confidence < .5,
+    uncertain:Number.isFinite(confidence) && confidence < .5,
     dated:!event.timing_conflict && (age.start !== null || year !== null || Boolean(calendar))};
 }
 
@@ -344,7 +354,8 @@ function memoryEventTimingText(node, t) {
     const value = item => years.length ? item[end ? "yearEnd" : "year"] : item.age[end ? "end" : "start"];
     const selected = members.reduce((best,item) => (end ? value(item) > value(best) : value(item) < value(best)) ? item : best);
     const year = end ? selected.yearEnd : selected.year;
-    const age = selected.displayEstimate ? null : end ? selected.age.end : selected.age.start;
+    const endpointAge = end ? selected.age.end : selected.age.start;
+    const age = endpointAge > maximumAge ? null : endpointAge;
     return timingLabel({year,yearEnd:year,age:{...selected.age,start:age,end:age},
       approximateYear:selected.approximateYear || (end && selected.approximateYearEnd)},t);
   };
@@ -370,13 +381,13 @@ export function memoryEventAvatars(card, {t, lifeStageText, profile = {}, readin
   const related = new Map();
   for (const node of card.nodes || [card]) {
     const {event} = node;
-    if (stages.includes(event.life_stage)) {
-      related.set(event.life_stage,null);
-      continue;
-    }
     const ageRange = node.displayEstimate?.age ?? node.age;
     const age = event.kind === "period" ? ageRange : representativeAge(ageRange);
     const start = avatarStageForAge(age.start);
+    if (event.life_stage === start) {
+      related.set(start,null);
+      continue;
+    }
     const end = event.kind === "period" && age.end > age.start ? avatarStageForAge(age.end) : start;
     if (!related.has(start)) related.set(start,end && end !== start ? {...age,end:age.start} : age);
     if (end && !related.has(end)) related.set(end,{...age,start:age.end});

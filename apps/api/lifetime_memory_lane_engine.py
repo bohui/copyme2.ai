@@ -41,6 +41,7 @@ SUPPORTED_LANE_MODELS = frozenset({'gpt-5.6-luna-pooled', 'legal2ai-luna-low',
 EXTRACTION_WINDOW_CONTRACT = (ROOT / 'skills/memoir-author-timeline/references/source-window.md').read_text(encoding='utf-8')
 EXTRACTION_REJECTION_REASONS = {
     'temporal_estimate_range': 'TEMPORAL_ESTIMATE_RANGE',
+    'Timeline drafts require a numeric timing hint': 'TIMING_HINT_REQUIRED',
     'Unsupported life stage': 'LIFE_STAGE',
     'Canonical event revision conflict': 'EVENT_REVISION',
     'Drafts for the same event disagree': 'DRAFT_CONFLICT',

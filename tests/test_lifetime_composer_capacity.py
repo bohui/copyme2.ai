@@ -132,8 +132,10 @@ def test_extraction_retry_reports_rejected_quote_without_replacing_original():
         payload=json.loads(bounded['packet'])['payload'];requests.append(payload)
         assert payload['sources']==[current['source']]
         quote=current['source']['text'] if payload.get('retry_reason')=='PAGE_SOURCE' else 'invented testimony'
+        ref=dict(source_id='source',version=1,quote=quote)
         return httpx.Response(200,json={'reply':json.dumps({'events':[{
-            'kind':'event','title':'Childhood','source_refs':[{'source_id':'source','version':1,'quote':quote}]}]})})
+            'kind':'event','title':'Childhood','source_refs':[ref],
+            'timing_hint':dict(age=8,confidence=.1,basis=[ref])}]})})
     worker=SimpleNamespace(broker=Broker(),worker_url='https://synthetic.invalid',worker_secret='synthetic',
         worker_transport=httpx.MockTransport(model),lane_publisher=Publisher())
     result=asyncio.run(_extract(current,worker))
@@ -158,7 +160,8 @@ def test_extraction_retries_unmarked_corrections_as_ordinary_stage_evidence(text
         requests.append(packet)
         ref=dict(source_id=current['source']['id'],version=1,quote=text)
         event=dict(existing_id='winter',expected_revision=1,kind='event',title='Winter',
-            life_stage='adolescence',stage_evidence=[ref],source_refs=[ref])
+            life_stage='adolescence',stage_evidence=[ref],source_refs=[ref],
+            timing_hint=dict(age=16,confidence=.3,basis=[ref]))
         if len(requests)==1:event['correction']=ref
         else:assert packet['retry_reason']=='CORRECTION_WORDING'
         return httpx.Response(200,json={'reply':json.dumps({'events':[event]})})

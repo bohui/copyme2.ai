@@ -121,7 +121,7 @@ def _present_residence(event):
 def map_event_page(storage, project_id, *, cursor=None, limit=8):
     page = collection_page(storage, project_id, kind='events', cursor=cursor, limit=limit)
     fields = {'id', 'revision', 'kind', 'life_stage', 'status', 'change_sequence', 'title',
-              'temporal', 'temporal_estimate', 'temporal_anchor', 'uncertainty', 'assertion', 'timing_conflict',
+              'temporal', 'temporal_estimate', 'timing_hint', 'temporal_anchor', 'uncertainty', 'assertion', 'timing_conflict',
               'location', 'locationConfidenceScore', 'yearConfidenceScore', 'relations'}
     events = []
     for event in page.get('events', []):

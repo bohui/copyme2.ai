@@ -38,6 +38,8 @@ def extract_places(monkeypatch, text, raw, *, offset=0, commit=False, chosen_nam
             elif isinstance(value, list):
                 for item in value: bind(item)
         bind(output)
+        from controlled_skill_harness import complete_timing_hints
+        complete_timing_hints(output)
         return httpx.Response(200, json=dict(thread_id='controlled-place', reply=json.dumps(output), artifacts=[]))
     class Broker:
         async def rpc(self, name, **params):
@@ -583,7 +585,10 @@ def test_map_city_chronology_preserves_skill_relations_across_paginated_api(sql,
                 temporal=dict(expression='1983',precision='year',year_start=1983,basis=[ref]) if title=='Birth' else None)
             if city=='Sydney' and not with_estimates:
                 item.update(temporal=dict(expression='currently',precision='approximate',basis=[ref]),
+                    timing_hint=dict(year=int(packet['sources'][0]['created_at'][:4]),confidence=.3,basis=[ref]),
                     yearConfidenceScore=1.0)
+            if title=='Catching insects':
+                item['timing_hint']=dict(age=8,confidence=.4,basis=[ref])
             if city=='Shanghai':
                 item['relations']=[dict(kind='before',event_id=home_id,source_refs=[ref])]
             if with_estimates and title!='Birth':
@@ -609,7 +614,10 @@ def test_map_city_chronology_preserves_skill_relations_across_paginated_api(sql,
 
     conversation=Conversation(sql,tmp_path,monkeypatch,extract,family=False)
     with conversation.client:
-        conversation.say(first)
+        accepted = conversation.say(first)
+        if not with_estimates:
+            sql(f"update public.user_narrator_source set created_at='2024-11-07T00:00:00Z' "
+                f"where id={literal(accepted['accepted_source_id'])};")
         conversation.drain()
         assert len([phase for phase,_ in conversation.admissions if phase=='extract'])==(2 if repair_estimate else 1)
         home_id=sql(f"select id from public.user_memory_event where project_id={literal(conversation.project)} and data->>'title'='Sydney residence';").stdout.strip()

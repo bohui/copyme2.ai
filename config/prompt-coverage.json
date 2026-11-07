@@ -623,7 +623,7 @@
     },
     "memoir/skills/author-timeline/extract": {
       "use": "conditional",
-      "scenario": "Draft grounded events, period estimates, geography and narrated order in an authorized window. One general extraction contract and three worked examples cover distinct cases. The unselected compatibility branch also extracts coarse place cues.",
+      "scenario": "Draft grounded events, cited numeric display hints with confidence, supported period bounds, geography and narrated order in an authorized window. The compatibility branch also extracts coarse place cues.",
       "consumers": [
         "apps/api/memory_events.py:extraction_instructions",
         "apps/api/two_lane_memory.py:extraction_contract",
@@ -631,6 +631,7 @@
       ],
       "regressions": [
         "tests/test_model_boundaries.py",
+        "tests/test_timeline_estimates.py",
         "tests/test_timeline_context_confidence.py",
         "tests/test_automatic_prompt_evaluation.py",
         "tests/test_memory_context_transport.py",
@@ -644,11 +645,11 @@
         "tests/test_memoir_background_agent_workflow.py::test_pending_place_journey_resumes_in_author_timeline"
       ],
       "review": {
-        "prompt_sha256": "34e54fd842569661f5d7d97844b229a92a2889129cbb224f28e027d778407bc8",
+        "prompt_sha256": "18699462f40413d0a4eb8d4ed725c1a620df69ffa76227f3d18bae45c38181f9",
         "datasets_sha256": "7d821a1f429f8e4e864890553c05633c8a9c5a60b6404c77db64d87f647a94fb",
         "evaluators_sha256": "f70a9875838d8eceee035ff5dab5561c0311048f017d1cd14f3dbc635f10a9f5",
-        "dataset_decision": "Reuse the frozen bilingual event-grounding, temporal-placement, attribution and correction cases. The schema, intended outputs and downstream publication rules stay the same. The bounded live comparison includes English and Chinese originals, a residence sequence, a resumed correction, a held-out privacy case and the coarse-place compatibility branch. Add a fresh synthetic narrator-attribution holdout after the first candidate exposed a place-projection gap.",
-        "evaluator_decision": "Retain the exact source, span, placement, chronology, attribution and publication validators, along with the shared judge calibration. The round compares live saved outputs to the frozen case expectations and verifies rendered instruction and schema hashes. The local candidate has no published version. The final comparison also reads the active-place projection to catch narrator labels that the host cannot interpret."
+        "dataset_decision": "Reuse the frozen bilingual correction, uncertain-year and event-grounding gold. A provisional display hint leaves the stated dates, supported intervals, attribution and empty output expectations intact. The controlled Sydney replay covers a current residence with a known birth year and no move-in date, and the childhood case checks one age inside uncertain bounds.",
+        "evaluator_decision": "Reuse the scoped source, uncertainty, attribution and correction rubrics against their existing gold. Validate the added field in the strict runtime schema, the same-window retry, original evidence withdrawal and the SQL-to-card replay. Frozen dataset scores do not establish the quality of the new hint."
       }
     },
     "memoir/skills/composer/draft": {

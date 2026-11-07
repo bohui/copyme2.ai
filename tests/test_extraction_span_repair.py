@@ -7,12 +7,13 @@ import httpx
 import pytest
 
 from apps.api.lifetime_memory_composer import _extract
+from controlled_skill_harness import complete_timing_hints
 from test_lifetime_composer_capacity import page, Publisher
 
 
 def extract_with_reply(current, ref):
     calls = []
-    proposal = {'events': [{'kind': 'event', 'title': 'Childhood', 'source_refs': [ref]}]}
+    proposal = complete_timing_hints({'events': [{'kind': 'event', 'title': 'Childhood', 'source_refs': [ref]}]})
 
     class Broker:
         async def rpc(self, name, **payload):
@@ -80,7 +81,7 @@ def test_bounded_extraction_retries_unavailable_person_ids_before_database_commi
         event={'kind':'event','title':'Workshop help',
             'source_refs':[{'source_id':'source','version':1,'quote':current['source']['text']}],
             'person_ids':['brother'] if len(calls)==1 else None}
-        return httpx.Response(200,json={'reply':json.dumps({'events':[event]})})
+        return httpx.Response(200,json={'reply':json.dumps(complete_timing_hints({'events':[event]}))})
     worker=SimpleNamespace(broker=Broker(),worker_url='https://synthetic.invalid',worker_secret='synthetic',
         worker_transport=httpx.MockTransport(model),lane_publisher=Publisher())
     result=asyncio.run(_extract(current,worker))

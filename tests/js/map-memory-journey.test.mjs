@@ -429,6 +429,18 @@ test('an event with only a reliable year keeps it and shows an uncertain age and
   assert.match(html,/timeline_avatar_senior_male\.png/);
 });
 
+test('a model point hint selects the event age without changing its estimated bounds', () => {
+  const input = {...event('insects',null,school,'unplaced'),temporal:null,
+    temporal_estimate:{age_start:6,age_end:12,confidence:.2},timing_hint:{age:8,confidence:.5}};
+  const {nodes} = buildMapMemoryJourney([input],groups,{birth_year:1983});
+  const html = memoryEventCardMarkup(nodes[0],{t,lifeStageText:stage=>stage});
+  assert.match(html,/data-memory-text>About 1991 · About age 8</);
+  assert.match(html,/title="childhood · About age 8"[^>]*><img src="[^"]*timeline_avatar_child_male\.png"/);
+  assert.doesNotMatch(html,/map-memory-question/);
+  assert.equal(nodes[0].age.start,6);
+  assert.equal(nodes[0].age.end,12);
+});
+
 test('model estimates order city cards and show approximate years and ages without confidence scores', () => {
   const estimate=(start,end,confidence)=>({year_start:start,year_end:end,confidence,rationale:'Original duration and birth anchors.'});
   const birth={...event('birth',0,school,'baby'),temporal:{expression:'1983年4月',precision:'month',year_start:1983},yearConfidenceScore:1};
