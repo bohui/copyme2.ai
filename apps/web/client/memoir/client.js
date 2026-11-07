@@ -2993,10 +2993,6 @@ function storyGameButton() {
 
 function openDebugWorkspace(kind) {
   if (!state.debugEarlyGeneration || !state.project?.id) return;
-  if (kind === "game" && state.supabase?.user?.is_anonymous) {
-    authReminder.open({ signIn: true });
-    return;
-  }
   state.debugWorkspace = kind;
   state.workspaceCollapsed = false;
   if (kind === "memoir") {

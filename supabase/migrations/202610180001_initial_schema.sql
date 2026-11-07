@@ -43,6 +43,7 @@ CREATE TABLE public.user_formal_memoir_run (
     preference_revision bigint NOT NULL,
     source_revision bigint NOT NULL,
     event_revision bigint NOT NULL,
+    debug_early_generation boolean DEFAULT false NOT NULL,
     plan_digest text DEFAULT ''::text NOT NULL,
     chapter_count integer DEFAULT 0 NOT NULL,
     state text DEFAULT 'pending'::text NOT NULL,
@@ -3668,15 +3669,16 @@ begin
    page_digest=excluded.page_digest,lease_token=excluded.lease_token,updated_at=clock_timestamp();
 end $$;
 
-CREATE FUNCTION public.begin_formal_memoir(p_project_id text, p_expected_phase_revision bigint, p_expected_revision bigint, p_request_id uuid) RETURNS jsonb
+CREATE FUNCTION public.begin_formal_memoir_for_owner(p_owner uuid, p_project_id text, p_expected_phase_revision bigint,
+ p_expected_revision bigint, p_request_id uuid, p_debug boolean) RETURNS jsonb
     LANGUAGE plpgsql SECURITY DEFINER
     SET search_path TO ''
     AS $$
-declare owner uuid:=auth.uid(); context jsonb; run public.user_formal_memoir_run%rowtype; event record;
+declare owner uuid:=p_owner; context jsonb; run public.user_formal_memoir_run%rowtype; event record;
  ref record; refs jsonb; span jsonb; lo integer; hi integer; ordinal integer:=0; plan jsonb; current_revision bigint;
 begin
  if owner is null then raise exception 'FORMAL_OWNER_REQUIRED' using errcode='42501';end if;
- context:=public.lock_formal_memoir_context(owner,p_project_id);
+ context:=public.lock_formal_memoir_context(owner,p_project_id,p_debug);
  if p_request_id is null or p_expected_phase_revision is distinct from (context->>'phase_revision')::bigint then
    raise exception 'FORMAL_PHASE_CHANGED' using errcode='PT409';end if;
  select * into run from public.user_formal_memoir_run where user_id=owner and project_id=p_project_id and request_id=p_request_id;
@@ -3693,9 +3695,10 @@ begin
  if exists(select 1 from public.user_narrator_source where user_id=owner and project_id=p_project_id and status='active' and processing_status<>'succeeded') then
    raise exception 'FORMAL_EXTRACTION_INCOMPLETE' using errcode='55000';end if;
  insert into public.user_formal_memoir_run(user_id,project_id,conversation_id,request_id,locale,base_revision,phase_revision,
-   policy_epoch,preference_revision,source_revision,event_revision)
+   policy_epoch,preference_revision,source_revision,event_revision,debug_early_generation)
  values(owner,p_project_id,(context->>'conversation_id')::uuid,p_request_id,context->>'locale',p_expected_revision,p_expected_phase_revision,
-   (context->>'policy_epoch')::bigint,(context->>'preference_revision')::bigint,(context->>'source_revision')::bigint,(context->>'event_revision')::bigint)
+   (context->>'policy_epoch')::bigint,(context->>'preference_revision')::bigint,(context->>'source_revision')::bigint,(context->>'event_revision')::bigint,
+   p_debug is true)
  returning * into run;
  for event in select * from public.user_memory_event where user_id=owner and project_id=p_project_id and status='active'
    order by change_sequence,id loop
@@ -3728,6 +3731,11 @@ begin
     from public.user_formal_memoir_plan p where p.run_id=run.id)) where id=run.id returning * into run;
  return public.formal_memoir_run_record(run);
 end $$;
+
+CREATE FUNCTION public.begin_formal_memoir(p_project_id text, p_expected_phase_revision bigint, p_expected_revision bigint, p_request_id uuid) RETURNS jsonb
+language sql security definer set search_path='' as $$
+ select public.begin_formal_memoir_for_owner(auth.uid(),p_project_id,p_expected_phase_revision,p_expected_revision,p_request_id,false)
+$$;
 
 CREATE FUNCTION public.begin_lifetime_compaction(p_fence jsonb, p_through_sequence bigint) RETURNS jsonb
     LANGUAGE plpgsql SECURITY DEFINER
@@ -7660,7 +7668,7 @@ begin
     'backup_complete',false,'canonical_recovery_required',false,'status','linked');
 end $memoir$;
 
-CREATE FUNCTION public.lock_formal_memoir_context(p_owner uuid, p_project text) RETURNS jsonb
+CREATE FUNCTION public.lock_formal_memoir_context(p_owner uuid, p_project text, p_allow_guest boolean DEFAULT false) RETURNS jsonb
     LANGUAGE plpgsql SECURITY DEFINER
     SET search_path TO ''
     AS $$
@@ -7671,7 +7679,7 @@ begin
  if not found then raise exception 'FORMAL_PROJECT_UNAVAILABLE' using errcode='42501';end if;
  perform 1 from public.user_profile where user_id=p_owner for share;
  select * into identity from public.user_lifetime_conversation where user_id=p_owner and project_id=p_project for share;
- if not found or exists(select 1 from auth.users where id=p_owner and is_anonymous) then
+ if not found or (p_allow_guest is not true and exists(select 1 from auth.users where id=p_owner and is_anonymous)) then
    raise exception 'FORMAL_OWNER_REQUIRED' using errcode='42501';end if;
  perform public.require_lifetime_policy_ready(p_owner,p_project);
  old_owner:=current_setting('request.jwt.claim.sub',true);
@@ -7694,7 +7702,7 @@ declare run public.user_formal_memoir_run%rowtype; context jsonb; key text;
 begin
  select * into run from public.user_formal_memoir_run where id=p_run_id;
  if not found then raise exception 'FORMAL_RUN_UNAVAILABLE' using errcode='42501';end if;
- context:=public.lock_formal_memoir_context(run.user_id,run.project_id);
+ context:=public.lock_formal_memoir_context(run.user_id,run.project_id,run.debug_early_generation);
  select * into run from public.user_formal_memoir_run where id=p_run_id for update;
  if run.state='stale' then raise exception 'FORMAL_AUTHORITY_STALE' using errcode='PT409';end if;
  foreach key in array array['conversation_id','locale','phase_revision','policy_epoch','preference_revision','source_revision','event_revision'] loop
@@ -11236,25 +11244,12 @@ CREATE FUNCTION public.read_memoir_receipt_scope(p_receipt_id uuid) RETURNS json
    on c.user_id=r.user_id and c.project_id=r.project_id where r.id=p_receipt_id and not r.delivered
 $$;
 
-CREATE FUNCTION public.read_story_game_eligibility(p_project_id text) returns jsonb
-language plpgsql security definer set search_path='' as $$
-declare result jsonb; reasons jsonb; mode jsonb;
-begin
- result:=public.read_story_game_eligibility_before_skills(p_project_id);
- reasons:=(result->'reasons')-'runtime_unavailable';
- mode:=public.read_lifetime_current_mode(p_project_id);
- if mode is null then reasons:=reasons||'"current_decision_required"'::jsonb;
- elsif mode->>'mode'<>'shape' then reasons:=reasons||'"shape_required"'::jsonb;end if;
- return result||jsonb_build_object('reasons',reasons,'available',jsonb_array_length(reasons)=0,
-   'authority_eligible',jsonb_array_length(reasons)=0);
-end $$;
-
-CREATE FUNCTION public.read_story_game_eligibility_before_skills(p_project_id text) RETURNS jsonb
+CREATE FUNCTION public.story_game_eligibility(p_project_id text, p_allow_guest boolean) RETURNS jsonb
     LANGUAGE plpgsql SECURITY DEFINER
     SET search_path TO ''
     AS $$
 declare owner uuid:=auth.uid(); edition public.user_formal_memoir_edition%rowtype; head public.user_formal_memoir_head%rowtype;
- reasons jsonb:='[]'; context jsonb; authority boolean; code text;
+ reasons jsonb:='[]'; mode jsonb; authority boolean; code text;
 begin
  if owner is null or not exists(select 1 from public.user_lifetime_conversation where user_id=owner and project_id=p_project_id) then
    raise exception 'FORMAL_OWNER_REQUIRED' using errcode='42501';end if;
@@ -11262,7 +11257,7 @@ begin
  select * into head from public.user_formal_memoir_head where user_id=owner and project_id=p_project_id;
  select * into edition from public.user_formal_memoir_edition where id=head.edition_id;
  begin
-   context:=public.lock_formal_memoir_context(owner,p_project_id);
+   perform public.lock_formal_memoir_context(owner,p_project_id,p_allow_guest);
    if edition.id is null then reasons:=reasons||'"completion_required"'::jsonb;
    elsif not edition.active then reasons:=reasons||'"completion_stale"'::jsonb;
    else perform public.lock_formal_memoir_run(edition.run_id,null,false);
@@ -11278,13 +11273,19 @@ begin
    and c.policy_epoch=(select policy_epoch from public.user_memoir_project where user_id=owner and project_id=p_project_id)) then
    reasons:=reasons||'"adaptation_consent_required"'::jsonb;
  end if;
+ mode:=public.read_lifetime_current_mode(p_project_id);
+ if mode is null then reasons:=reasons||'"current_decision_required"'::jsonb;
+ elsif mode->>'mode'<>'shape' then reasons:=reasons||'"shape_required"'::jsonb;end if;
  authority:=jsonb_array_length(reasons)=0;
- -- Persisted authority is not executable availability. Model binding, grounding
- -- review, game jobs and guarded private browser delivery remain unimplemented.
- return jsonb_build_object('schema_version',1,'authority_eligible',authority,'available',false,
-   'reasons',reasons||'"runtime_unavailable"'::jsonb,'edition_id',edition.id,'revision',edition.revision,
+ return jsonb_build_object('schema_version',1,'authority_eligible',authority,'available',authority,
+   'reasons',reasons,'edition_id',edition.id,'revision',edition.revision,
    'manuscript_digest',edition.digest,'consent_revision',coalesce(head.consent_revision,0));
 end $$;
+
+CREATE FUNCTION public.read_story_game_eligibility(p_project_id text) RETURNS jsonb
+language sql security definer set search_path='' as $$
+ select public.story_game_eligibility(p_project_id,false)
+$$;
 
 CREATE FUNCTION public.read_ui_locale_preference(p_expected_viewer uuid) RETURNS jsonb
     LANGUAGE plpgsql STABLE SECURITY DEFINER
@@ -14527,6 +14528,7 @@ revoke all on function public.attribute_historical_news_answer() from public,ano
 revoke all on function public.background_skill_id(jsonb, text) from public,anon,authenticated,service_role;
 revoke all on function public.background_skill_receipt(jsonb, text, text, text, text, text) from public,anon,authenticated,service_role;
 revoke all on function public.begin_formal_memoir(text, bigint, bigint, uuid) from public,anon,authenticated,service_role;
+revoke all on function public.begin_formal_memoir_for_owner(uuid, text, bigint, bigint, uuid, boolean) from public,anon,authenticated,service_role;
 revoke all on function public.begin_lifetime_compaction(jsonb, bigint) from public,anon,authenticated,service_role;
 revoke all on function public.begin_user_historical_news(text, jsonb, jsonb) from public,anon,authenticated,service_role;
 revoke all on function public.begin_user_interview_photo(text, jsonb, uuid) from public,anon,authenticated,service_role;
@@ -14651,7 +14653,7 @@ revoke all on function public.lifetime_resolved_questions(uuid, text) from publi
 revoke all on function public.lifetime_question_dialogue(uuid, text, uuid, bigint) from public,anon,authenticated,service_role;
 revoke all on function public.prune_lifetime_question_pool(uuid, text, uuid) from public,anon,authenticated,service_role;
 revoke all on function public.link_lifetime_optional_artifact(jsonb, text, text, boolean) from public,anon,authenticated,service_role;
-revoke all on function public.lock_formal_memoir_context(uuid, text) from public,anon,authenticated,service_role;
+revoke all on function public.lock_formal_memoir_context(uuid, text, boolean) from public,anon,authenticated,service_role;
 revoke all on function public.lock_formal_memoir_run(uuid, uuid, boolean) from public,anon,authenticated,service_role;
 revoke all on function public.lock_lifetime_collection_job(uuid, uuid) from public,anon,authenticated,service_role;
 revoke all on function public.lock_lifetime_collection_job_publication(jsonb) from public,anon,authenticated,service_role;
@@ -14774,7 +14776,7 @@ revoke all on function public.read_memoir_checkpoint_before_skills(uuid, uuid, t
 revoke all on function public.read_memoir_lane_state(uuid) from public,anon,authenticated,service_role;
 revoke all on function public.read_memoir_receipt_scope(uuid) from public,anon,authenticated,service_role;
 revoke all on function public.read_story_game_eligibility(text) from public,anon,authenticated,service_role;
-revoke all on function public.read_story_game_eligibility_before_skills(text) from public,anon,authenticated,service_role;
+revoke all on function public.story_game_eligibility(text, boolean) from public,anon,authenticated,service_role;
 revoke all on function public.read_ui_locale_preference(uuid) from public,anon,authenticated,service_role;
 revoke all on function public.read_user_historical_news(text) from public,anon,authenticated,service_role;
 revoke all on function public.read_user_historical_news_basis(text) from public,anon,authenticated,service_role;
@@ -14887,6 +14889,7 @@ grant EXECUTE on function public.attach_guest_conversation_legacy(text, boolean)
 grant EXECUTE on function public.attribute_historical_news_answer() to service_role;
 grant EXECUTE on function public.begin_formal_memoir(text, bigint, bigint, uuid) to authenticated;
 grant EXECUTE on function public.begin_formal_memoir(text, bigint, bigint, uuid) to service_role;
+grant EXECUTE on function public.begin_formal_memoir_for_owner(uuid, text, bigint, bigint, uuid, boolean) to service_role;
 grant EXECUTE on function public.begin_lifetime_compaction(jsonb, bigint) to authenticated;
 grant EXECUTE on function public.begin_lifetime_compaction(jsonb, bigint) to service_role;
 grant EXECUTE on function public.begin_user_historical_news(text, jsonb, jsonb) to authenticated;
@@ -15438,7 +15441,7 @@ language plpgsql security definer set search_path='' as $$
 declare context jsonb; edition public.user_formal_memoir_edition%rowtype;
  head public.user_formal_memoir_head%rowtype; mode jsonb; previous_owner text;
 begin
- context:=public.lock_formal_memoir_context(p_owner,p_project);
+ context:=public.lock_formal_memoir_context(p_owner,p_project,p_debug);
  select * into head from public.user_formal_memoir_head where user_id=p_owner and project_id=p_project;
  select * into edition from public.user_formal_memoir_edition where id=head.edition_id and active;
  if not found then raise exception 'GAME_COMPLETION_REQUIRED' using errcode='PT409';end if;
@@ -15493,8 +15496,8 @@ begin
  if p_owner is null or p_request_id is null then raise exception 'GAME_OWNER_REQUIRED' using errcode='42501';end if;
  begin
    context:=public.story_game_context(p_owner,p_project_id);
- exception when sqlstate 'PT409' then
-   if p_debug is not true or sqlerrm<>'GAME_CURRENT_SHAPE_REQUIRED' then raise;end if;
+ exception when sqlstate 'PT409' or insufficient_privilege then
+   if p_debug is not true or sqlerrm not in ('GAME_CURRENT_SHAPE_REQUIRED','FORMAL_OWNER_REQUIRED') then raise;end if;
    context:=public.story_game_context(p_owner,p_project_id,true);
  end;
  select * into game from public.user_story_game where user_id=p_owner and project_id=p_project_id and request_id=p_request_id;
@@ -15659,11 +15662,13 @@ begin
  return public.story_game_status_record(game);
 end $$;
 
-create function public.confirm_story_game_scenes(p_project_id text,p_game_id uuid,p_expected_digest text,p_scene_ids jsonb) returns jsonb
+create function public.confirm_story_game_scenes_for_owner(p_owner uuid,p_project_id text,p_game_id uuid,
+ p_expected_digest text,p_scene_ids jsonb,p_debug boolean) returns jsonb
 language plpgsql security definer set search_path='' as $$
 declare game public.user_story_game%rowtype; chosen jsonb; confirmed jsonb;
 begin
- if not exists(select 1 from public.user_story_game where id=p_game_id and user_id=auth.uid() and project_id=p_project_id) then
+ if not exists(select 1 from public.user_story_game where id=p_game_id and user_id=p_owner and project_id=p_project_id)
+   or (p_debug is not true and exists(select 1 from auth.users where id=p_owner and is_anonymous)) then
    raise exception 'GAME_OWNER_REQUIRED' using errcode='42501';end if;
  game:=public.lock_story_game(p_game_id);
  if game.pool_digest is null or game.pool_digest is distinct from p_expected_digest then
@@ -15682,11 +15687,16 @@ begin
  end if;
  if game.state<>'selection_required' then raise exception 'GAME_SELECTION_NOT_READY' using errcode='PT409';end if;
  confirmed:=jsonb_build_object('scene_ids',chosen,'pool_digest',game.pool_digest);
- update public.user_story_game set selection=confirmed||jsonb_build_object('confirmed_by',auth.uid(),'confirmed_at',clock_timestamp()),
+ update public.user_story_game set selection=confirmed||jsonb_build_object('confirmed_by',p_owner,'confirmed_at',clock_timestamp()),
    selection_digest=public.formal_memoir_digest(confirmed),phase='build',state='pending',attempts=0,updated_at=clock_timestamp()
    where id=game.id returning * into game;
  return public.story_game_status_record(game);
 end $$;
+
+create function public.confirm_story_game_scenes(p_project_id text,p_game_id uuid,p_expected_digest text,p_scene_ids jsonb) returns jsonb
+language sql security definer set search_path='' as $$
+ select public.confirm_story_game_scenes_for_owner(auth.uid(),p_project_id,p_game_id,p_expected_digest,p_scene_ids,false)
+$$;
 
 create function public.save_story_game_brief(p_game_id uuid,p_token uuid,p_brief jsonb,p_model_receipt jsonb) returns void
 language plpgsql security definer set search_path='' as $$
@@ -16048,13 +16058,16 @@ end $$;
 
 
 
-create function public.read_story_game_status(p_project_id text) returns jsonb
+create function public.read_story_game_status_for_owner(p_owner uuid,p_project_id text,p_debug boolean) returns jsonb
 language plpgsql security definer set search_path='' as $$
-declare game public.user_story_game%rowtype; eligibility jsonb; composer jsonb;
+declare game public.user_story_game%rowtype; eligibility jsonb; composer jsonb; result jsonb; previous_owner text;
 begin
- eligibility:=public.read_story_game_eligibility(p_project_id);
+ if p_owner is null then raise exception 'GAME_OWNER_REQUIRED' using errcode='42501';end if;
+ previous_owner:=current_setting('request.jwt.claim.sub',true);
+ perform set_config('request.jwt.claim.sub',p_owner::text,true);
+ eligibility:=public.story_game_eligibility(p_project_id,p_debug);
  composer:=public.read_lifetime_private_draft_head(p_project_id);
- select * into game from public.user_story_game where user_id=auth.uid() and project_id=p_project_id
+ select * into game from public.user_story_game where user_id=p_owner and project_id=p_project_id
    order by created_at desc,id desc limit 1;
  if game.id is not null and game.state<>'stale' and
    (game.authority->'composer_snapshot_id' is distinct from composer->'snapshot_id'
@@ -16063,11 +16076,18 @@ begin
    update public.user_story_game set state='stale',candidate=null,review=null,scene_pool=null,pool_digest=null,selection=null,selection_digest=null,brief=null,token=null,lease_until=null,
      updated_at=clock_timestamp() where id=game.id returning * into game;
  end if;
- return jsonb_build_object('eligibility',eligibility,'formal',public.read_formal_memoir_status(p_project_id),
+ result:=jsonb_build_object('eligibility',eligibility,'formal',public.read_formal_memoir_status(p_project_id),
    'composer_ready',coalesce(composer->>'status'='ready' and composer->>'snapshot_state'='completed'
      and composer->'event_revision'=composer->'current_event_revision',false),
    'adaptation',case when game.id is not null then public.story_game_status_record(game) end);
+ perform set_config('request.jwt.claim.sub',coalesce(previous_owner,''),true);
+ return result;
 end $$;
+
+create function public.read_story_game_status(p_project_id text) returns jsonb
+language sql security definer set search_path='' as $$
+ select public.read_story_game_status_for_owner(auth.uid(),p_project_id,false)
+$$;
 
 create function public.invalidate_story_games() returns trigger
 language plpgsql security definer set search_path='' as $$
@@ -16087,6 +16107,7 @@ revoke all on function public.story_game_composer(uuid,text,boolean),public.stor
  public.claim_story_game(uuid),public.read_story_game_input(uuid,uuid),public.stage_story_game(uuid,uuid,jsonb,jsonb),
  public.read_story_game(text,uuid,boolean),public.publish_story_game(text,uuid,text,jsonb),public.fail_story_game(uuid,uuid),
  public.read_story_game_status(text),public.invalidate_story_games(),public.validate_story_game_scenes(jsonb,jsonb,boolean),
+ public.read_story_game_status_for_owner(uuid,text,boolean),public.confirm_story_game_scenes_for_owner(uuid,text,uuid,text,jsonb,boolean),
  public.save_story_game_pool(uuid,uuid,jsonb,jsonb),public.confirm_story_game_scenes(text,uuid,text,jsonb),
  public.save_story_game_brief(uuid,uuid,jsonb,jsonb) from public,anon,authenticated,service_role;
  grant execute on function public.confirm_story_game_scenes(text,uuid,text,jsonb) to authenticated;
@@ -16095,7 +16116,9 @@ grant execute on function public.begin_story_game(text,uuid),public.read_story_g
  public.publish_story_game(text,uuid,text,jsonb),public.read_story_game_status(text) to authenticated;
 grant execute on function public.claim_story_game(uuid),public.read_story_game_input(uuid,uuid),
  public.stage_story_game(uuid,uuid,jsonb,jsonb),public.fail_story_game(uuid,uuid),public.lock_story_game(uuid,uuid,boolean) to service_role;
-grant execute on function public.begin_story_game_for_owner(uuid,text,uuid,boolean) to service_role;
+grant execute on function public.begin_story_game_for_owner(uuid,text,uuid,boolean),
+ public.read_story_game_status_for_owner(uuid,text,boolean),
+ public.confirm_story_game_scenes_for_owner(uuid,text,uuid,text,jsonb,boolean) to service_role;
 
 
 

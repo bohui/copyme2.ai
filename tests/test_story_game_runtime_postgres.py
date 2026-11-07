@@ -115,41 +115,83 @@ def read(sql, project, game, review=False, **kwargs):
     return rpc(sql, 'read_story_game', f"{literal(project)},'{game['game_id']}',{str(review).lower()}", **kwargs)
 
 
-def test_local_debug_generates_a_private_draft_and_game_from_one_round(sql, tmp_path, monkeypatch):
+@pytest.mark.parametrize('anonymous', [True, False], ids=['guest', 'account'])
+def test_local_debug_generates_a_private_draft_and_game_from_one_round(sql, tmp_path, monkeypatch, anonymous):
     import httpx
+    from fastapi import HTTPException
 
-    from apps.api import memory_event_worker, story_game_routes
+    from apps.api import formal_memoir_routes, memory_event_worker, story_game_routes, story_game_runtime
     from memoir_postgres_workflow import PostgresRest
     from test_background_profile_workflow import Broker
+    from test_novel_game_postgres import build_receipt, prepared_bundle
 
     class DebugBroker(Broker):
         def __init__(self):
             super().__init__(sql)
             self.client = httpx.AsyncClient(trust_env=False)
 
-    async def defer_to_controlled_worker(_):
-        pass
+    def storage(authorization):
+        owner = {'Bearer fixture-only': OWNER, 'Bearer another-owner': OTHER}.get(authorization)
+        if owner is None:
+            raise HTTPException(401, 'Session required')
+        result = PostgresRest(sql, owner).storage()
+        result.is_anonymous = anonymous and owner == OWNER
+        return result
+
+    calls = []
+
+    async def propose(packet, *, token):
+        calls.append('scenes')
+        assert packet['authority']['debug_early_generation'] is True
+        assert packet['authority']['composer_snapshot_id'] == draft['snapshot_id']
+        return pool_from_packet(packet), receipt()
+
+    async def brief(packet, proposal, *, token):
+        calls.append('brief')
+        assert len(proposal['scenes']) == 1
+        return dict(design_brief='A private memory walk.', scene_indices=[0]), receipt('brief')
+
+    async def build(packet, proposal, *, token):
+        fence = dict(game_id=packet['game_id'], token=token, authority=packet['authority'])
+        async with story_game_runtime.GamePublication(sql.publication_dsn).guard(fence):
+            calls.append('novel-to-game')
+        assert packet['selection']['confirmed_by'] == OWNER
+        return {'novel_game': prepared_bundle(packet, proposal['scenes'])}, build_receipt(packet)
 
     monkeypatch.setenv('MEMORY_SPARK_TASK_DB', str(tmp_path / 'debug-game-tasks.sqlite3'))
     monkeypatch.setattr(memory_event_worker, 'MemoirLaneBroker', DebugBroker)
-    monkeypatch.setattr(story_game_routes, 'authenticated_storage', lambda _: PostgresRest(sql, OWNER).storage())
-    monkeypatch.setattr(story_game_routes, '_build_confirmed_game', defer_to_controlled_worker)
+    monkeypatch.setattr(formal_memoir_routes, 'authenticated_storage', storage)
+    monkeypatch.setattr(story_game_routes, 'authenticated_storage', storage)
+    monkeypatch.setattr(story_game_runtime, 'propose_game', propose)
+    monkeypatch.setattr(story_game_runtime, 'compose_game_brief', brief)
+    monkeypatch.setattr(story_game_runtime, 'build_game', build)
+    if anonymous:
+        sql(f"update auth.users set is_anonymous=true where id='{OWNER}';")
     conversation = Conversation(sql, tmp_path, monkeypatch,
         lambda packet: {**empty(packet), 'events': [episode(packet, packet['sources'][0]['text'])]},
         strategy='explore')
-    local = {'Host': 'localhost'}
-    remote = {'Host': 'memoir.example'}
+    local = {'Host': 'localhost', 'Authorization': 'Bearer fixture-only'}
+    remote = {**local, 'Host': 'memoir.example'}
     with conversation.client as client:
         conversation.project = project = rpc(sql, 'resolve_lifetime_conversation', 'null')['project_id']
         draft_url = '/v1/story/private-draft/generate'
-        game_url = f'/v1/agent/projects/{project}/story-game'
+        root = f'/v1/agent/projects/{project}'
+        game_url, formal_url = root + '/story-game', root + '/formal-memoir'
         draft_payload = {'project_id': project, 'language': 'en-AU'}
         game_payload = {'request_id': str(uuid4())}
+        formal_payload = {'request_id': str(uuid4()), 'expected_revision': 0}
         monkeypatch.setenv('MEMORY_SPARK_DEBUG_EARLY_GENERATION', '0')
         assert client.post(draft_url, json=draft_payload, headers=local).status_code == 404
+        if anonymous:
+            assert client.get(game_url, headers=local).status_code == 403
+            assert client.post(formal_url, json=formal_payload, headers=local).status_code == 403
         monkeypatch.setenv('MEMORY_SPARK_DEBUG_EARLY_GENERATION', '1')
         assert client.post(draft_url, json=draft_payload, headers=remote).status_code == 404
         assert client.post(draft_url, json=draft_payload, headers=local).json() == {'status': 'insufficient_context'}
+        assert client.get(game_url, headers={'Host': 'localhost'}).status_code == 401
+        status = client.get(game_url, headers=local)
+        assert status.status_code == 200, status.text
+        assert status.json()['composer_ready'] is False
 
         conversation.say(MEMORIES[0])
         assert client.post(draft_url, json=draft_payload, headers=local).json() == {'status': 'queued'}
@@ -161,25 +203,58 @@ def test_local_debug_generates_a_private_draft_and_game_from_one_round(sql, tmp_
         assert sql('select count(*) from public.user_completed_round;').stdout.strip() == '1'
         assert sql('select count(*) from public.user_memoir_milestone;').stdout.strip() == '0'
 
-        edition = completed(sql, project, {'revision': 0})
+        if anonymous:
+            assert client.post(formal_url, json=formal_payload, headers=remote).status_code == 403
+        run = client.post(formal_url, json=formal_payload, headers=local)
+        assert run.status_code == 202, run.text
+        advance = {'run_id': run.json()['run_id']}
+        if anonymous:
+            assert client.post(formal_url + '/advance', json=advance, headers=remote).status_code == 403
+        result = client.post(formal_url + '/advance', json=advance, headers=local)
+        assert result.status_code == 200, result.text
+        edition = result.json()
+        assert edition['status'] == 'completed'
         assert client.post(game_url, json=game_payload, headers=local).status_code == 409
-        consent(sql, project, edition, 1)
-        assert 'shape_required' in client.get(game_url, headers=remote).json()['eligibility']['reasons']
-        assert client.post(game_url, json=game_payload, headers=remote).status_code == 409
+        consent_payload = {'edition_id': edition['edition_id'], 'expected_digest': edition['manuscript_digest']}
+        consent_result = client.put(game_url + '/consent', headers=local,
+            json={**consent_payload, 'expected_revision': 1, 'action': 'grant'})
+        assert consent_result.status_code == 200, consent_result.text
+        if anonymous:
+            assert client.get(game_url, headers=remote).status_code == 403
+        else:
+            assert 'shape_required' in client.get(game_url, headers=remote).json()['eligibility']['reasons']
+        assert client.post(game_url, json=game_payload, headers=remote).status_code == (403 if anonymous else 409)
         assert client.get(game_url, headers=local).json()['eligibility']['available']
         assert rpc(sql, 'begin_story_game_for_owner', f"'{OWNER}',{literal(project)},'{uuid4()}',true",
             check=False).returncode
         response = client.post(game_url, json=game_payload, headers=local)
         assert response.status_code == 202, response.text
-        game, claim, packet, proposal = prepare(sql, project, game=response.json())
-        assert packet['authority']['debug_early_generation'] is True
-        assert packet['authority']['composer_snapshot_id'] == draft['snapshot_id']
-        assert stage(sql, game, claim, proposal)['status'] == 'published'
-        assert read(sql, project, game)['status'] == 'published'
+        game_path = game_url + '/' + response.json()['game_id']
+        pool = client.get(game_path, headers=local).json()
+        assert pool['status'] == 'selection_required'
+        assert calls == ['scenes']
+        selection = {'expected_pool_digest': pool['pool_digest'], 'scene_ids': [pool['pool']['scenes'][0]['id']]}
+        if anonymous:
+            assert client.post(game_path + '/selection', json=selection, headers=remote).status_code == 403
+            monkeypatch.setenv('MEMORY_SPARK_DEBUG_EARLY_GENERATION', '0')
+            assert client.post(game_path + '/selection', json=selection, headers=local).status_code == 403
+            monkeypatch.setenv('MEMORY_SPARK_DEBUG_EARLY_GENERATION', '1')
+        response = client.post(game_path + '/selection', json=selection, headers=local)
+        assert response.status_code == 202, response.text
+        assert calls == ['scenes', 'brief', 'novel-to-game']
+        played = client.get(game_path, headers=local).json()
+        assert played['status'] == 'published'
+        assert played['game']['renderer'] == 'memoir-linear-v2'
+        assert client.get(game_path, headers={**local, 'Authorization': 'Bearer another-owner'}).status_code == 403
+        assert client.get('/v1/story-games/' + project).status_code == 404
         page = rpc(sql, 'read_story_game_page', literal(project))
         assert page['visibility'] == 'private' and page['can_manage'] is False
         assert rpc(sql, 'set_story_game_visibility', f"{literal(project)},'public',{page['revision']}",
             check=False).returncode
+        revoked = client.put(game_url + '/consent', headers=local, json={**consent_payload,
+            'expected_revision': consent_result.json()['revision'], 'action': 'revoke'})
+        assert revoked.status_code == 200, revoked.text
+        assert client.get(game_path, headers=local).status_code == 409
 
 
 def test_two_steps_are_saved_for_immediate_private_play(sql, ready):
@@ -322,6 +397,10 @@ def test_browser_cannot_claim_stage_or_read_other_owners(sql, ready):
         denied = sql(f"set role {role};select public.claim_story_game('{game['game_id']}');", check=False)
         assert denied.returncode
         assert sql(f'set role {role};select * from public.user_story_game;', check=False).returncode
+        for signature in ('begin_formal_memoir_for_owner(uuid,text,bigint,bigint,uuid,boolean)',
+                          'read_story_game_status_for_owner(uuid,text,boolean)',
+                          'confirm_story_game_scenes_for_owner(uuid,text,uuid,text,jsonb,boolean)'):
+            assert sql(f"select has_function_privilege('{role}', 'public.{signature}', 'execute');").stdout.strip() == 'f'
     assert begin_game(sql, project, owner=OTHER, check=False).returncode
 
 

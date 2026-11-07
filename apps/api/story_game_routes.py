@@ -127,8 +127,13 @@ class StoryGameResponse(Response):
 async def game_status(project_id: str, request: Request, authorization: str | None = Header(default=None)):
     storage = await owned_storage(project_id, authorization)
     try:
-        result = await rpc(storage, 'read_story_game_status', project_id)
-        if debug_early_generation(request):
+        debug = debug_early_generation(request)
+        if debug and storage.is_anonymous:
+            result = await debug_generation_rpc('read_story_game_status_for_owner', storage.user_id,
+                p_project_id=project_id, p_debug=True)
+        else:
+            result = await rpc(storage, 'read_story_game_status', project_id)
+        if debug:
             eligibility = result['eligibility']
             reasons = [reason for reason in eligibility['reasons']
                        if reason not in {'shape_required', 'current_decision_required'}]
@@ -139,18 +144,22 @@ async def game_status(project_id: str, request: Request, authorization: str | No
         return JSONResponse(result, headers={'Cache-Control': 'no-store'})
     except httpx.HTTPStatusError as error:
         raise _rpc_error(error) from None
+    except httpx.RequestError:
+        raise HTTPException(503, 'Game status is temporarily unavailable.') from None
     finally:
         await asyncio.to_thread(storage.client.close)
 
 
 @router.post('/projects/{project_id}/formal-memoir/advance')
-async def advance_formal(project_id: str, payload: FormalAdvance,
+async def advance_formal(project_id: str, payload: FormalAdvance, request: Request,
                          authorization: str | None = Header(default=None)):
     from .formal_memoir import advance_formal_memoir
     from .memory_event_worker import MemoirLaneBroker
     storage = await owned_storage(project_id, authorization)
     broker = None
     try:
+        if storage.is_anonymous and not debug_early_generation(request):
+            raise HTTPException(403, 'Memoir unavailable.')
         status = await rpc(storage, 'read_formal_memoir_status', project_id)
         if (status.get('run') or {}).get('run_id') != str(payload.run_id):
             raise HTTPException(409, 'Formal memoir run changed.')
@@ -199,12 +208,16 @@ async def read_game(project_id: str, game_id: UUID, review: bool = False,
 
 @router.post('/projects/{project_id}/story-game/{game_id}/selection', status_code=202)
 async def confirm_scenes(project_id: str, game_id: UUID, payload: SceneSelection,
-                         background_tasks: BackgroundTasks,
+                         background_tasks: BackgroundTasks, request: Request,
                          authorization: str | None = Header(default=None)):
     storage = await owned_storage(project_id, authorization)
     try:
-        result = await rpc(storage, 'confirm_story_game_scenes', project_id, p_game_id=str(game_id),
-            p_expected_digest=payload.expected_pool_digest, p_scene_ids=payload.scene_ids)
+        parameters = dict(p_game_id=str(game_id), p_expected_digest=payload.expected_pool_digest, p_scene_ids=payload.scene_ids)
+        if debug_early_generation(request) and storage.is_anonymous:
+            result = await debug_generation_rpc('confirm_story_game_scenes_for_owner', storage.user_id,
+                p_project_id=project_id, p_debug=True, **parameters)
+        else:
+            result = await rpc(storage, 'confirm_story_game_scenes', project_id, **parameters)
         if result['status'] != 'published':
             background_tasks.add_task(_build_confirmed_game, game_id)
         return JSONResponse(result, status_code=202, headers={'Cache-Control': 'no-store'})

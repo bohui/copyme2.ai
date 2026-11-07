@@ -20,7 +20,7 @@ from test_background_profile_workflow import Broker, database
 from test_conversation_attribution import Conversation, empty, episode
 from test_lifetime_memory_postgres import attachment_database, private_database, event_database
 from test_shared_memory_events_postgres import sql, rpc, literal
-from test_story_game_runtime_postgres import proposal_from_packet, pool_from_packet, compose_game_chapters, MEMORIES
+from test_story_game_runtime_postgres import pool_from_packet, compose_game_chapters, MEMORIES
 from test_story_game_runtime import webpage, receipt
 
 pytestmark = pytest.mark.skipif(not os.getenv('MEMOIR_BROWSER_URL'), reason='Requires isolated source frontend')
@@ -41,7 +41,7 @@ def test_scene_selection_pauses_before_astra_then_opens_for_play_and_revokes(sql
     conversation = Conversation(sql, tmp_path, monkeypatch,
         lambda packet: {**empty(packet), 'events': [episode(packet, packet['sources'][0]['text'])]},
         strategy='shape')
-    calls, requests, generated_quotes = [], [], []
+    calls, requests = [], []
 
     class GameBroker(Broker):
         def __init__(self):
@@ -55,14 +55,13 @@ def test_scene_selection_pauses_before_astra_then_opens_for_play_and_revokes(sql
 
     async def provider(packet, *, token):
         calls.append('scenes')
-        scenes = proposal_from_packet(packet)
-        generated_quotes.extend(scene['quote'] for scene in scenes['scenes'])
         return pool_from_packet(packet), dict(status='completed', response_id='resp-controlled-game', model='controlled')
 
     async def builder(packet, proposal, *, token):
         calls.append('higgsfield')
         assert len(proposal['scenes']) == 2
-        return webpage(packet['authority']['locale']), {**receipt('higgsfield'), 'requested_model': 'gpt-6-astra',
+        return webpage(packet['authority']['locale']), {**receipt('higgsfield'),
+            'model': 'gpt-6-astra', 'requested_model': 'gpt-6-astra', 'reasoning_effort': 'medium',
             'skill': 'higgsfield-websites', 'skill_sha256': 'a'*64}
 
     async def composer(packet, proposal, *, token):
@@ -148,6 +147,9 @@ def test_scene_selection_pauses_before_astra_then_opens_for_play_and_revokes(sql
                 page.locator('[data-scene-count]').fill('2')
                 page.locator('[data-scene-count]').press('Tab')
                 expect(page.locator('[data-scene-option]:checked')).to_have_count(2)
+                options = page.locator('.game-scene-option')
+                chosen = options.filter(has=page.locator('[data-scene-option]:checked')).locator('blockquote').all_text_contents()
+                omitted = options.filter(has=page.locator('[data-scene-option]:not(:checked)')).locator('blockquote').all_text_contents()
                 output = Path('output/playwright'); output.mkdir(parents=True, exist_ok=True)
                 page.screenshot(path=str(output / f'story-game-selection-{locale}.png'))
                 page.locator('[data-confirm-scenes]').click()
@@ -166,7 +168,7 @@ def test_scene_selection_pauses_before_astra_then_opens_for_play_and_revokes(sql
                 wait_for_position(player, lambda position: position > 540)
                 page.keyboard.up('ArrowRight')
                 frame.locator('[data-game-interact]').click()
-                expect(frame.locator('.game-dialogue')).to_contain_text(generated_quotes[0])
+                expect(frame.locator('.game-dialogue')).to_contain_text(chosen[0])
                 for key, direction in [('Enter', 1), ('Space', -1)]:
                     frame.locator('[data-game-interact]').click()
                     start = float(player.get_attribute('data-game-position'))
@@ -189,11 +191,12 @@ def test_scene_selection_pauses_before_astra_then_opens_for_play_and_revokes(sql
                 wait_for_position(player, lambda position: position > 550)
                 touch.send('Input.dispatchTouchEvent', {'type': 'touchEnd', 'touchPoints': []})
                 frame.locator('[data-game-interact]').tap()
-                expect(frame.locator('.game-dialogue')).to_contain_text(generated_quotes[1])
+                expect(frame.locator('.game-dialogue')).to_contain_text(chosen[1])
                 frame.locator('.game-text-equivalent summary').click()
-                for passage in generated_quotes[:2]:
+                for passage in chosen:
                     expect(frame.locator('.game-text-equivalent')).to_contain_text(passage)
-                expect(frame.locator('.game-text-equivalent')).not_to_contain_text(generated_quotes[2])
+                for passage in omitted:
+                    expect(frame.locator('.game-text-equivalent')).not_to_contain_text(passage)
                 page.keyboard.press('Escape')
                 expect(page.locator('.story-game-modal')).to_have_count(0)
                 expect(opener).to_be_focused()
@@ -220,8 +223,9 @@ def test_scene_selection_pauses_before_astra_then_opens_for_play_and_revokes(sql
                 expect(page.locator('[data-game-consent]')).to_be_visible(timeout=30000)
                 reads = sum(method == 'GET' and '/story-game/' in path for method, path in requests)
                 old_route, old_response = held[0]
-                old_route.fulfill(status=200, headers=dict(old_response.headers), body=old_response.content)
-                page.wait_for_load_state('networkidle')
+                with page.expect_request_finished(lambda request: request == old_route.request):
+                    old_route.fulfill(status=200, headers=dict(old_response.headers), body=old_response.content)
+                expect(page.locator('iframe.story-game-frame')).to_have_count(0)
                 assert sum(method == 'GET' and '/story-game/' in path for method, path in requests) == reads
                 expect(page.locator('.story-game-modal [role="alert"]')).to_have_count(0)
                 assert sql('select count(*) from public.user_story_game where candidate is not null;').stdout.strip() == '0'
