@@ -2,7 +2,8 @@
 from __future__ import annotations
 
 import asyncio
-from contextvars import ContextVar
+from contextlib import asynccontextmanager
+from contextvars import Context, ContextVar
 import fcntl
 import hashlib
 import hmac
@@ -202,6 +203,7 @@ class CodexWorker:
         self._deadline_context = ContextVar('worker_execution_deadline', default=None)
         self._progress_context = ContextVar('worker_execution_progress', default=None)
         self._locks: dict[str, object] = {}
+        self._checkpoint_tasks: set[asyncio.Task] = set()
         from .two_lane_memory import RuntimeCapacity
         self._capacity=RuntimeCapacity()
         self._identity_lock = threading.Lock()
@@ -214,6 +216,23 @@ class CodexWorker:
 
         key = user_id if agent_role == 'collector' else f'{user_id}:{agent_role}'
         return self._locks.setdefault(key, asyncio.Lock())
+
+    def _enqueue_checkpoint(self, save):
+        if len(self._checkpoint_tasks) >= 4:
+            return False
+        task = asyncio.create_task(save(), context=Context())
+        self._checkpoint_tasks.add(task)
+        task.add_done_callback(self._checkpoint_done)
+        return True
+
+    def _checkpoint_done(self, task):
+        self._checkpoint_tasks.discard(task)
+        if not task.cancelled() and (error := task.exception()) is not None:
+            from .codex_home_store import checkpoint_failure
+            checkpoint_failure('deferred_save', error)
+
+    async def settle_checkpoints(self):
+        await asyncio.gather(*self._checkpoint_tasks, return_exceptions=True)
 
     def _execution_timeout(self, agent_role: str, composer_phase: str = 'draft'):
         if agent_role == 'background_agent':
@@ -462,7 +481,7 @@ class CodexWorker:
                     connection_factory=CodexConnection, issue14_admission=self._issue14_admission,
                     progress=self._progress_context.get()[1] if self._progress_context.get() else None,
                     uid=uid, apply_owner=os.getenv('MEMORY_SPARK_DISABLE_PRIVDROP') != '1',
-                    trajectory=recorder,
+                    trajectory=recorder, enqueue_checkpoint=self._enqueue_checkpoint if on_event else None,
                 )
             except BaseException as error:
                 if recorder is not None:
@@ -473,7 +492,16 @@ class CodexWorker:
         raise ValueError('A canonical execution contract is required')
 
 
-app = FastAPI(title="Memory Spark Codex Worker")
+@asynccontextmanager
+async def worker_lifespan(_app):
+    try:
+        yield
+    finally:
+        if isinstance(worker, CodexWorker):
+            await worker.settle_checkpoints()
+
+
+app = FastAPI(title="Memory Spark Codex Worker", lifespan=worker_lifespan)
 worker = CodexWorker()
 
 

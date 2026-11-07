@@ -97,7 +97,7 @@ class InterviewSession:
 async def open_interview(*, root, packet, view, schema, model, effort, base_url, api_key,
         command, timeout, admission, connection_factory=None, uid=None, apply_owner=False,
         trajectory=None, progress=None, connection_options=None, repair=None, tools=None,
-        context_window=131072, compact_at=60000):
+        context_window=131072, compact_at=60000, queue_checkpoint=None):
     from .model_configuration import configured_effort
     effort = effort or configured_effort()
     specs = tools.specs() if tools is not None else []
@@ -164,7 +164,14 @@ async def open_interview(*, root, packet, view, schema, model, effort, base_url,
     state = _read_state(session.path)
     if checkpoint is not None and state is not None:
         try:
-            session.checkpoint = await checkpoint.save(session, state)
+            if queue_checkpoint is not None:
+                archive = checkpoint.archive(session, state)
+                if queue_checkpoint(checkpoint, archive):
+                    session.checkpoint_status = 'queued'
+                    return
+                session.checkpoint = await checkpoint.upload(*archive)
+            else:
+                session.checkpoint = await checkpoint.save(session, state)
             session.checkpoint_status = 'verified'
         except (OSError, ValueError, httpx.HTTPError) as error:
             session.checkpoint_status = 'save_failed'

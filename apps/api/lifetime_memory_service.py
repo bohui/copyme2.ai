@@ -34,10 +34,12 @@ class LifetimeMemoryService:
     def __init__(self,rpc,*,budget,prompt_version='lifetime-v1'):
         self.rpc=rpc;self.budget=budget;self.prompt_version=prompt_version
 
-    def assemble(self,*,fence,current,instructions,tail,tail_coverage,interview_context=None,accepted_checkpoint=_UNPINNED):
+    def assemble(self,*,fence,current,instructions,tail,tail_coverage,interview_context=None,
+            accepted_checkpoint=_UNPINNED,prepared_evidence=None):
         """Tail must be a complete bounded canonical page result, not a guess."""
         identity=IdentityEnvelope.model_validate(fence['identity']);epoch=fence['policy_epoch']
-        pins=PinnedContinuity.model_validate(self.rpc('read_lifetime_pinned',p_conversation_id=str(identity.conversation_id)))
+        pins=PinnedContinuity.model_validate(prepared_evidence['pins'] if prepared_evidence is not None else
+            self.rpc('read_lifetime_pinned',p_conversation_id=str(identity.conversation_id)))
         if not pins.privacy_complete:
             raise MaintenancePending('The source is accepted; active privacy constraints need maintenance before another model request')
         saved=accepted_checkpoint
@@ -53,10 +55,12 @@ class LifetimeMemoryService:
         checkpoint=ContextCheckpoint.model_validate(saved) if saved else None
         retrieved=[];seen=set();complete=True
         terms=lexical_terms(current.original)
-        for term in terms or ['']:
-            # At most eight lexical pages, or one honest bounded canonical fallback.
-            page=self.rpc('read_lifetime_source_page',p_conversation_id=str(identity.conversation_id),p_policy_epoch=epoch,
+        def read_page(term):
+            return self.rpc('read_lifetime_source_page',p_conversation_id=str(identity.conversation_id),p_policy_epoch=epoch,
                 p_limit=8,p_query=term)
+        # Preserve query order and the existing first occurrence of each span.
+        pages=prepared_evidence['pages'] if prepared_evidence is not None else (read_page(term) for term in terms or [''])
+        for page in pages:
             complete=complete and page['complete']
             for row in page['records']:
                 if row['status']!='active' or (row['source_id'],row['version'],row['char_start'],row['char_end']) in seen:continue
@@ -65,7 +69,7 @@ class LifetimeMemoryService:
                     version=row['version'],sequence=row['sequence'],original=row['text'],char_start=row['char_start'],language=row['language'],kind=row['kind']))
         if terms and not retrieved:
             complete=False
-            page=self.rpc('read_lifetime_source_page',p_conversation_id=str(identity.conversation_id),p_policy_epoch=epoch,p_limit=8)
+            page=prepared_evidence['fallback'] if prepared_evidence is not None else read_page('')
             for row in page['records']:
                 if row['status']=='active':
                     retrieved.append(ContextSource(identity=identity,policy_epoch=epoch,source_id=row['source_id'],version=row['version'],

@@ -1,4 +1,5 @@
 """Private checkpoints for resumable Codex homes, outside the model sandbox."""
+import asyncio
 from io import BytesIO
 import hashlib
 import json
@@ -210,10 +211,15 @@ class CodexHomeStore:
                 shutil.rmtree(staged)
         return True
 
-    async def save(self, session, state):
+    def archive(self, session, state):
         content = _pack(session, state)
         digest = hashlib.sha256(content).hexdigest()
         path = self._path(session, state['sequence'], digest)
+        return content, dict(path=path, scope=session.scope, archive_sha256=digest, byte_size=len(content),
+            **{key: state[key] for key in ('thread_id', 'sequence', 'source_id', 'source_version', 'reply_sha256')})
+
+    async def upload(self, content, receipt):
+        path = receipt['path']
         async with httpx.AsyncClient(headers=self.headers, timeout=5, transport=self.transport) as client:
             response = await client.post(self.url + '/storage/v1/object/' + BUCKET + '/' + path, content=content,
                 headers={'Content-Type': 'application/zip', 'x-upsert': 'false'})
@@ -225,12 +231,14 @@ class CodexHomeStore:
                 raise ValueError('Codex checkpoint readback mismatch')
         # shortcut: immutable orphan/superseded objects need a retention job
         # before long-running production use; they never replace a committed one.
-        return dict(path=path, scope=session.scope, archive_sha256=digest, byte_size=len(content),
-            **{key: state[key] for key in ('thread_id', 'sequence', 'source_id', 'source_version', 'reply_sha256')})
+        return receipt
+
+    async def save(self, session, state):
+        return await self.upload(*self.archive(session, state))
 
 
-async def stage_checkpoint(publisher, fence, checkpoint):
-    """Only the trusted worker records verification; SQL owns later promotion."""
+async def stage_checkpoint(publisher, fence, checkpoint, *, allow_committed=False):
+    """Record exact object verification under canonical reply authority."""
     from psycopg import AsyncConnection
     from psycopg.types.json import Jsonb
     async with await AsyncConnection.connect(publisher._dsn, connect_timeout=2) as connection:
@@ -238,9 +246,28 @@ async def stage_checkpoint(publisher, fence, checkpoint):
         await connection.execute('set local role service_role')
         await connection.execute("select set_config('request.jwt.claim.sub',%s,true)",
             (str(fence.identity.owner_id),))
-        await connection.execute('select public.stage_lifetime_runtime_checkpoint(%s,%s,%s)',
-            (Jsonb(fence.model_dump(mode='json')), Jsonb(checkpoint),
-                publisher.lock_function == 'lock_lifetime_draft_reply'))
+        args = (Jsonb(fence.model_dump(mode='json')), Jsonb(checkpoint),
+                publisher.lock_function == 'lock_lifetime_draft_reply')
+        if allow_committed:
+            await connection.execute('select public.stage_lifetime_runtime_checkpoint(%s,%s,%s,true)', args)
+        else:
+            await connection.execute('select public.stage_lifetime_runtime_checkpoint(%s,%s,%s)', args)
+
+
+async def save_deferred_checkpoint(store, archive, publisher, fence):
+    from psycopg import Error, OperationalError
+
+    for attempt in range(2):
+        try:
+            async with asyncio.timeout(12):
+                receipt = await store.upload(*archive)
+                await stage_checkpoint(publisher, fence, receipt, allow_committed=True)
+            return
+        except (OSError, ValueError, httpx.HTTPError, Error) as error:
+            if attempt == 0 and isinstance(error, (httpx.RequestError, OperationalError, TimeoutError)):
+                continue
+            checkpoint_failure('deferred_save', error)
+            return
 
 
 def checkpoint_failure(operation, error):

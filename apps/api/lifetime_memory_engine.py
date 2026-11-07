@@ -330,7 +330,7 @@ async def _run_governed_collector_once(*, command, home_root, base_url, api_key,
         timeout=120, on_delta=None, on_event=None, effort=None,
         responsesapi_client_metadata=None, connection_factory=None,
         issue14_admission=None, trajectory=None, progress=None, uid=None, apply_owner=False, publisher=None,
-        acknowledgement=None,repair_reason=None):
+        acknowledgement=None,repair_reason=None,enqueue_checkpoint=None):
     """Generate once from canonical evidence, returning an uncommitted pointer.
 
     Native reply threads resume only after canonical commitment and compatible
@@ -407,6 +407,12 @@ async def _run_governed_collector_once(*, command, home_root, base_url, api_key,
         if direct_reply:
             from .conversation_reply_session import open_interview
             from .interview_context_tools import InterviewContextTools
+            queue_checkpoint = None
+            if enqueue_checkpoint is not None and not revisable:
+                from .codex_home_store import save_deferred_checkpoint
+
+                def queue_checkpoint(store, archive):
+                    return enqueue_checkpoint(lambda: save_deferred_checkpoint(store, archive, publisher, packet.fence))
             session, connection = await stack.enter_async_context(open_interview(
                 root=home_root, packet=packet, view=json.loads(model_packet), schema=output_schema,
                 model=model, effort=effort, base_url=base_url, api_key=api_key, command=command,
@@ -415,7 +421,7 @@ async def _run_governed_collector_once(*, command, home_root, base_url, api_key,
                 connection_options=issue14_connection_options(issue14_admission), repair=prompt or None,
                 tools=InterviewContextTools(publisher, packet.fence),
                 context_window=governed.budget.context_window,
-                compact_at=min(60000, governed.budget.input_budget)))
+                compact_at=min(60000, governed.budget.input_budget), queue_checkpoint=queue_checkpoint))
             candidate = session.thread_id
         else:
             root = Path(home_root).expanduser().resolve()
