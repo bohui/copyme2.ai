@@ -1,9 +1,10 @@
 """Shipped UI + real recovery/history/sample routes; external auth/data are fixtures."""
 
-from browser_supabase_fixture import install_supabase_fixture
+import base64
 import json
 import os
 import time
+from urllib.parse import urlsplit
 
 import pytest
 from fastapi.testclient import TestClient
@@ -11,9 +12,71 @@ from playwright.sync_api import expect, sync_playwright
 
 from apps.api import main, supabase_routes
 from browser_recovery_fixture import account_recovery_storage, set_recovery_principal, RECOVERY_OWNER, forward_project_history
+from browser_supabase_fixture import install_supabase_fixture
 from apps.api.store import MemoryStore
 
 pytestmark = pytest.mark.skipif(not os.getenv('MEMOIR_BROWSER_URL'), reason='Requires source frontend')
+
+
+def test_rejected_legacy_refresh_allows_sign_in_after_reload():
+    base = os.environ['MEMOIR_BROWSER_URL'].rstrip('/')
+    legacy_key = 'sb-auth-auth-token'
+    history_key = 'memory-spark-chat-history:old-viewer:old-project'
+    user = {'id': 'recovered-viewer', 'is_anonymous': False, 'user_metadata': {}}
+    expired_claims = base64.urlsafe_b64encode(json.dumps({'exp': int(time.time()) - 3600}).encode()).decode().rstrip('=')
+    stale = {'access_token': f'eyJhbGciOiJIUzI1NiJ9.{expired_claims}.fixture', 'refresh_token': 'rejected-refresh'}
+    fresh = {'access_token': 'fresh-access', 'refresh_token': 'fresh-refresh', 'expires_in': 3600,
+             'token_type': 'bearer', 'user': user}
+    grants = []
+
+    def auth(route):
+        request = route.request
+        url = urlsplit(request.url)
+        headers = {'Access-Control-Allow-Origin': '*',
+                   'Access-Control-Allow-Headers': 'authorization,apikey,content-type,x-client-info,x-supabase-api-version'}
+        if request.method == 'OPTIONS':
+            return route.fulfill(status=200, headers=headers)
+        if url.path == '/auth/v1/token':
+            grants.append(url.query)
+            if url.query == 'grant_type=refresh_token':
+                assert request.post_data_json == {'refresh_token': stale['refresh_token']}
+                return route.fulfill(status=400, headers=headers, json={'error_code': 'refresh_token_not_found'})
+            assert url.query == 'grant_type=password'
+            return route.fulfill(headers=headers, json=fresh)
+        if url.path == '/auth/v1/user':
+            assert request.headers['authorization'] == 'Bearer fresh-access'
+            return route.fulfill(headers=headers, json=user)
+        assert url.path == '/rest/v1/rpc/read_ui_locale_preference'
+        route.fulfill(headers=headers, body='null', content_type='application/json')
+
+    with sync_playwright() as pw:
+        browser = pw.chromium.launch(headless=True)
+        context = browser.new_context(locale='en-AU')
+        context.add_init_script(f"""if (location.origin === {json.dumps(base)} && !sessionStorage.getItem('auth-seeded')) {{
+          localStorage.setItem({json.dumps(legacy_key)}, {json.dumps(json.dumps(stale))});
+          localStorage.setItem({json.dumps(history_key)}, 'saved history');
+          sessionStorage.setItem('auth-seeded', '1');
+        }}""")
+        context.route('**/api/v1/memoir/**', lambda route: route.fulfill(json={}))
+        context.route('**/api/v1/memoir/agent/config', lambda route: route.fulfill(json={
+            'supabase_url': 'https://auth.test', 'supabase_publishable_key': 'public', 'auth_mode': 'supabase'}))
+        context.route('https://auth.test/**', auth)
+        page = context.new_page()
+        page.goto(base, wait_until='networkidle')
+        expect(page.get_by_text('Sign in again to continue.', exact=False)).to_be_visible(timeout=3000)
+        expect(page.locator('[data-auth-provider="google"]')).to_be_visible(timeout=2000)
+        page.reload(wait_until='networkidle')
+        expect(page.locator('[data-auth-provider="google"]')).to_be_visible()
+        assert grants == ['grant_type=refresh_token']
+
+        page.locator('#agent-email').fill('recovery@example.test')
+        page.locator('#agent-password').fill('synthetic-password')
+        page.locator('[data-auth-action="signin"]').click()
+        page.wait_for_function('(key) => localStorage.getItem(key) === null', arg=legacy_key)
+        expect(page.locator('[data-action="open-memoir"]')).to_be_visible()
+        assert page.evaluate('(key) => localStorage.getItem(key)', history_key) == 'saved history'
+        assert grants == ['grant_type=refresh_token', 'grant_type=password']
+        browser.close()
 
 
 @pytest.mark.parametrize('entry', ['saved-link', 'landing'])

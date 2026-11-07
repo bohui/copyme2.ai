@@ -114,6 +114,7 @@ def test_timeline_reconciles_and_revises_a_city_period(sql,tmp_path,monkeypatch)
             reconciliation_calls.append(packet)
             assert packet['message_id'] == message_ids[-1]
             assert all('existing_id' not in draft for draft in packet['drafts'])
+            assert len(packet['drafts']) == (3 if len(message_ids) == 1 else 2)
             output = empty_document(body)
             if len(message_ids) == 1:
                 assert packet['published_events'] == []
@@ -133,7 +134,7 @@ def test_timeline_reconciles_and_revises_a_city_period(sql,tmp_path,monkeypatch)
         assert 'DraftEventRelation' in schema['$defs']
         assert schema['$defs']['EventProposal']['properties']['existing_id'] == {'type':'null'}
         text = packet['sources'][0]['text']
-        extraction_calls.append(text)
+        extraction_calls.append((text, packet.get('retry_reason')))
 
         def period(quote, city, country, draft_id, years):
             ref = reference(packet, quote)
@@ -154,6 +155,9 @@ def test_timeline_reconciles_and_revises_a_city_period(sql,tmp_path,monkeypatch)
             assert text == f'{departure} {detail}'
             update = {**episode(packet, departure, title='Porto'), 'kind':'period',
                 'temporal':dict(expression='2010', precision='year', year_end=2010, basis=[reference(packet, departure)])}
+            if 'retry_reason' not in packet:
+                prior = packet['conversation_history'][-1]['source']
+                update['source_refs'].append(dict(source_id=prior['id'], version=prior['version'], quote=porto))
             additional = {**episode(packet, detail, title='Porto'), 'kind':'period',
                 'temporal_estimate':None, 'location':None, 'location_basis':[], 'locationConfidenceScore':0.0,
                 'yearConfidenceScore':0.0, 'relations':[]}
@@ -213,7 +217,8 @@ def test_timeline_reconciles_and_revises_a_city_period(sql,tmp_path,monkeypatch)
         record = next(event for event in rpc(sql,'read_user_memory_events',literal(conversation.project))['events']
                       if event['id'] == revised['id'])
         assert record['message_ids'] == message_ids
-        assert extraction_calls == [first,f'{departure} {detail}']
+        follow_up = f'{departure} {detail}'
+        assert extraction_calls == [(first, None), (follow_up, None), (follow_up, 'PRIMARY_SOURCE_SCOPE')]
         assert len(reconciliation_calls) == 3 and reconciliation_calls[-1]['retry_reason'] == 'INVALID_RECONCILIATION'
 
 

@@ -364,6 +364,32 @@ def test_extraction_request_keeps_exact_packet_schema_manifest_and_fence(tmp_pat
     assert not list(tmp_path.iterdir())
 
 
+def test_timeline_request_scopes_primary_refs_to_current_source_and_version(tmp_path):
+    from jsonschema import Draft202012Validator
+
+    current = page()
+    source = current['source']
+    source.update(sequence=2, version=2)
+    earlier = {**source, 'id': str(UUID(int=8)), 'sequence': 1, 'version': 1}
+    current['timeline_context'] = {'conversation_history': [{'source': earlier}], 'last_event': None}
+    current['two_lane'] = dict(task_version='two-lane-v1', execution_generation=1,
+        phase_revision=0, work_mode='extract', reply_contract='reply-v2',
+        selected_skills=['memoir-author-timeline'])
+    run(tmp_path, transport('extract', current))
+    body, = Provider.bodies
+    schema = body['text']['format']['schema']
+    fields = schema['$defs']['EventProposal']['properties']
+    primary = Draft202012Validator({'$defs': schema['$defs'], **fields['source_refs']})
+    placement = Draft202012Validator({'$defs': schema['$defs'], **fields['location_basis']})
+    current_ref = dict(source_id=source['id'], version=source['version'], quote=source['text'],
+        char_start=None, char_end=None, attribution=None)
+    earlier_ref = {**current_ref, 'source_id': earlier['id'], 'version': earlier['version']}
+    assert primary.is_valid([current_ref])
+    assert placement.is_valid([earlier_ref])
+    assert not primary.is_valid([current_ref, earlier_ref])
+    assert not primary.is_valid([{**current_ref, 'version': earlier['version']}])
+
+
 @pytest.mark.parametrize('phase,two_lane',[('extract',False),('extract',True),('draft',False)])
 def test_admitted_page_preloads_instructions_at_the_exact_input_budget(tmp_path,phase,two_lane):
     from apps.api.lifetime_memory_lane_engine import lane_contract

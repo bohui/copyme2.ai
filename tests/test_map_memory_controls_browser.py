@@ -402,7 +402,7 @@ def test_background_story_render_preserves_workspace_and_patches_event_text(cont
         render:noop,bindHistoricalControls:noop,captureProjectScope:noop,isCurrentProjectScope:()=>true,
         supabaseApi:noop,toast:noop,currentUiLocale:()=> 'en-AU',
         startMemory:noop,finishChapter:noop,toggleVoiceInput:noop,startAudioRecorder:noop,cancelDictation:noop,
-        discardAudioDraft:noop,addPerson:noop,retryPrivateDraft:noop,loadMorePrivateDraft:noop,
+        discardAudioDraft:noop,addPerson:noop,closeDebugWorkspace:noop,retryPrivateDraft:noop,loadMorePrivateDraft:noop,
         loadMoreMemoryEvents:noop,refreshFamilyContext:noop
       });
       window.mapResizes=0;

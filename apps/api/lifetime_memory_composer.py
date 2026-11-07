@@ -117,7 +117,8 @@ def extraction_events(raw,page,original=None, *, allow_draft_relations=False, re
     updates=validate_extraction({'events':updates},admitted,page.get('events',[]),
         allow_draft_relations=allow_draft_relations)
     core_start=page.get('core_start',source['char_start'])
-    if any(ref['source_id'] != source['id'] for event in updates for ref in event['source_refs']):
+    if any(ref['source_id'] != source['id'] or ref['version'] != source['version']
+            for event in updates for ref in event['source_refs']):
         raise ValueError('Event testimony must belong to the current source')
     return [event for event in updates if any(ref['char_end']>core_start for ref in event['source_refs'])]
 

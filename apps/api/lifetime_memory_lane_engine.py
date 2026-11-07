@@ -68,6 +68,7 @@ EXTRACTION_REJECTION_REASONS = {
     'Attribution requires an exact unambiguous span': 'PAGE_AMBIGUOUS',
     'Evidence span exceeds claimed source page': 'PAGE_SPAN',
     'Evidence quote outside claimed source page': 'PAGE_QUOTE',
+    'Event testimony must belong to the current source': 'PRIMARY_SOURCE_SCOPE',
     'Whole-source policy authority changed': 'POLICY_SOURCE',
     'Event place hierarchy must retain its exact source label': 'PLACE_HIERARCHY',
 }
@@ -254,6 +255,11 @@ def lane_contract(phase, locale, *, batch=False, two_lane=False, fence=None, ret
                 'using the original source spelling without adding an administrative suffix.')
         identities=sorted({event['id'] for event in fence.events})
         event=schema['$defs']['EventProposal']['properties']
+        primary_ref = deepcopy(schema['$defs']['EvidenceRef'])
+        primary_ref['properties']['source_id']['enum'] = [fence.source['id']]
+        primary_ref['properties']['version']['enum'] = [fence.source['version']]
+        schema['$defs']['CurrentSourceRef'] = primary_ref
+        event['source_refs']['items'] = {'$ref': '#/$defs/CurrentSourceRef'}
         drafts = 'DraftEventRelation' in schema['$defs']
         event['id'] = {'type':['string','null'],'pattern':r'^draft-[1-9][0-9]{0,2}$'} if drafts else {'type':'null'}
         event['existing_id']={'type':'null'} if drafts else {'type':['string','null'],'enum':[None,*identities]}

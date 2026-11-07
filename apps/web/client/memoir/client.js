@@ -501,7 +501,7 @@ async function ensureAuth() {
   const authScope = uiPreferenceSession.capture();
   let session;
   try { session = await restoreLegacyBrowserSession(state.supabase.client, state.supabase.supabase_url, globalThis.localStorage); }
-  catch { throw new Error(translate("Errors.sessionUnavailable")); }
+  catch { throw Object.assign(new Error(translate("Errors.sessionUnavailable")), { code: "SIGN_IN_REQUIRED" }); }
   if (!session) {
     const signedIn = await state.supabase.client.auth.signInAnonymously();
     if (signedIn.error) {
@@ -589,6 +589,7 @@ async function supabaseAuth(action) {
     if (result.error) return toast(translate("Errors.authFailed"));
     if (!result.data.session) return toast(translate("Errors.authConfirm"));
     syncSupabaseSession(result.data.session);
+    if (state.signInRequired) return window.location.reload();
     renderLanding();
     toast(translate("Errors.memoryConnected"));
     return;
@@ -1924,7 +1925,7 @@ function render() {
 }
 
 function renderLanding() {
-  if (currentPath() === "/") return renderPlatformLanding();
+  if (currentPath() === "/" && !state.signInRequired) return renderPlatformLanding();
   return renderMemoirLanding();
 }
 
@@ -1963,6 +1964,7 @@ function renderPlatformLanding() {
 
 function renderMemoirLanding() {
   const t = (key) => escapeHtml(translate(`Memoir.landing.${key}`));
+  const signInRequired = state.signInRequired;
   $("#app").innerHTML = `
     <div class="landing">
       <header class="landing-header">
@@ -1970,7 +1972,7 @@ function renderMemoirLanding() {
         <div class="landing-language" data-language-switcher-slot></div>
       </header>
       <main class="landing-main">
-        <section class="hero">
+        ${signInRequired ? `<h1>${t("signIn")}</h1>` : `<section class="hero">
           <div>
             <div class="eyebrow">${t("eyebrow")}</div>
             <h1>${t("title")}</h1>
@@ -1979,10 +1981,12 @@ function renderMemoirLanding() {
             <p class="fine-print" style="margin-top:16px">${t("freeNotice")}</p>
           </div>
           <div class="hero-art" aria-hidden="true"><div class="orb"></div><div class="memory-card"><div class="card-kicker"><span>${t("cardLabel")}</span><span>${t("cardStatus")}</span></div><blockquote>“${t("quote")}"</blockquote><div class="card-line"></div><div class="card-meta"><span>${t("cardMeta")}</span><span>♡</span></div></div></div>
-        </section>
-        <details class="agent-connect">
+        </section>`}
+        <details class="agent-connect"${signInRequired ? " open" : ""}>
           <summary>${t("connectSummary")}</summary>
-          <p>${t("connectDescription")}</p>
+          ${signInRequired
+            ? `<p role="alert">${escapeHtml(translate("Errors.sessionUnavailable"))}</p>`
+            : `<p>${t("connectDescription")}</p>`}
           <form id="agent-auth-form">
             <div class="agent-auth-actions">
               <button type="button" class="button button-secondary button-small" data-auth-provider="google">${escapeHtml(translate("AuthReminder.google"))}</button>
@@ -3563,6 +3567,7 @@ async function boot({openProjectId = null} = {}) {
   try {
     await authPromise;
     if (!current()) return;
+    state.signInRequired = false;
     if (!openProjectId) {
       try {
         const completed = await guestTransfer.complete();
@@ -3667,7 +3672,13 @@ async function boot({openProjectId = null} = {}) {
     if (currentPath() === MEMOIR_ROUTES.start) window.history.replaceState({}, "", MEMOIR_ROUTES.home);
     renderLanding();
   } catch (error) {
-    if (current()) $("#app").innerHTML = `<div class="loading">${escapeHtml(error.message)}</div>`;
+    if (!current()) return;
+    if (error.code === "SIGN_IN_REQUIRED") {
+      state.signInRequired = true;
+      renderLanding();
+    } else {
+      $("#app").innerHTML = `<div class="loading">${escapeHtml(error.message)}</div>`;
+    }
   } finally {
     recovery.finish();
     if (current() && state.authPromise === authPromise) state.authPromise = null;
