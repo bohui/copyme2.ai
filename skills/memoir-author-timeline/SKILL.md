@@ -117,9 +117,11 @@ birth/date/duration anchor. Explain those assumptions in rationale. Derive both
 year and age ranges when anchors permit. Set temporal_estimate=null only when
 the originals cannot support either estimate or stated timing already suffices.
 Uncertainty lowers confidence instead of deleting a supported estimate. For a
-current residence with an unknown start, use a broad plausible interval from the
-authorized birth/life-stage anchors to the original capture year, with low
-confidence and the assumed start explained in rationale. Keep inferred numbers
+current residence with no clue to its start, use the original capture year in
+`timing_hint` with low confidence and leave the interval unset. Every draft
+needs one numeric age or year in `timing_hint`, with its own confidence and
+original evidence. This point supports the date label and portrait. The map
+converts a year to age with the narrator's birth year. Keep inferred numbers
 out of stated temporal fields; capture order alone is not
 chronology. yearConfidenceScore describes the preferred stated or estimated year
 placement, with 0 when neither exists. Estimates remain revisable and never replace

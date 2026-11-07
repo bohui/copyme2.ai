@@ -103,6 +103,9 @@ def _merge_update(current, draft):
             _append_distinct(current.setdefault(key, []), value)
         elif key not in current:
             current[key] = value
+        elif key == 'timing_hint':
+            if value['confidence'] > current[key]['confidence']:
+                current[key] = value
         elif key in {'temporal', 'temporal_estimate'} and value and current[key]:
             previous = current[key]
             if any(previous.get(field) != value.get(field) for field in (previous.keys() | value.keys()) - {'basis'}):

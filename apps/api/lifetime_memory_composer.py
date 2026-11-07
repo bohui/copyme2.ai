@@ -67,12 +67,14 @@ def validate_page(page):
     return page
 
 
-def extraction_events(raw,page,original=None, *, allow_draft_relations=False):
+def extraction_events(raw,page,original=None, *, allow_draft_relations=False, require_timing_hint=False):
     """Validate in the transmitted window, then restore exact original offsets."""
     source=page['source']
     from .timeline_context import context_sources
     context = context_sources(page.get('timeline_context'))
     proposal=ExtractionResult.model_validate(raw)
+    if require_timing_hint and any(event.timing_hint is None for event in proposal.events):
+        raise ValueError('Timeline drafts require a numeric timing hint')
     # This bounded page provides event identity metadata, but no authorized
     # family/person registry. Names and relationships in testimony remain prose;
     # the model cannot turn them into database identity references.
@@ -231,7 +233,7 @@ async def _extract(page,worker):
                 if not isinstance(raw, dict) or set(raw) - allowed:
                     raise ValueError('Unexpected background reply fields')
             result={'events':extraction_events({'events':raw['events']},page,original,
-                allow_draft_relations=grouped_timeline)}
+                allow_draft_relations=grouped_timeline, require_timing_hint=True)}
             links = []
             if page.get('two_lane'):
                 if page.get('attribution_context'):

@@ -6,6 +6,15 @@ import httpx
 
 def worker_reply(request, result):
     """Honor worker framing even for a JSON caller awaiting early acknowledgement."""
+    body = json.loads(request.content)
+    if (body.get('bounded_lane') or {}).get('phase') == 'extract':
+        from controlled_skill_harness import complete_timing_hints
+        try:
+            output = json.loads(result['reply'])
+        except (TypeError, ValueError):
+            pass
+        else:
+            result = {**result,'reply':json.dumps(complete_timing_hints(output))}
     if request.headers.get('accept') == 'application/x-ndjson':
         events = [{'type': 'text_delta', 'text': result['reply']},
                   {'type': 'provider_complete', 'data': result},

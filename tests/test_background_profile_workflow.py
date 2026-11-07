@@ -28,6 +28,9 @@ def database():
 
 
 def worker_response(request, output):
+    if (json.loads(request.content).get('bounded_lane') or {}).get('phase') == 'extract':
+        from controlled_skill_harness import complete_timing_hints
+        complete_timing_hints(output)
     result = {'reply': json.dumps(output), 'thread_id': 'synthetic', 'artifacts': []}
     if request.headers.get('accept') == 'application/x-ndjson':
         return httpx.Response(200, headers={'Content-Type': 'application/x-ndjson'},

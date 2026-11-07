@@ -88,11 +88,31 @@ def test_model_can_leave_an_unsupported_estimate_null_without_losing_the_event()
     assert EventProposal.model_validate({**proposal(),'temporal_estimate':None}).temporal_estimate is None
 
 
-@pytest.mark.parametrize('bounds', [
-    dict(year_start=None,age_end=40), dict(year_start=2020,year_end=2010),
-    dict(age_start=40,age_end=20), dict(year_start=None,year_end=None),
+def test_model_draft_requires_a_number_and_confidence_even_without_a_timing_range():
+    schema = extraction_contract(attribution=True, continuity=True)[1]
+    validator = Draft202012Validator({'$defs':schema['$defs'],'$ref':'#/$defs/EventProposal'})
+    draft = dict.fromkeys(schema['$defs']['EventProposal']['required'])
+    draft.update(kind='period',title='Sydney residence',source_refs=[REF | dict(char_start=None,char_end=None,attribution=None)],
+        locationConfidenceScore=0,yearConfidenceScore=0)
+    basis = draft['source_refs']
+    for hint in (dict(age=0,confidence=0,basis=basis),dict(year=2026,confidence=.3,basis=basis)):
+        validator.validate({**draft,'timing_hint':hint})
+    for hint in (None,dict(confidence=0,basis=basis),dict(age=43,basis=basis),
+                 dict(age=43,year=2026,confidence=.3,basis=basis),dict(age='43',confidence=.3,basis=basis),
+                 dict(age=131,confidence=.3,basis=basis),dict(year=2026,confidence=1.1,basis=basis)):
+        assert not validator.is_valid({**draft,'timing_hint':hint})
+    del draft['timing_hint']
+    assert not validator.is_valid(draft)
+
+
+@pytest.mark.parametrize('bounds,reason', [
+    (dict(year_start=None,age_end=40),'TEMPORAL_ESTIMATE_RANGE'),
+    (dict(year_start=2020,year_end=2010),'TEMPORAL_ESTIMATE_RANGE'),
+    (dict(age_start=40,age_end=20),'TEMPORAL_ESTIMATE_RANGE'),
+    (dict(year_start=None,year_end=None),'TEMPORAL_ESTIMATE_RANGE'),
+    (None,'TIMING_HINT_REQUIRED'),
 ])
-def test_invalid_estimate_retries_with_specific_range_error_and_same_original(bounds,caplog):
+def test_invalid_estimate_retries_with_specific_range_error_and_same_original(bounds,reason,caplog):
     import asyncio
     import json
     from types import SimpleNamespace
@@ -112,21 +132,26 @@ def test_invalid_estimate_retries_with_specific_range_error_and_same_original(bo
         requests.append(bounded)
         packet=json.loads(bounded['packet'])['payload']
         if len(requests)>1:
-            assert packet['retry_reason']=='TEMPORAL_ESTIMATE_RANGE'
+            assert packet['retry_reason']==reason
         estimate={**ESTIMATE,'year_end':2026}
-        if len(requests)==1:estimate.update(bounds)
-        return httpx.Response(200,json={'reply':json.dumps({'events':[{**proposal(),'temporal_estimate':estimate}]})})
+        if len(requests)==1 and bounds is not None:
+            estimate.update(bounds)
+        event={**proposal(),'temporal_estimate':estimate}
+        if len(requests)>1 or bounds is not None:
+            event['timing_hint']=dict(year=2026,confidence=.3,basis=[REF])
+        return httpx.Response(200,json={'reply':json.dumps({'events':[event]})})
     worker=SimpleNamespace(broker=Broker(),worker_url='https://synthetic.invalid',worker_secret='synthetic',
         worker_transport=httpx.MockTransport(model),lane_publisher=Publisher())
     result=asyncio.run(_extract(current,worker))
     assert len(requests)==2 and requests[0]['fence']==requests[1]['fence']
     first=json.loads(requests[0]['packet']);second=json.loads(requests[1]['packet'])
-    assert second['payload'].pop('retry_reason')=='TEMPORAL_ESTIMATE_RANGE'
+    assert second['payload'].pop('retry_reason')==reason
     assert first==second
     assert result['events'][0]['temporal_estimate']['year_end']==2026
+    assert result['events'][0]['timing_hint']['year']==2026
     assert result['events'][0]['source_refs'][0]['quote']==SOURCE['text']
     assert 'temporal' not in result['events'][0]
-    assert 'reason=TEMPORAL_ESTIMATE_RANGE issue=events.0.temporal_estimate:temporal_estimate_range' in caplog.text
+    assert f'reason={reason}' in caplog.text
     assert SOURCE['text'] not in caplog.text and ESTIMATE['rationale'] not in caplog.text
 
 
@@ -134,21 +159,24 @@ def test_sql_estimates_keep_originals_and_author_corrections_take_precedence(sql
     original=rpc(sql,'accept_user_narrator_source',f"'project','{TURN}',{literal(SOURCE['text'])}")
     year=int(original['created_at'][:4]);ref=dict(source_id=original['id'],version=1,quote=original['text'])
     estimate={**ESTIMATE,'year_start':year-15,'year_end':year-13,'reference_year':year,'basis':[ref]}
-    event=validate_extraction({'events':[{**proposal(),'source_refs':[ref],'temporal_estimate':estimate}]},[original],[])[0]
+    hint=dict(year=year,confidence=.3,basis=[ref])
+    event=validate_extraction({'events':[{**proposal(),'source_refs':[ref],'temporal_estimate':estimate,'timing_hint':hint}]},[original],[])[0]
     saved=extract(sql,[original],[event])['events'][0]
     assert saved['temporal_estimate']['year_start']==year-15
+    assert saved['timing_hint']==hint
     assert saved['temporal'].get('year_start') is None
     corrected=rpc(sql,'correct_user_memory_event',f"'project',{literal(saved['id'])},{saved['revision']},"+
         literal(dict(temporal=dict(expression='2010',precision='year',year_start=2010,year_end=2010)))+
         "::jsonb,'Actually I moved to Sydney in 2010.'")
     assert corrected['temporal']['year_start']==2010
-    assert not corrected.get('temporal_estimate')
+    assert not corrected.get('temporal_estimate') and not corrected.get('timing_hint')
     assert corrected['yearConfidenceScore']==1
     newer=rpc(sql,'accept_user_narrator_source',"'project','00000000-0000-4000-8000-000000000002','I still live in Sydney.'")
     update={**event,'existing_id':saved['id'],'expected_revision':corrected['revision'],
         'source_refs':[dict(source_id=newer['id'],version=1,quote=newer['text'])]}
     final=extract(sql,[newer],[update])['events'][0]
     assert final['temporal']['year_start']==2010 and not final.get('temporal_estimate')
+    assert not final.get('timing_hint')
     assert final['yearConfidenceScore']==1
 
 
@@ -162,14 +190,17 @@ def test_sql_rejects_invalid_or_unanchored_estimates(sql,change):
     assert result.returncode!=0
 
 
-def test_estimate_birth_dependency_is_removed_when_its_original_is_withdrawn(sql):
+@pytest.mark.parametrize('field',['temporal_estimate','timing_hint'])
+def test_estimate_birth_dependency_is_removed_when_its_original_is_withdrawn(sql,field):
     birth=rpc(sql,'accept_user_narrator_source',f"'project','{TURN}','I was born in 1983.'")
     source=rpc(sql,'accept_user_narrator_source',"'project','00000000-0000-4000-8000-000000000002','When I was little, I played at school.'")
     birth_ref=dict(source_id=birth['id'],version=1,quote=birth['text'])
     ref=dict(source_id=source['id'],version=1,quote=source['text'])
     estimate={**ESTIMATE,'year_start':1988,'year_end':1995,'reference_year':None,'basis':[birth_ref,ref]}
-    saved=extract(sql,[birth,source],[dict(kind='period',title='Playing at school',source_refs=[ref],temporal_estimate=estimate)])['events'][0]
+    hint=dict(year=1991,confidence=.3,basis=[birth_ref,ref])
+    saved=extract(sql,[birth,source],[{'kind':'period','title':'Playing at school','source_refs':[ref],
+        field:estimate if field=='temporal_estimate' else hint}])['events'][0]
     rpc(sql,'change_user_narrator_source',f"'project',{literal(birth['id'])},1,'withdraw',null")
     after=rpc(sql,'read_user_memory_events',"'project'")['events'][0]
     assert after['id']==saved['id'] and after['status']=='unresolved'
-    assert not after.get('temporal_estimate')
+    assert not after.get(field)

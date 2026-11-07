@@ -60,6 +60,20 @@ class TemporalEstimate(BaseModel):
         return self
 
 
+class TimingHint(BaseModel):
+    model_config = ConfigDict(extra='forbid')
+    confidence: float = Field(ge=0, le=1, strict=True)
+    basis: list[EvidenceRef] = Field(min_length=1, max_length=20)
+
+
+class AgeTimingHint(TimingHint):
+    age: int = Field(ge=0, le=130, strict=True)
+
+
+class YearTimingHint(TimingHint):
+    year: int = Field(ge=1, le=9999, strict=True)
+
+
 class EventRelation(BaseModel):
     model_config = ConfigDict(extra='forbid')
     kind: Literal['before', 'after']
@@ -89,6 +103,9 @@ class EventProposal(BaseModel):
         'keep stated bounds in temporal as well. If no complete range is supported, return null '
         'instead of inventing a missing bound. TEMPORAL_ESTIMATE_RANGE requests repair of '
         'incomplete, empty or reversed estimated ranges.'))
+    timing_hint: AgeTimingHint | YearTimingHint | None = Field(default=None, description=(
+        'One best age or year for display, with confidence and original evidence. '
+        'Required on model drafts, including very uncertain events. This is not a period bound.'))
     stage_evidence: list[EvidenceRef] | None = Field(default=None, max_length=100)
     source_refs: list[EvidenceRef] = Field(min_length=1, max_length=100)
     uncertainty: str | None = Field(default=None, max_length=2000)
@@ -302,6 +319,7 @@ def validate_extraction(raw, sources, saved_events, *, allow_draft_relations=Fal
                 raise ValueError('Location requires its confidence score')
         refs = [*event.source_refs, *(event.location_basis or []), *(event.stage_evidence or []), *(event.temporal.basis if event.temporal else []),
                 *(event.temporal_estimate.basis if event.temporal_estimate else []),
+                *(event.timing_hint.basis if event.timing_hint else []),
                 *(ref for relation in event.relations or [] for ref in relation.source_refs),
                 *([event.correction] if event.correction else [])]
         if event.correction and (not event.existing_id or event.correction.source_id != sources[0]['id']
@@ -400,6 +418,8 @@ def extraction_schema(*, allow_draft_relations=False):
                     if option['type']==('integer' if unit in ranges else 'null'))
         estimates.append(variant)
     schema['$defs']['TemporalEstimate']={'anyOf':estimates}
+    hint = schema['$defs']['EventProposal']['properties']['timing_hint']
+    hint['anyOf'] = [option for option in hint['anyOf'] if option.get('type') != 'null']
     for field in ('locationConfidenceScore', 'yearConfidenceScore'):
         schema['$defs']['EventProposal']['properties'][field] = {'type':'number','minimum':0,'maximum':1}
     return schema

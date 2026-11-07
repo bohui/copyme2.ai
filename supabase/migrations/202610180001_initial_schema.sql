@@ -2991,7 +2991,7 @@ declare owner_id uuid:=auth.uid(); item jsonb; saved public.user_narrator_source
   proposal jsonb; ref jsonb; relation jsonb; evidence public.user_narrator_source%rowtype;
   current_event public.user_memory_event%rowtype; event_id text; event_data jsonb; event_refs jsonb; event_stage text; next_change bigint;
   contextual_city boolean; publication_ids text[]; proposal_index integer:=0; target_index integer; relations jsonb;
-  previous_timing jsonb; new_timing jsonb; timing_changed boolean; start_year integer; end_year integer;
+  previous_timing jsonb; new_timing jsonb; timing_hint jsonb; timing_changed boolean; start_year integer; end_year integer;
 begin
   if owner_id is null then raise exception 'authenticated user required' using errcode='42501'; end if;
   if pg_catalog.jsonb_typeof(p_sources) is distinct from 'array' or pg_catalog.jsonb_array_length(p_sources) not between 1 and 1000 or
@@ -3018,7 +3018,7 @@ begin
     proposal_index:=proposal_index+1;
     if pg_catalog.jsonb_typeof(proposal) is distinct from 'object' or
        exists(select 1 from pg_catalog.jsonb_object_keys(proposal) k where k not in
-         ('id','existing_id','expected_revision','kind','title','life_stage','temporal','temporal_estimate','stage_evidence','source_refs','uncertainty','person_ids','visibility','include_in_print','attribution','candidate_ids','relations','correction',
+         ('id','existing_id','expected_revision','kind','title','life_stage','temporal','temporal_estimate','timing_hint','stage_evidence','source_refs','uncertainty','person_ids','visibility','include_in_print','attribution','candidate_ids','relations','correction',
           'location','location_basis','locationConfidenceScore','yearConfidenceScore')) or
        proposal->>'kind' not in ('event','period') or
        length(pg_catalog.btrim(coalesce(proposal->>'title',''))) not between 1 and 300 or
@@ -3029,6 +3029,24 @@ begin
     if exists(select 1 from unnest(array['locationConfidenceScore','yearConfidenceScore']) field
       where proposal ? field and (jsonb_typeof(proposal->field)<>'number' or (proposal->>field)::numeric not between 0 and 1)) then
       raise exception 'placement confidence must be between zero and one' using errcode='22023';end if;
+    if proposal ? 'timing_hint' then
+      timing_hint:=proposal->'timing_hint';
+      if jsonb_typeof(timing_hint) is distinct from 'object'
+        or exists(select 1 from jsonb_object_keys(timing_hint) k where k not in ('age','year','confidence','basis'))
+        or (timing_hint ? 'age') = (timing_hint ? 'year')
+        or jsonb_typeof(timing_hint->'confidence') is distinct from 'number'
+        or (timing_hint->>'confidence')::numeric not between 0 and 1
+        or jsonb_typeof(timing_hint->'basis') is distinct from 'array'
+        or jsonb_array_length(timing_hint->'basis') not between 1 and 20 then
+        raise exception 'bounded cited timing hint required' using errcode='22023';
+      end if;
+      if (timing_hint ? 'age' and (jsonb_typeof(timing_hint->'age') is distinct from 'number'
+          or timing_hint->>'age' !~ '^[0-9]+$' or (timing_hint->>'age')::numeric not between 0 and 130))
+        or (timing_hint ? 'year' and (jsonb_typeof(timing_hint->'year') is distinct from 'number'
+          or timing_hint->>'year' !~ '^[0-9]+$' or (timing_hint->>'year')::numeric not between 1 and 9999)) then
+        raise exception 'invalid timing hint age or year' using errcode='22023';
+      end if;
+    end if;
     if proposal ? 'location_basis' and (jsonb_typeof(proposal->'location_basis') is distinct from 'array'
         or jsonb_array_length(proposal->'location_basis')>20) then
       raise exception 'bounded location evidence required' using errcode='22023';end if;
@@ -3167,7 +3185,7 @@ begin
     if current_event.data->'user_overrides' ? 'life_stage' then event_stage:=current_event.life_stage; end if;
     if current_event.data->'user_overrides' ? 'temporal' then
       event_data:=pg_catalog.jsonb_set(event_data,'{temporal}',current_event.data->'temporal');
-      event_data:=event_data-'temporal_estimate';
+      event_data:=event_data-array['temporal_estimate','timing_hint'];
       event_data:=jsonb_set(event_data,'{yearConfidenceScore}',coalesce(current_event.data->'yearConfidenceScore','1'::jsonb));
     end if;
     if coalesce(proposal->>'visibility','private')<>coalesce(current_event.data->>'visibility','private') or
@@ -3200,6 +3218,7 @@ begin
       union select value from pg_catalog.jsonb_array_elements(coalesce(event_data->'location_basis','[]'))
       union select value from pg_catalog.jsonb_array_elements(coalesce(event_data->'temporal'->'basis','[]'))
       union select value from pg_catalog.jsonb_array_elements(coalesce(event_data->'temporal_estimate'->'basis','[]'))
+      union select value from pg_catalog.jsonb_array_elements(coalesce(event_data->'timing_hint'->'basis','[]'))
       union select value from pg_catalog.jsonb_array_elements(coalesce(event_data->'stage_evidence','[]'))
       union select r.value from pg_catalog.jsonb_array_elements(coalesce(event_data->'relations','[]')) relation_ref,
         pg_catalog.jsonb_array_elements(relation_ref.value->'source_refs') r
@@ -5939,7 +5958,7 @@ begin
     life_stage=coalesce(p_patch->>'life_stage',life_stage),revision=revision+1,change_sequence=next_change
     where user_id=owner_id and project_id=p_project_id and id=p_event_id returning * into saved;
   if p_patch ? 'temporal' then
-    update public.user_memory_event set data=(data-'temporal_estimate') || jsonb_build_object('timing_conflict',false,
+    update public.user_memory_event set data=(data-array['temporal_estimate','timing_hint']) || jsonb_build_object('timing_conflict',false,
       'yearConfidenceScore',case when p_patch->'temporal'->>'precision'='unknown' then 0 else 1 end)
       where user_id=owner_id and project_id=p_project_id and id=p_event_id returning * into saved;
   end if;
@@ -9201,6 +9220,7 @@ begin
          'year_end',event_record.data->'temporal'->'year_end'),
        'temporal_estimate',case when jsonb_typeof(event_record.data->'temporal_estimate')='object'
          then (event_record.data->'temporal_estimate')-'basis' end,
+       'timing_hint',(event_record.data->'timing_hint')-'basis',
        'uncertainty',event_record.data->'uncertainty','assertion',event_record.data->'assertion',
        'location',event_record.data->'location',
        'locationConfidenceScore',event_record.data->'locationConfidenceScore','yearConfidenceScore',event_record.data->'yearConfidenceScore',
@@ -10139,6 +10159,7 @@ begin
        'title',left(e.data->>'title',300),'life_stage',e.life_stage,'status',e.status,'source_refs','[]'::jsonb,
        'temporal_estimate',case when jsonb_typeof(e.data->'temporal_estimate')='object'
          then (e.data->'temporal_estimate')-array['basis','rationale'] end,'location',e.data->'location',
+       'timing_hint',(e.data->'timing_hint')-'basis',
        'locationConfidenceScore',e.data->'locationConfidenceScore','yearConfidenceScore',e.data->'yearConfidenceScore',
        'timing_conflict',coalesce(e.data->'timing_conflict','false'::jsonb),
        'identity_context_only',true,'active_interview_context',c.priority=0) item

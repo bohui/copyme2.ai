@@ -249,6 +249,22 @@ test('an undated current home follows birth without inventing its year or age', 
   }
 });
 
+test('a current residence with no saved move-in date shows the current age and its avatar', () => {
+  const year = new Date().getUTCFullYear();
+  const home = {...event('home',null,city,'unplaced'),kind:'period',title:'现在住在悉尼',
+    temporal:{expression:'现在',precision:'approximate'},temporal_anchor:'present',yearConfidenceScore:1};
+  const profile = {birth_year:year-43};
+  const {nodes} = buildMapMemoryJourney([home],groups,profile);
+  const node = nodes[0];
+  assert.equal(node.dated,false);
+  assert.deepEqual(node.age,{start:null,end:null});
+  for (const card of [node,cityEventCards(nodes)[0]]) {
+    const html = memoryEventCardMarkup(card,{t,lifeStageText:stage=>stage,profile});
+    assert.match(html,new RegExp(`data-memory-text>About ${year} · About age 43</span><sup class="map-memory-question"`));
+    assert.match(html,/title="midlife · About age 43"[^>]*><img src="[^"]*timeline_avatar_middle_aged_male\.png"/);
+  }
+});
+
 test('unrelated present-day testimony and timing conflicts do not order an undated event', () => {
   const birth={...event('birth',0,melbourne,'baby'),temporal:{expression:'1991',precision:'year',year_start:1991}};
   const past={...event('past',null,city,'unplaced'),title:'Living in Sydney',temporal:null,
@@ -377,14 +393,13 @@ test('cards show readiness with colored rings and keep confidence scores out of 
 
 test('unplaced events with no date clues show one uncertain age in both map views', () => {
   const {nodes}=buildMapMemoryJourney([{...event('unknown',6,school,'unplaced'),temporal:null,yearConfidenceScore:0}],groups);
-  const html=memoryEventCardMarkup(nodes[0],{t,lifeStageText:()=>''});
-  assert.match(html,/<span data-memory-text>About age 65<\/span><sup class="map-memory-question"/);
-  assert.match(memoryEventCardMarkup(cityEventCards(nodes)[0],{t,lifeStageText:()=>''}),
-    /<span data-memory-text>About age 65<\/span><sup class="map-memory-question"/);
+  for (const card of [nodes[0],cityEventCards(nodes)[0]]) {
+    const html=memoryEventCardMarkup(card,{t,lifeStageText:stage=>stage});
+    assert.match(html,/<span data-memory-text>About age 65<\/span><sup class="map-memory-question"/);
+    assert.match(html,/title="later_life · About age 65"[^>]*><img src="[^"]*timeline_avatar_senior_male\.png"/);
+    assert.doesNotMatch(html,/is-unknown|confidence|>\d+%</);
+  }
   assert.equal(nodes[0].dated,false);
-  assert.doesNotMatch(html,/confidence|>\d+%</);
-  assert.match(html,/is-unknown[^]*Stage not yet known[^]*<svg/);
-  assert.doesNotMatch(html,/timeline_avatar_/);
 });
 
 test('a childhood clue displays one age without dating the event for routing', () => {
@@ -405,13 +420,25 @@ test('a childhood clue displays one age without dating the event for routing', (
   assert.match(ageOnlyHtml,/<span data-memory-text>About age 8<\/span>/);
 });
 
-test('an event with only a reliable year shows that year without a question mark', () => {
+test('an event with only a reliable year keeps it and shows an uncertain age and avatar', () => {
   const year={...event('year only',null,city,'unplaced'),
     temporal:{expression:'2007',precision:'year',year_start:2007},yearConfidenceScore:.5};
   const {nodes}=buildMapMemoryJourney([year],groups);
   const html=memoryEventCardMarkup(nodes[0],{t,lifeStageText:stage=>stage});
-  assert.match(html,/<span class="map-memory-date"><span data-memory-text>2007<\/span><\/span>/);
+  assert.match(html,/data-memory-text>2007 · About age 65<\/span><sup class="map-memory-question"/);
+  assert.match(html,/timeline_avatar_senior_male\.png/);
+});
+
+test('a model point hint selects the event age without changing its estimated bounds', () => {
+  const input = {...event('insects',null,school,'unplaced'),temporal:null,
+    temporal_estimate:{age_start:6,age_end:12,confidence:.2},timing_hint:{age:8,confidence:.5}};
+  const {nodes} = buildMapMemoryJourney([input],groups,{birth_year:1983});
+  const html = memoryEventCardMarkup(nodes[0],{t,lifeStageText:stage=>stage});
+  assert.match(html,/data-memory-text>About 1991 · About age 8</);
+  assert.match(html,/title="childhood · About age 8"[^>]*><img src="[^"]*timeline_avatar_child_male\.png"/);
   assert.doesNotMatch(html,/map-memory-question/);
+  assert.equal(nodes[0].age.start,6);
+  assert.equal(nodes[0].age.end,12);
 });
 
 test('model estimates order city cards and show approximate years and ages without confidence scores', () => {

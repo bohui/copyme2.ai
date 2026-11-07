@@ -32,7 +32,8 @@ assert.deepEqual(cards.map(card=>[card.city,card.count]),[['Porto',1],['Hobart',
 assert.deepEqual(memoryTrailLegs(nodes).map(leg=>[leg.from.city,leg.to.city]),[['Porto','Hobart']]);
 const porto = memoryEventCardMarkup(cards[0],{t:(key,values)=>translateWith(`Memoir.workspace.${key}`,values),
   lifeStageText:stage=>stage});
-assert.ok(porto.includes(`<span data-memory-text>From 1999 to ${end}</span>`),porto);
+assert.ok(porto.includes(`<span data-memory-text>From 1999 to ${end} · About age 40</span>`),porto);
+assert.match(porto,/timeline_avatar_middle_aged_male\.png/);
 const map = workspace.workspaceMediaOverview();
 assert.match(map,/data-cesium-place/);
 assert.doesNotMatch(map,/Reykjavik/);

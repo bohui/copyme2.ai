@@ -7,12 +7,13 @@ import httpx
 import pytest
 
 from apps.api.lifetime_memory_composer import _extract
+from controlled_skill_harness import complete_timing_hints
 from test_lifetime_composer_capacity import page, Publisher
 
 
 def extract_with_reply(current, ref):
     calls = []
-    proposal = {'events': [{'kind': 'event', 'title': 'Childhood', 'source_refs': [ref]}]}
+    proposal = complete_timing_hints({'events': [{'kind': 'event', 'title': 'Childhood', 'source_refs': [ref]}]})
 
     class Broker:
         async def rpc(self, name, **payload):
@@ -47,7 +48,7 @@ def test_unique_original_quote_repairs_model_byte_offsets_before_a_second_provid
 
 @pytest.mark.parametrize('text,quote,start,end,reason', [
     ('home home', 'home', 3, 7, 'An ambiguous occurrence requires exact offsets'),
-    ('home', 'invented quote', 0, 4, 'Evidence quote outside claimed source page'),
+    ('home', 'invented quote', 0, 4, 'Evidence outside the claimed source page'),
 ])
 def test_unmatched_or_ambiguous_quotes_remain_rejected(monkeypatch, text, quote, start, end, reason):
     monkeypatch.setenv('MEMOIR_LIFETIME_MEMORY', 'true')
@@ -80,7 +81,7 @@ def test_bounded_extraction_retries_unavailable_person_ids_before_database_commi
         event={'kind':'event','title':'Workshop help',
             'source_refs':[{'source_id':'source','version':1,'quote':current['source']['text']}],
             'person_ids':['brother'] if len(calls)==1 else None}
-        return httpx.Response(200,json={'reply':json.dumps({'events':[event]})})
+        return httpx.Response(200,json={'reply':json.dumps(complete_timing_hints({'events':[event]}))})
     worker=SimpleNamespace(broker=Broker(),worker_url='https://synthetic.invalid',worker_secret='synthetic',
         worker_transport=httpx.MockTransport(model),lane_publisher=Publisher())
     result=asyncio.run(_extract(current,worker))
@@ -119,7 +120,7 @@ def test_attribution_retry_keeps_source_and_requires_exact_repeated_quote_offset
         ref = dict(source_id='source', version=1,
             quote='fabricated testimony' if outcome == 'fabricated' else quote,
             char_start=0 if resolved else None, char_end=len(quote) if resolved else None)
-        raw = dict(events=[], place_journeys=[], prepared_questions=[], continuity_updates=[],
+        raw = dict(events=[], place_journeys=[], continuity_updates=[],
             event_places=[], passage_dispositions=[dict(disposition='non_story',
                 reason='no_supported_event', source_ref=ref)])
         return httpx.Response(200, json={'reply': json.dumps(raw)})
@@ -141,4 +142,5 @@ def test_attribution_retry_keeps_source_and_requires_exact_repeated_quote_offset
         assert call['fence'] == calls[0]['fence']
         retry = json.loads(call['packet'])
         assert retry['payload'].pop('retry_reason') == 'PAGE_AMBIGUOUS'
+        assert retry['payload'].pop('quote_occurrences')['coordinate_system'] == 'window_unicode_codepoints'
         assert retry == first

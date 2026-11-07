@@ -11,6 +11,16 @@ def create_draft_decisions(drafts):
         candidate_ids=[],correction=False,order=[]) for index,_ in enumerate(drafts)]}
 
 
+def complete_timing_hints(output):
+    """Complete scripted Timeline drafts whose timing is outside the scenario."""
+    if not isinstance(output, dict) or not isinstance(output.get('events'), list):
+        return output
+    for event in output['events']:
+        if isinstance(event, dict) and 'timing_hint' not in event and event.get('source_refs'):
+            event['timing_hint'] = dict(age=40, confidence=0, basis=[event['source_refs'][0]])
+    return output
+
+
 def empty_document(body):
     fields = body['text']['format']['schema']['properties']
     if 'decisions' in fields:
@@ -31,6 +41,8 @@ def document_transport(respond=empty_document, *, before_send=None):
             output = respond(body)
             if inspect.isawaitable(output):
                 output = await output
+            if 'EventProposal' in body['text']['format']['schema'].get('$defs', {}):
+                complete_timing_hints(output)
             return httpx.Response(200, content=sse(events(json.dumps(output))))
     return Provider()
 
