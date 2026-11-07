@@ -46,7 +46,9 @@ def test_reply_setup_preserves_authorized_context_and_history_under_one_fence(sq
     fence = rpc(sql, 'capture_lifetime_fence', f"{conversation},'{OLD}'")
     sequence = accepted['source']['sequence']
     epoch = fence['policy_epoch']
-    setup_args = f"{literal(fence)}::jsonb,{sequence},'fixture-model','lifetime-v1'"
+    args = f"{literal(fence)}::jsonb,{sequence},'fixture-model','lifetime-v1',"
+    terms = ['shed', 'name']
+    setup_args = args + literal(terms) + '::jsonb'
     setup = rpc(sql, 'read_lifetime_mira_reply_setup', setup_args)
     assert setup['context'] == rpc(sql, 'read_lifetime_interview_context', conversation)
     assert setup['checkpoint'] == rpc(sql, 'read_lifetime_checkpoint_before',
@@ -54,6 +56,19 @@ def test_reply_setup_preserves_authorized_context_and_history_under_one_fence(sq
     after = setup['checkpoint']['coverage_end'] if setup['checkpoint'] else 0
     assert setup['tail'] == rpc(sql, 'read_lifetime_two_lane_tail', f'{conversation},{epoch},{after},{sequence - 1}')
     assert value['interview']['reply'] in [row['assistant_reply'] for row in setup['tail']['records']]
+    assert setup['evidence']['pins'] == rpc(sql, 'read_lifetime_pinned', conversation)
+    assert setup['evidence']['pages'] == [
+        rpc(sql, 'read_lifetime_source_page', f'{conversation},{epoch},null,8,{literal(term)}') for term in terms]
+    assert setup['evidence']['fallback'] is None
+    fallback = rpc(sql, 'read_lifetime_source_page', f"{conversation},{epoch},null,8,''")
+    absent = rpc(sql, 'read_lifetime_mira_reply_setup', args + "'[\"unmatched\"]'::jsonb")
+    assert absent['evidence']['pages'][0]['records'] == []
+    assert absent['evidence']['fallback'] == fallback
+    unfiltered = rpc(sql, 'read_lifetime_mira_reply_setup', args + "'[]'::jsonb")
+    assert unfiltered['evidence']['pages'] == [fallback]
+    assert unfiltered['evidence']['fallback'] is None
+    assert rpc(sql, 'read_lifetime_mira_reply_setup',
+        args + literal(['shed'] * 9) + '::jsonb', check=False).returncode != 0
     assert rpc(sql, 'read_lifetime_mira_reply_setup', setup_args, owner=OTHER, check=False).returncode != 0
 
     sql('update public.user_lifetime_conversation set execution_generation=execution_generation+1;')

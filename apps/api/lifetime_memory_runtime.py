@@ -13,7 +13,7 @@ from fastapi import HTTPException
 
 from .lifetime_memory_contracts import ContextBudget, IdentityEnvelope
 from .lifetime_memory_context import ContextSource, TailCoverage, InputLimitExceeded, serialize_packet
-from .lifetime_memory_service import LifetimeMemoryService,MaintenancePending
+from .lifetime_memory_service import LifetimeMemoryService,MaintenancePending,lexical_terms
 from .lifetime_memory_transport import GovernedResult
 
 
@@ -285,7 +285,8 @@ async def run_lifetime_turn(runtime,storage,text,*,publication,project_id=None,l
                 await progress.update('memory-context','Loading saved profile and memory context','正在加载个人资料和回忆背景')
                 collector=collector_configuration(runtime.model)
                 setup=await call('read_lifetime_mira_reply_setup',p_fence=fence,
-                    p_before_sequence=source['sequence'],p_model=collector.model,p_prompt_version='lifetime-v1')
+                    p_before_sequence=source['sequence'],p_model=collector.model,p_prompt_version='lifetime-v1',
+                    p_queries=lexical_terms(source['text']))
                 context=setup['context']
                 saved=setup['checkpoint']
                 tail=setup['tail']
@@ -347,7 +348,8 @@ async def run_lifetime_turn(runtime,storage,text,*,publication,project_id=None,l
                 instructions = reply_instructions()
                 try:
                     packet=await lease.io(service.assemble,fence=fence,current=row(source),instructions=instructions,
-                    tail=[row(value) for value in tail['records']],tail_coverage=coverage,interview_context=context,accepted_checkpoint=saved)
+                    tail=[row(value) for value in tail['records']],tail_coverage=coverage,interview_context=context,
+                    accepted_checkpoint=saved,prepared_evidence=setup['evidence'])
                 except InputLimitExceeded as error:
                     pending=MaintenancePending('The source is accepted; required current context exceeds this request budget')
                     pending.accepted_source_id=source['id'];pending.client_turn_id=client_turn_id

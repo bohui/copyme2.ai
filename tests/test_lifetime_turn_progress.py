@@ -51,6 +51,7 @@ class Storage:
                 'context': {'historical_news': {}, 'has_accepted_narration': False, 'events': [], 'photo_context': []},
                 'checkpoint': None,
                 'tail': {'records': [], 'tombstones': [], 'complete': True},
+                'evidence': {'pins': {}, 'pages': [], 'fallback': None},
             }
         if name == 'commit_lifetime_strategy_turn':
             return {'fence': FENCE.model_dump(mode='json'), 'interview': {'plan': kwargs['p_plan']},
