@@ -194,6 +194,57 @@ def test_interview_upload_runs_after_process_exit_and_failure_keeps_local_state(
     assert 'synthetic private details' not in caplog.text
 
 
+def test_queued_archive_retries_without_holding_the_next_local_interview(tmp_path, remote, monkeypatch):
+    from apps.api import codex_home_store
+    from apps.api.codex_worker_service import CodexWorker
+
+    store, _, requests = remote
+    first, second, context, reply = packets()
+    worker = CodexWorker(home_root=tmp_path)
+    staged, attempts = [], []
+    upload = store.upload
+
+    async def run():
+        entered = asyncio.Event()
+        release = asyncio.Event()
+
+        async def upload_when_released(content, receipt):
+            attempts.append(content)
+            if len(attempts) == 1:
+                entered.set()
+                await release.wait()
+                raise httpx.ReadTimeout('synthetic transport timeout')
+            return await upload(content, receipt)
+
+        async def stage(publisher, fence, receipt, *, allow_committed):
+            assert allow_committed and fence == first.fence
+            staged.append(receipt)
+
+        monkeypatch.setattr(store, 'upload', upload_when_released)
+        monkeypatch.setattr(codex_home_store, 'stage_checkpoint', stage)
+
+        def queue(store, archive):
+            return worker._enqueue_checkpoint(
+                lambda: codex_home_store.save_deferred_checkpoint(store, archive, None, first.fence))
+
+        async with open_interview(**options(tmp_path, first, context), queue_checkpoint=queue) as (current, _):
+            current.accept(reply)
+        assert current.checkpoint_status == 'queued'
+        await asyncio.wait_for(entered.wait(), timeout=2)
+        try:
+            async with open_interview(**options(tmp_path, second, context)) as (next_session, _):
+                assert next_session.resumed
+            assert staged == [] and requests == []
+        finally:
+            release.set()
+            await worker.settle_checkpoints()
+        assert len(attempts) == 2 and attempts[0] == attempts[1]
+        assert [request.method for request in requests] == ['POST', 'GET']
+        assert len(staged) == 1 and staged[0]['archive_sha256'] == hashlib.sha256(attempts[0]).hexdigest()
+
+    asyncio.run(run())
+
+
 def test_upload_is_not_reported_saved_without_exact_readback(tmp_path):
     source, state, _, _ = saved_home(tmp_path)
     store = CodexHomeStore('https://storage.invalid', 'synthetic', transport=httpx.MockTransport(

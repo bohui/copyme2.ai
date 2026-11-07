@@ -13,7 +13,7 @@ from fastapi import HTTPException
 
 from .lifetime_memory_contracts import ContextBudget, IdentityEnvelope
 from .lifetime_memory_context import ContextSource, TailCoverage, InputLimitExceeded, serialize_packet
-from .lifetime_memory_service import LifetimeMemoryService,MaintenancePending
+from .lifetime_memory_service import LifetimeMemoryService,MaintenancePending,lexical_terms
 from .lifetime_memory_transport import GovernedResult
 
 
@@ -283,7 +283,13 @@ async def run_lifetime_turn(runtime,storage,text,*,publication,project_id=None,l
                 if on_event:await on_event({'type':'source_accepted','data':{'client_turn_id':client_turn_id,'project_id':project_id,
                     'accepted_source_id':source['id'],'recordings':accepted.get('recordings',[]),**public_interview_fields(accepted)}})
                 await progress.update('memory-context','Loading saved profile and memory context','正在加载个人资料和回忆背景')
-                context=await call('read_lifetime_interview_context',p_conversation_id=str(identity.conversation_id))
+                collector=collector_configuration(runtime.model)
+                setup=await call('read_lifetime_mira_reply_setup',p_fence=fence,
+                    p_before_sequence=source['sequence'],p_model=collector.model,p_prompt_version='lifetime-v1',
+                    p_queries=lexical_terms(source['text']))
+                context=setup['context']
+                saved=setup['checkpoint']
+                tail=setup['tail']
                 if workspace_focus:
                     from .workspace_memory_actions import read_workspace_focus, apply_workspace_focus
                     try:
@@ -328,20 +334,13 @@ async def run_lifetime_turn(runtime,storage,text,*,publication,project_id=None,l
                     context['reviewed_acknowledgement']=opening
                 else:
                     opening=None
-                collector=collector_configuration(runtime.model)
                 context['reply_contract'] = 'reply-v2'
                 if revisable:
                     context.update(revisable_reply=True, policy_review_pending=pending_review)
                 overall=ContextBudget(model=collector.model,context_window=131072,input_budget=65536,output_headroom=8192,framing_headroom=2048)
                 overhead=governed_request_overhead(context,overall)
                 packet_budget=overall.model_copy(update={'input_budget':overall.input_budget-overhead})
-                saved=await call('read_lifetime_checkpoint_before' if two_lane else 'read_lifetime_checkpoint',p_conversation_id=str(identity.conversation_id),p_policy_epoch=fence['policy_epoch'],p_model=collector.model,p_prompt_version='lifetime-v1',
-                    **({'p_before_sequence':source['sequence'],'p_require_accepted':True} if two_lane else {}))
-                if saved and saved['coverage_end']>=source['sequence']:
-                    saved=await call('read_lifetime_checkpoint_before',p_conversation_id=str(identity.conversation_id),p_policy_epoch=fence['policy_epoch'],
-                        p_model=collector.model,p_prompt_version='lifetime-v1',p_before_sequence=source['sequence'],p_require_accepted=False)
                 after=saved['coverage_end'] if saved else 0
-                tail=await call('read_lifetime_two_lane_tail' if two_lane else 'read_lifetime_tail',p_conversation_id=str(identity.conversation_id),p_policy_epoch=fence['policy_epoch'],p_after_sequence=after,p_through_sequence=source['sequence']-1)
                 def row(value):return ContextSource(identity=identity,policy_epoch=fence['policy_epoch'],source_id=value['id'],version=value['version'],sequence=value['sequence'],original=value['text'],language=value['language'],kind=value['kind'],conversation_saved=value.get('conversation_saved',False),assistant_reply=value.get('assistant_reply'),reply_policy_epoch=value.get('reply_policy_epoch'))
                 coverage=TailCoverage(identity=identity,policy_epoch=fence['policy_epoch'],after_sequence=after,through_sequence=source['sequence']-1,complete=tail['complete'],tombstones=tail['tombstones'])
                 service=LifetimeMemoryService(storage.lifetime_rpc,budget=packet_budget)
@@ -349,7 +348,8 @@ async def run_lifetime_turn(runtime,storage,text,*,publication,project_id=None,l
                 instructions = reply_instructions()
                 try:
                     packet=await lease.io(service.assemble,fence=fence,current=row(source),instructions=instructions,
-                    tail=[row(value) for value in tail['records']],tail_coverage=coverage,interview_context=context,accepted_checkpoint=saved)
+                    tail=[row(value) for value in tail['records']],tail_coverage=coverage,interview_context=context,
+                    accepted_checkpoint=saved,prepared_evidence=setup['evidence'])
                 except InputLimitExceeded as error:
                     pending=MaintenancePending('The source is accepted; required current context exceeds this request budget')
                     pending.accepted_source_id=source['id'];pending.client_turn_id=client_turn_id

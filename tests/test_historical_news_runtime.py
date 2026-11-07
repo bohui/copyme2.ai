@@ -52,8 +52,8 @@ class NewsStorage(Storage):
 
     def lifetime_rpc(self, name, **kwargs):
         result = super().lifetime_rpc(name, **kwargs)
-        if name == 'read_lifetime_interview_context':
-            result['historical_news'] = deepcopy(self.news)
+        if name == 'read_lifetime_mira_reply_setup':
+            result['context']['historical_news'] = deepcopy(self.news)
         if name == 'commit_lifetime_turn':
             self.saved += 1
             chosen = next(c for c in kwargs['p_plan']['candidates'] if c['id'] == kwargs['p_plan']['chosen_id'])
