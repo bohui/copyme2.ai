@@ -980,8 +980,9 @@ def test_rejected_extraction_logs_only_fixed_reason_codes(caplog):
         async def rpc(self, name, **payload):
             assert name == 'read_lifetime_lane_policy_source'
             return copy.deepcopy(current['source'])
-    reply = json.dumps({'events':[{'kind':'event','title':'private title',
-        'source_refs':[{'source_id':'source','version':1,'quote':'private invented quote'}]}]})
+    ref = dict(source_id='source',version=1,quote='private invented quote')
+    reply = json.dumps({'events':[{'kind':'event','title':'private title','source_refs':[ref],
+        'timing_hint':dict(age=40,confidence=0,basis=[ref])}]})
     worker = SimpleNamespace(broker=Broker(), worker_url='https://synthetic.invalid', worker_secret='private secret',
         worker_transport=httpx.MockTransport(lambda request: httpx.Response(200,json={'reply':reply})),lane_publisher=Publisher())
     with pytest.raises(ValueError):

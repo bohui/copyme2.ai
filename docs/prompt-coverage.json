@@ -2463,15 +2463,15 @@
   {
     "name": "memoir/skills/author-timeline/extract",
     "source": "skills/memoir-author-timeline/prompts/extract.md",
-    "version": 7,
-    "sha256": "f3dac99ee1a349ffba988b8e0c6adec49fe214eda9a24b5dddc52a1ebef3ae99",
+    "version": 10,
+    "sha256": "5daafc2ba8e297a9f795ead9c952ad139dce3ae5516e8c4692a682425b46a346",
     "use": "conditional",
-    "scenario": "Draft grounded events, period estimates, geography and narrated order in an authorized window. One general extraction contract and three worked examples cover distinct cases. The unselected compatibility branch also extracts coarse place cues.",
+    "scenario": "Draft grounded events, cited numeric display hints with confidence, supported period bounds, geography and narrated order in an authorized window. The compatibility branch also extracts coarse place cues.",
     "consumers": [
       {
         "path": "apps/api/memory_events.py",
         "symbol": "extraction_instructions",
-        "line": 408
+        "line": 428
       },
       {
         "path": "apps/api/two_lane_memory.py",
@@ -2481,7 +2481,7 @@
       {
         "path": "apps/api/lifetime_memory_lane_engine.py",
         "symbol": "lane_contract",
-        "line": 212
+        "line": 214
       }
     ],
     "targets": [
@@ -2607,6 +2607,7 @@
     ],
     "regressions": [
       "tests/test_model_boundaries.py",
+      "tests/test_timeline_estimates.py",
       "tests/test_timeline_context_confidence.py",
       "tests/test_automatic_prompt_evaluation.py",
       "tests/test_memory_context_transport.py",
@@ -2635,12 +2636,12 @@
       {
         "path": "apps/api/lifetime_memory_composer.py",
         "symbol": "_reconcile_timeline",
-        "line": 146
+        "line": 148
       },
       {
         "path": "apps/api/lifetime_memory_lane_engine.py",
         "symbol": "lane_contract",
-        "line": 212
+        "line": 214
       }
     ],
     "targets": [
@@ -2679,7 +2680,7 @@
       {
         "path": "apps/api/lifetime_memory_lane_engine.py",
         "symbol": "lane_contract",
-        "line": 212
+        "line": 214
       }
     ],
     "targets": [
@@ -3376,7 +3377,7 @@
       {
         "path": "apps/api/lifetime_memory_lane_engine.py",
         "symbol": "lane_contract",
-        "line": 212
+        "line": 214
       }
     ],
     "targets": [
@@ -3521,7 +3522,7 @@
       {
         "path": "apps/api/lifetime_memory_lane_engine.py",
         "symbol": "lane_contract",
-        "line": 212
+        "line": 214
       }
     ],
     "targets": [

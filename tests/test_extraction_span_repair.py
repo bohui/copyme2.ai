@@ -48,7 +48,7 @@ def test_unique_original_quote_repairs_model_byte_offsets_before_a_second_provid
 
 @pytest.mark.parametrize('text,quote,start,end,reason', [
     ('home home', 'home', 3, 7, 'An ambiguous occurrence requires exact offsets'),
-    ('home', 'invented quote', 0, 4, 'Evidence quote outside claimed source page'),
+    ('home', 'invented quote', 0, 4, 'Evidence outside the claimed source page'),
 ])
 def test_unmatched_or_ambiguous_quotes_remain_rejected(monkeypatch, text, quote, start, end, reason):
     monkeypatch.setenv('MEMOIR_LIFETIME_MEMORY', 'true')
@@ -120,7 +120,7 @@ def test_attribution_retry_keeps_source_and_requires_exact_repeated_quote_offset
         ref = dict(source_id='source', version=1,
             quote='fabricated testimony' if outcome == 'fabricated' else quote,
             char_start=0 if resolved else None, char_end=len(quote) if resolved else None)
-        raw = dict(events=[], place_journeys=[], prepared_questions=[], continuity_updates=[],
+        raw = dict(events=[], place_journeys=[], continuity_updates=[],
             event_places=[], passage_dispositions=[dict(disposition='non_story',
                 reason='no_supported_event', source_ref=ref)])
         return httpx.Response(200, json={'reply': json.dumps(raw)})
@@ -142,4 +142,5 @@ def test_attribution_retry_keeps_source_and_requires_exact_repeated_quote_offset
         assert call['fence'] == calls[0]['fence']
         retry = json.loads(call['packet'])
         assert retry['payload'].pop('retry_reason') == 'PAGE_AMBIGUOUS'
+        assert retry['payload'].pop('quote_occurrences')['coordinate_system'] == 'window_unicode_codepoints'
         assert retry == first

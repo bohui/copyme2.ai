@@ -133,10 +133,10 @@ def test_selected_extraction_preloads_each_required_document_once(tmp_path, sele
     run(tmp_path, prepared, publisher, provider)
     body, = provider.bodies
     instructions = body['instructions']
-    prompt_sha256 = '99ac172e51c4db74860b92d971f8e1d7d7c84052c6bdda1fff18d62b8e464fa9'
+    prompt_sha256 = 'c879166030e86b11ab3b3555216bc8aecc299b794a758b9bc5e35d453587a481'
     assert hashlib.sha256(instructions.encode()).hexdigest() == prompt_sha256
     schema = body['text']['format']['schema']
-    assert hashlib.sha256(json.dumps(schema, sort_keys=True).encode()).hexdigest() == '151fb06553ed358e06bd8d511e9b3e9f4b0b4901f42cb8934df5ca30d718b2dc'
+    assert hashlib.sha256(json.dumps(schema, sort_keys=True).encode()).hexdigest() == '22d924b19c9aeeb67ac9cb47f8cead952cf9aa6bd153beb40b90c10175675492'
     assert body['metadata']['prompt_sha256'] == prompt_sha256
     assert 'memoir_read_skill' not in instructions
     assert not body['tools'] and body['tool_choice'] == 'none'
