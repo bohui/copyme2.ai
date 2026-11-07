@@ -1549,7 +1549,8 @@ def create_app(
         for key in ("muted_topics", "excluded_topics", "default_visibility", "sensitive_processing"):
             if key in data:
                 project["preferences"][key] = data[key]
-        if profile is not None or preferences is not None or any(key in data for key in ("muted_topics", "excluded_topics", "default_visibility", "sensitive_processing")):
+        # Workspace profile saves advance the revision without changing policy.
+        if preferences is not None or any(key in data for key in ("muted_topics", "excluded_topics", "default_visibility", "sensitive_processing")):
             _bump_policy_epoch(project)
         project["revision"] = project.get("revision", 1) + 1
         memory.audit("project.updated", actor, project_id, revision=project["revision"])
