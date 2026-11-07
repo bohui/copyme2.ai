@@ -29,17 +29,20 @@ assert.deepEqual(journey.nodes.map(node=>node.event.title),state.timeline.map(ev
 const cities=cityEventCards(journey.nodes);
 assert.deepEqual(cities.map(city=>city.city),['Chengde','Shanghai','Sydney']);
 assert.deepEqual(cities.map(city=>city.count),[2,1,1]);
+const year = new Date().getUTCFullYear();
+const currentAge = new RegExp(`data-memory-text>About ${year} · About age ${year-1983}</span><sup class="map-memory-question"`);
 for (const city of cities) {
   const html=memoryEventCardMarkup(city,{t:(key,values)=>translateWith(`Memoir.workspace.${key}`,values),
     lifeStageText:stage=>stage});
   assert.ok(html.includes(`<strong class="map-memory-summary"><span data-memory-text>${city.city}</span></strong>`));
   if (with_estimates || city.city==='Chengde') assert.match(html,/From .+ to .+/);
-  else assert.match(html,/From About 1983 · About age 0 to About \d{4} · About age \d+<\/span><sup class="map-memory-question"/);
-  assert.doesNotMatch(html,/Age not yet known|Year not yet known/);
-  if (city.city==='Sydney' && with_estimates) {
-    assert.match(html,/timeline_avatar_.*_male\.png/);
-    assert.doesNotMatch(html,/is-unknown/);
+  else if (city.city==='Sydney') {
+    assert.match(html,currentAge);
+    assert.equal(city.nodes[0].event.temporal_anchor,'present');
   }
+  else assert.match(html,/data-memory-text>About \d{4} · About age \d+<\/span><sup class="map-memory-question"/);
+  assert.match(html,/timeline_avatar_.*_male\.png/);
+  assert.doesNotMatch(html,/is-unknown|Age not yet known|Year not yet known/);
   assert.match(html,/data-memory-city=[^>]+>Expand memories<\/button>/);
   assert.match(html,/data-memory-add[^>]*>Add a memory<\/button>/);
   assert.doesNotMatch(html,/Birth|Catching insects|Shanghai study and work|Sydney residence|data-memory-explore|confidence/);
@@ -65,7 +68,10 @@ for (const node of journey.nodes) {
   } else if (with_estimates) {
     assert.match(html,/About \d{4}–\d{4} · About age \d+–\d+/);
     assert.ok(!('basis' in node.event.temporal_estimate));
-  } else assert.match(html,/About 1983–\d{4} · About age 0–\d+<\/span><sup class="map-memory-question"/);
+  } else if (node.event.title==='Sydney residence') assert.match(html,currentAge);
+  else assert.match(html,/data-memory-text>About \d{4} · About age \d+<\/span><sup class="map-memory-question"/);
+  assert.match(html,/timeline_avatar_.*_male\.png/);
+  assert.doesNotMatch(html,/is-unknown/);
   assert.ok(!('source_refs' in node.event));
 }
 

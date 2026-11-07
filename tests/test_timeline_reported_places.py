@@ -549,7 +549,9 @@ def test_map_city_chronology_preserves_skill_relations_across_paginated_api(sql,
     from pathlib import Path
     import subprocess
     from test_shared_memory_events_postgres import literal
-    home_quote = 'I currently live in Sydney. I have lived here for fourteen years.'
+    home_quote = 'I currently live in Sydney.'
+    if with_estimates:
+        home_quote += ' I have lived here for fourteen years.'
     first = 'I was born in Chengde in 1983. ' + home_quote
     insects = 'I went to catch insects in Chengde during primary school.'
     later = insects + ' Later I studied and worked in Shanghai for five years before moving to Sydney.'
@@ -579,6 +581,9 @@ def test_map_city_chronology_preserves_skill_relations_across_paginated_api(sql,
                 life_stage=stage,stage_evidence=[ref] if stage!='unplaced' else None,
                 yearConfidenceScore=1.0 if title=='Birth' else 0.0,
                 temporal=dict(expression='1983',precision='year',year_start=1983,basis=[ref]) if title=='Birth' else None)
+            if city=='Sydney' and not with_estimates:
+                item.update(temporal=dict(expression='currently',precision='approximate',basis=[ref]),
+                    yearConfidenceScore=1.0)
             if city=='Shanghai':
                 item['relations']=[dict(kind='before',event_id=home_id,source_refs=[ref])]
             if with_estimates and title!='Birth':
