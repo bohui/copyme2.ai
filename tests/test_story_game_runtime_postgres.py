@@ -41,15 +41,18 @@ async def compose_game_chapters(conversation):
 
 
 @pytest.fixture
-def ready(sql, tmp_path, monkeypatch):
+def ready(sql, tmp_path, monkeypatch, request):
     monkeypatch.setenv('MEMORY_SPARK_TASK_DB', str(tmp_path / 'game-tasks.sqlite3'))
     conversation = Conversation(sql, tmp_path, monkeypatch,
         lambda packet: {**empty(packet), 'events': [episode(packet, packet['sources'][0]['text'])]},
         strategy='shape')
     with conversation.client:
-        for text in MEMORIES:
+        memories = MEMORIES[:getattr(request, 'param', len(MEMORIES))]
+        for text in memories:
             conversation.say(text)
             conversation.drain()
+        if len(memories) < 5:
+            service(sql, 'queue_debug_memoir_composer', f"'{OWNER}',{literal(conversation.project)},null")
         asyncio.run(compose_game_chapters(conversation))
         project = conversation.project
         edition = completed(sql, project, {'revision': 0})
@@ -155,7 +158,9 @@ def test_local_debug_generates_a_private_draft_and_game_from_one_round(sql, tmp_
         fence = dict(game_id=packet['game_id'], token=token, authority=packet['authority'])
         async with story_game_runtime.GamePublication(sql.publication_dsn).guard(fence):
             calls.append('novel-to-game')
-        assert packet['selection']['confirmed_by'] == OWNER
+        assert packet['selection']['method'] == 'all_events'
+        assert packet['selection']['scene_ids'] == ['scene-1']
+        assert 'confirmed_by' not in packet['selection']
         return {'novel_game': prepared_bundle(packet, proposal['scenes'])}, build_receipt(packet)
 
     monkeypatch.setenv('MEMORY_SPARK_TASK_DB', str(tmp_path / 'debug-game-tasks.sqlite3'))
@@ -242,17 +247,17 @@ def test_local_debug_generates_a_private_draft_and_game_from_one_round(sql, tmp_
         response = client.post(game_url, json=game_payload, headers=local)
         assert response.status_code == 202, response.text
         game_path = game_url + '/' + response.json()['game_id']
-        pool = client.get(game_path, headers=local).json()
-        assert pool['status'] == 'selection_required'
-        assert calls == ['scenes']
-        selection = {'expected_pool_digest': pool['pool_digest'], 'scene_ids': [pool['pool']['scenes'][0]['id']]}
+        assert calls == ['scenes', 'brief', 'novel-to-game']
+        saved = client.get(game_url, headers=local).json()['adaptation']
+        assert saved['status'] == 'published' and saved['selected_count'] == 1
+        selection = {'expected_pool_digest': saved['pool_digest'], 'scene_ids': ['scene-1']}
         if anonymous:
             assert client.post(game_path + '/selection', json=selection, headers=remote).status_code == 403
             monkeypatch.setenv('MEMORY_SPARK_DEBUG_EARLY_GENERATION', '0')
             assert client.post(game_path + '/selection', json=selection, headers=local).status_code == 403
             monkeypatch.setenv('MEMORY_SPARK_DEBUG_EARLY_GENERATION', '1')
-        response = client.post(game_path + '/selection', json=selection, headers=local)
-        assert response.status_code == 202, response.text
+        replay = client.post(game_url, json={'request_id': str(uuid4())}, headers=local)
+        assert replay.status_code == 202 and replay.json()['game_id'] == saved['game_id']
         assert calls == ['scenes', 'brief', 'novel-to-game']
         played = client.get(game_path, headers=local).json()
         assert played['status'] == 'published'
@@ -267,6 +272,24 @@ def test_local_debug_generates_a_private_draft_and_game_from_one_round(sql, tmp_
             'expected_revision': consent_result.json()['revision'], 'action': 'revoke'})
         assert revoked.status_code == 200, revoked.text
         assert client.get(game_path, headers=local).status_code == 409
+
+
+@pytest.mark.parametrize('ready', [4], indirect=True)
+def test_four_events_select_all_and_resume_a_preexisting_pool(sql, ready):
+    project, _, _ = ready
+    game, saved, packet, _ = prepare_pool(sql, project)
+    assert len(packet['timeline']) == 4
+    assert saved['phase'] == 'build' and saved['status'] == 'pending' and saved['selected_count'] == 4
+    assert read(sql, project, game)['selected_scene_ids'] == ['scene-1', 'scene-2', 'scene-3', 'scene-4']
+
+    # Reproduce the row written by earlier versions before owner confirmation.
+    sql(f"update public.user_story_game set phase='scenes',state='selection_required',"
+        f"selection=null,selection_digest=null where id='{game['game_id']}';")
+    old = rpc(sql, 'read_story_game_status', literal(project))['adaptation']
+    assert old['auto_select_all'] is True and old['status'] == 'selection_required'
+    resumed = begin_game(sql, project)
+    assert resumed == saved
+    assert read(sql, project, game)['selected_scene_ids'] == ['scene-1', 'scene-2', 'scene-3', 'scene-4']
 
 
 def test_two_steps_are_saved_for_immediate_private_play(sql, ready):

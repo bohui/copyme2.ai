@@ -6,4 +6,4 @@ Keep the author's perspective. Interactions display memoir narration, not new te
 
 The page builder receives the validated scene text, locale and public UI labels. It does not receive source IDs, canonical event IDs, chapter IDs, job tokens or authority metadata. Astra designs static HTML/CSS; the host inserts narrative text and trusted interaction behavior. Unrecognized factual page text and active/external content fail validation.
 
-The host saves successful output for private workspace play. The owner confirms a scene subset against the current pool before brief composition or building. Adaptation consent cannot substitute for that choice. There is no additional publishing or person-permission review. Existing consent and source-revocation controls remain effective; public publication and sharing belong to separate host controls.
+The host applies the [scene selection policy](../SKILL.md) before composing a brief and saves successful output for private workspace play. Consent and source-revocation checks apply to both selection paths. Public publication and sharing use separate host controls.

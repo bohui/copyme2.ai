@@ -15627,6 +15627,29 @@ begin
  return game;
 end $$;
 
+create function public.story_game_can_select_all(p_game public.user_story_game) returns boolean
+language sql stable set search_path='' as $$
+ select case when p_game.state='selection_required' and p_game.selection is null then
+   (select count(*) from (select 1 from public.user_memory_event
+     where user_id=p_game.user_id and project_id=p_game.project_id and status='active' limit 5) events) between 1 and 4
+   else false end
+$$;
+
+create function public.auto_select_story_game(p_game public.user_story_game) returns public.user_story_game
+language plpgsql set search_path='' as $$
+declare chosen jsonb; picked jsonb;
+begin
+ -- Callers hold the current game and source authority locks.
+ if not public.story_game_can_select_all(p_game) then return p_game;end if;
+ select jsonb_agg(option->'id' order by position) into chosen
+   from jsonb_array_elements(p_game.scene_pool->'scenes') with ordinality as scene(option,position);
+ picked:=jsonb_build_object('scene_ids',chosen,'pool_digest',p_game.pool_digest);
+ update public.user_story_game set selection=picked||'{"method":"all_events"}'::jsonb,
+   selection_digest=public.formal_memoir_digest(picked),phase='build',state='pending',updated_at=clock_timestamp()
+   where id=p_game.id returning * into p_game;
+ return p_game;
+end $$;
+
 create function public.story_game_status_record(p_game public.user_story_game) returns jsonb
 language sql stable security definer set search_path='' as $$
  select jsonb_build_object('game_id',p_game.id,'edition_id',p_game.edition_id,'status',p_game.state,
@@ -15634,6 +15657,7 @@ language sql stable security definer set search_path='' as $$
    'pool_digest',p_game.pool_digest,'selected_count',jsonb_array_length(p_game.selection->'scene_ids'),
    'retryable',p_game.state='running' and p_game.lease_until<=clock_timestamp())
    ||case when p_game.authority ? 'debug_early_generation' then '{"debug_early_generation":true}'::jsonb else '{}'::jsonb end
+   ||case when public.story_game_can_select_all(p_game) then '{"auto_select_all":true}'::jsonb else '{}'::jsonb end
 $$;
 
 CREATE FUNCTION public.begin_story_game_for_owner(p_owner uuid,p_project_id text,p_request_id uuid,p_debug boolean) returns jsonb
@@ -15649,14 +15673,14 @@ begin
  end;
  select * into game from public.user_story_game where user_id=p_owner and project_id=p_project_id and request_id=p_request_id;
  if found then
-   game:=public.lock_story_game(game.id);return public.story_game_status_record(game);
+   game:=public.lock_story_game(game.id);return public.story_game_status_record(public.auto_select_story_game(game));
  end if;
  update public.user_story_game set state='stale',candidate=null,review=null,scene_pool=null,pool_digest=null,selection=null,selection_digest=null,brief=null,token=null,lease_until=null,
    updated_at=clock_timestamp() where user_id=p_owner and project_id=p_project_id and authority is distinct from context
    and state in ('pending','running','selection_required','review_required','published');
  select * into game from public.user_story_game where user_id=p_owner and project_id=p_project_id
    and state in ('pending','running','selection_required','review_required','published');
- if found then game:=public.lock_story_game(game.id);return public.story_game_status_record(game);end if;
+ if found then game:=public.lock_story_game(game.id);return public.story_game_status_record(public.auto_select_story_game(game));end if;
  insert into public.user_story_game(user_id,project_id,edition_id,request_id,authority)
  values(p_owner,p_project_id,(context->>'edition_id')::uuid,p_request_id,context) returning * into game;
  return public.story_game_status_record(game);
@@ -15806,7 +15830,7 @@ begin
    state='selection_required',token=null,lease_until=null,attempts=0,
    model_receipt=jsonb_build_object('steps',jsonb_build_object('scenes',p_model_receipt)),updated_at=clock_timestamp()
    where id=game.id returning * into game;
- return public.story_game_status_record(game);
+ return public.story_game_status_record(public.auto_select_story_game(game));
 end $$;
 
 create function public.confirm_story_game_scenes_for_owner(p_owner uuid,p_project_id text,p_game_id uuid,
@@ -16249,6 +16273,7 @@ create trigger story_game_consent_invalidation after update of consent_revision 
  for each row when(old.consent_revision is distinct from new.consent_revision) execute function public.invalidate_story_games();
 
 revoke all on function public.story_game_composer(uuid,text,boolean),public.story_game_context(uuid,text,boolean),public.lock_story_game(uuid,uuid,boolean),
+ public.story_game_can_select_all(public.user_story_game),public.auto_select_story_game(public.user_story_game),
  public.story_game_status_record(public.user_story_game),public.begin_story_game(text,uuid),
  public.begin_story_game_for_owner(uuid,text,uuid,boolean),
  public.claim_story_game(uuid),public.read_story_game_input(uuid,uuid),public.stage_story_game(uuid,uuid,jsonb,jsonb),

@@ -19,9 +19,10 @@ ROOT = Path(__file__).resolve().parents[1]
     ('en-AU', 1440, 'Generate my memoir', 'Story game', 'Back to map'),
     ('zh-CN', 390, '我的回忆录', '我的人生游戏', '返回地图'),
 ])
-@pytest.mark.parametrize('anonymous', [True, False], ids=['guest', 'owner'])
-def test_debug_footer_opens_a_playable_game_and_memoir(locale, width, memoir_label, game_label, close_label, anonymous):
+@pytest.mark.parametrize('anonymous,automatic', [(True, True), (False, False)], ids=['guest-small', 'owner-large'])
+def test_debug_footer_opens_a_playable_game_and_memoir(locale, width, memoir_label, game_label, close_label, anonymous, automatic):
     base = os.environ['MEMOIR_BROWSER_URL']
+    copy = json.loads((ROOT / f'apps/web/messages/{locale}.json').read_text())['Memoir']['game']
     project_id = 'debug-workspace'
     project_path = f'/agent/projects/{project_id}'
     place = dict(place='Chengde', hierarchy=['Earth', 'China', 'Hebei', 'Chengde'],
@@ -35,7 +36,7 @@ def test_debug_footer_opens_a_playable_game_and_memoir(locale, width, memoir_lab
     game_path = project_path + '/story-game/' + game['package_id']
     draft_path = '/story/private-draft'
     languages, actions = [], []
-    draft_checked, published = False, False
+    draft_checked, pool_ready, published = False, False, False
     digest = 'a' * 64
     title = '家属院里捉虫的日子' if locale == 'zh-CN' else 'The garden'
     paragraphs = ['一放学，我就和朋友到院里捉虫。', '雨后，我们在叶子上找到了蜗牛。'] if locale == 'zh-CN' else [
@@ -107,15 +108,18 @@ def test_debug_footer_opens_a_playable_game_and_memoir(locale, width, memoir_lab
             data = dict(composer_ready=draft_checked, eligibility=dict(available=not reasons, reasons=reasons,
                 consent_revision=0), formal={'edition': edition})
             if 'scenes' in actions:
-                status = 'published' if published else 'running' if 'build' in actions else 'selection_required'
-                data['adaptation'] = dict(game_id=game['package_id'], status=status, pool_digest=digest)
+                building = pool_ready and (automatic or 'confirm' in actions)
+                status = 'published' if published else 'pending' if building or not pool_ready else 'selection_required'
+                data['adaptation'] = dict(game_id=game['package_id'], status=status, phase='build' if building else 'scenes',
+                    pool_digest=digest if pool_ready else None)
         elif path == game_path + '/selection':
-            actions.append('build')
-            assert route.request.post_data_json == {'expected_pool_digest': digest, 'scene_ids': ['garden']}
+            actions.append('confirm')
+            assert route.request.post_data_json == {'expected_pool_digest': digest, 'scene_ids': ['workroom']}
             return route.fulfill(status=202, json={'status': 'pending'})
         elif path == game_path:
             data = dict(status='published', game=game) if published else dict(pool_digest=digest, pool={'scenes': [
-                dict(id='garden', recommended=True), dict(id='workroom', recommended=False),
+                dict(id='garden', life_stage='childhood', title='Garden', recommended=True, reason='Explore the garden.', quote='A garden memory.'),
+                dict(id='workroom', life_stage='childhood', title='Workroom', recommended=False, reason='Look around the workroom.', quote='A workroom memory.'),
             ]})
         route.fulfill(json=data)
 
@@ -154,19 +158,40 @@ def test_debug_footer_opens_a_playable_game_and_memoir(locale, width, memoir_lab
         game_button = footer.get_by_role('button', name=game_label, exact=True)
         memoir_button = footer.get_by_role('button', name=memoir_label, exact=True)
         expect(memoir_button).to_be_visible()
-        with page.expect_response(lambda response: response.url.endswith('/selection'), timeout=20000):
-            game_button.click()
-            expect(workspace.locator('.preview-spinner')).to_be_visible()
-            expect(workspace.locator('.workspace-media-overview, [data-workspace-tab], iframe')).to_have_count(0)
-        assert actions == ['formal', 'advance', 'consent', 'scenes', 'build']
+        game_button.click()
+        expect(workspace.get_by_role('status')).to_have_text(copy['generating'], timeout=20000)
+        expect(workspace.locator('.preview-spinner')).to_be_visible()
+        expect(workspace.locator('.workspace-media-overview, [data-workspace-tab], iframe')).to_have_count(0)
+        assert actions == ['formal', 'advance', 'consent', 'scenes']
+        pool_ready = True
+        picker = workspace.locator('[data-scene-selection]')
+        expected_actions = ['formal', 'advance', 'consent', 'scenes']
+        if not automatic:
+            expect(picker).to_be_visible(timeout=6000)
+            expect(picker.locator('[data-scene-option="garden"]')).to_be_checked()
+            expect(picker.locator('[data-scene-option="workroom"]')).not_to_be_checked()
+            picker.locator('[data-scene-option="garden"]').uncheck()
+            picker.locator('[data-scene-option="workroom"]').check()
+            with page.expect_response(lambda response: response.url.endswith('/selection')):
+                picker.locator('[data-confirm-scenes]').click()
+            expected_actions.append('confirm')
+        assert actions == expected_actions
         assert languages == [None]
         expect(page.locator('[data-auth-reminder-dialog], .story-game-modal, [data-scene-selection]')).to_have_count(0)
+        expect(workspace.get_by_role('status')).to_have_text(copy['generating'])
         expect(workspace.locator('.preview-spinner')).to_be_visible()
         expect(close_view).to_be_in_viewport(ratio=1)
-        close_view.click()
-        expect_map_restored(game_button)
 
-        game_button.click()
+        page.reload()
+        expect(map_view).to_be_visible(timeout=15000)
+        with page.expect_response(lambda response: response.url.endswith(project_path + '/story-game')
+                                  and response.request.method == 'GET') as pending:
+            game_button.click()
+        assert pending.value.json()['adaptation']['phase'] == 'build'
+        expect(workspace.get_by_role('status')).to_have_text(copy['generating'])
+        expect(picker).to_have_count(0)
+        assert actions == expected_actions
+
         published = True
         iframe = workspace.locator('iframe.story-game-frame')
         expect(iframe).to_be_visible(timeout=15000)
@@ -206,7 +231,7 @@ def test_debug_footer_opens_a_playable_game_and_memoir(locale, width, memoir_lab
         game_button.click()
         expect(iframe).to_be_visible()
         expect(workspace.locator('[data-workspace-tab], .workspace-media-overview')).to_have_count(0)
-        assert actions == ['formal', 'advance', 'consent', 'scenes', 'build']
+        assert actions == expected_actions
         iframe.content_frame.locator('.game-stage').press('Escape')
         expect_map_restored(game_button)
         browser.close()

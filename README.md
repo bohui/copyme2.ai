@@ -600,10 +600,13 @@ Set `MEMORY_SPARK_DEBUG_EARLY_GENERATION=1` in the local API environment and
 restart the API to show **Generate my memoir** and **Story game** in the
 map workspace footer on loopback URLs. The memoir action replaces the map with the
 Family, Timeline and Chapters tabs. The game action prepares the draft if
-needed, builds the recommended scenes, and opens the finished game in the
-workspace. A guest can create and play a private game in this loopback mode
-using their existing anonymous session. The game action authorizes adaptation
-of that memoir. Guest games and games started before shaping mode stay private.
+needed and builds a game in the background using every scene for one to four
+timeline events. For five or more events, choose scenes from a list with
+recommendations preselected. Click **Story game** again, even after refreshing,
+to check progress or play the saved game in the workspace. A guest can create
+and play a private game in this loopback mode using their existing anonymous
+session. The game action authorizes adaptation of that memoir. Guest games and
+games started before shaping mode stay private.
 The flag defaults to off and the local database needs the current fresh-install
 schema.
 

@@ -20,9 +20,11 @@
 .workspace-detail.is-debug-game { overflow: hidden; }
 [data-story-game-workspace] { display: flex; flex: 1 1 auto; flex-direction: column; min-height: 0; }
 [data-story-game-workspace] > [data-story-game-player] { flex: 1 1 auto; min-height: 0; overflow: auto; }
+[data-story-game-workspace] > .story-game-body { min-height: 0; overflow: auto; }
 [data-story-game-workspace] .story-game-frame { height: 100%; min-height: 0; border-radius: 0; }
-.debug-game-progress { display: grid; height: 100%; place-items: center; margin: 0; padding: 16px; text-align: center; }
-.debug-game-progress .preview-spinner { width: 1.5em; height: 1.5em; margin: 0; }
+.game-progress { display: grid; place-content: center; justify-items: center; gap: 10px; margin: 0; padding: 16px; text-align: center; }
+[data-story-game-workspace] .game-progress { height: 100%; }
+.game-progress .preview-spinner { width: 1.5em; height: 1.5em; margin: 0; }
 @media (max-width: 760px) {
   .story-shell:has(#chat-scroll) .workspace-detail.is-debug-game { flex-basis: 70%; max-height: 70%; }
 }

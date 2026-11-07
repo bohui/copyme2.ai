@@ -158,6 +158,13 @@ async def build_game(packet, proposal, *, token):
 
 async def generate_story_game(broker, game_id, *, provider=None, composer=None, builder=None):
     game_id = str(UUID(str(game_id)))
+    result = await _generate_story_game_phase(broker, game_id, provider, composer, builder)
+    if result['status'] == 'pending' and result.get('phase') == 'build':
+        return await _generate_story_game_phase(broker, game_id, provider, composer, builder)
+    return result
+
+
+async def _generate_story_game_phase(broker, game_id, provider, composer, builder):
     claim = await broker.rpc('claim_story_game', p_game_id=game_id)
     if claim['status'] != 'running':
         return claim

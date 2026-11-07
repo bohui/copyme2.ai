@@ -1,8 +1,9 @@
 # Memoir scene selection and Higgsfield
 
 NovelToGame is the default builder. Both scene planning calls and all six
-NovelToGame stages use GPT-6.1 Sol max. Recommendations remain preselected UI
-values; the owner must confirm the exact scene set before the build starts.
+NovelToGame stages use GPT-6.1 Sol max. The host builds with every scene for one
+to four timeline events. For five or more, the owner confirms the scene set
+from a picker with recommendations preselected.
 
 Run `make deps-install` to restore the reviewed upstream skill. `make deps-update`
 fetches upstream main and refreshes `deps/novel-to-game.lock.json`; review and
@@ -23,8 +24,8 @@ The installation instructions below apply to this optional backup.
 
 
 The game action first prepares the full pool from composer chapters and timeline.
-The owner chooses scenes by life stage and confirms their count before a game
-build starts. More scenes cost more and take longer. Two composer-model calls
+The picker groups scenes by life stage and explains the time and cost of adding
+scenes. Two composer-model calls
 produce the pool and confirmed game brief; only the separate Higgsfield game
 builder uses Astra. Saving and sharing remain in Memoir, private by default.
 
@@ -60,7 +61,9 @@ outside its export capabilities.
 
 ## Durable API
 
-- `POST .../story-game` prepares the pool and returns `selection_required`.
+- `POST .../story-game` starts pool preparation in the background. Short timelines
+  advance directly to the build. Longer timelines return `selection_required`
+  when their pool is ready.
 - `GET .../story-game/:gameId` returns the owner's pool and recommendations.
 - `POST .../story-game/:gameId/selection` accepts `expected_pool_digest` and
   `scene_ids`, saves human confirmation and returns immediately. The confirmed
