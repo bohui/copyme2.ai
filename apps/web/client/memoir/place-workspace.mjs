@@ -179,6 +179,8 @@ export function createPlaceWorkspace({
   }
 
   function placeWorkspaceSelection({allowUnmapped = false} = {}) {
+    const atlasScope = state.derivedWorkspace?.atlasLocationScope;
+    if (state.supabase?.auth_mode === "supabase" && (!atlasScope || !isCurrentProjectScope(atlasScope))) return null;
     if (publishedMap()) {
       const nodes = mapMemoryEvents.prepareNodes();
       const node = nodes.find(item => placeHistoryKey(item.location) === state.selectedPlace) || nodes[0];
@@ -344,7 +346,7 @@ export function createPlaceWorkspace({
   }
 
   function placeJourneySurface() {
-    const journey = publishedMap() ? placeWorkspaceSelection() : state.placeJourney;
+    const journey = placeWorkspaceSelection();
     return journey && placeMapAvailable(journey) && !workspaceHasContent() ? placeJourneyMarkup(journey) : "";
   }
 

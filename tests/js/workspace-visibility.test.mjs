@@ -4,6 +4,7 @@ import assert from 'node:assert/strict';
 import {readFileSync} from 'node:fs';
 import vm from 'node:vm';
 import {applyDerivedWorkspace} from '../../apps/web/client/memoir/derived-workspace.mjs';
+import {createPlaceWorkspace} from '../../apps/web/client/memoir/place-workspace.mjs';
 
 const source = readMemoirClientSource();
 const extract = name => source.match(new RegExp(`(?:async )?function ${name}\\([^]*?\\n\\}`))[0];
@@ -37,7 +38,7 @@ function workspaceHarness(overrides = {}, dependencies = {}) {
   });
   for (const name of ['freeRecallFinished', 'composingWorkspaceActive', 'workspaceTabs', 'activeWorkspaceTab',
     'workspaceGenerationAvailable', 'workspaceContentAvailable', 'workspaceHasContent', 'workspaceIsVisible',
-    'workspaceDetail', 'workspaceGenerationBar', 'renderStory']) {
+    'workspaceDetail', 'workspaceGenerationBar', 'storyGameButton', 'renderStory']) {
     vm.runInContext(extract(name), context);
   }
   return {state, context, app};
@@ -138,18 +139,52 @@ test('early generation adds both actions only inside the workspace', async () =>
   }
 });
 
-test('eligible generation controls stay reachable before a map is available', () => {
+test('generation controls do not open an empty workspace', () => {
   for (const overrides of [{debugEarlyGeneration:true}, {currentInterviewMode:{project_id:'project', mode:'shape'}}]) {
-    const {state, context, app} = workspaceHarness({placeJourney:null, ...overrides}, {workspaceMediaOverview:() => ''});
+    const {context, app} = workspaceHarness({placeJourney:null, ...overrides}, {workspaceMediaOverview:() => ''});
     context.renderStory();
-    const workspace = app.innerHTML.match(/<aside id="workspace-detail"[^]*?<\/aside>/)[0];
-    assert.match(workspace, overrides.debugEarlyGeneration ? /data-action="generate-story-game"/ : /data-story-game>/);
-
-    state.workspaceCollapsed = true;
-    context.renderStory();
-    assert.match(app.innerHTML, /workspace-detail is-collapsed/);
-    assert.doesNotMatch(app.innerHTML, /workspace-generation-bar/);
+    assert.match(app.innerHTML, /story-shell conversation-only/);
+    assert.doesNotMatch(app.innerHTML, /id="workspace-detail"|workspace-generation-bar/);
+    assert.equal(app.innerHTML.includes('data-story-game>'), Boolean(overrides.currentInterviewMode));
   }
+});
+
+test('the map requires a streamed active location for the current visit and privacy scope', t => {
+  globalThis.window = {addEventListener() {}};
+  t.after(() => { delete globalThis.window; });
+  const city = {place:'Chengde', hierarchy:['Earth', 'China', 'Chengde'], granularity:'city', status:'active',
+    source_sequence:1, latitude:40.95, longitude:117.96};
+  const {state, context, app} = workspaceHarness({placeJourney:city, navigationGeneration:0,
+    project:{id:'project', profile:{memory_places:[city]}},
+    supabase:{auth_mode:'supabase', user:{id:'owner'}, accessToken:'fixture'}});
+  for (const name of ['captureProjectScope','isCurrentProjectScope']) vm.runInContext(extract(name), context);
+  const places = createPlaceWorkspace({state, profile:() => state.project.profile, photos:{},
+    isCurrentProjectScope:context.isCurrentProjectScope, workspaceHasContent:context.workspaceHasContent});
+  Object.assign(context, {placeWorkspaceSelection:places.placeWorkspaceSelection, placeJourneySurface:places.placeJourneySurface});
+  const scope = context.captureProjectScope();
+  const snapshot = {project_id:'project', authoritative:true, policy_epoch:1, source_revision:1,
+    places:[city], current_active_location:city};
+  const assertClosed = () => {
+    context.renderStory();
+    assert.match(app.innerHTML, /story-shell conversation-only/);
+    assert.doesNotMatch(app.innerHTML, /id="workspace-detail"|place-journey-card|workspace-media-overview/);
+  };
+  assertClosed();
+  state.currentActiveLocation = city;
+  assertClosed();
+  applyDerivedWorkspace(state, snapshot);
+  applyDerivedWorkspace(state, {...snapshot, current_active_location:null}, scope);
+  assertClosed();
+  applyDerivedWorkspace(state, snapshot, scope);
+  context.renderStory();
+  assert.match(app.innerHTML, /story-shell context-visible/);
+  applyDerivedWorkspace(state, {...snapshot, policy_epoch:2});
+  applyDerivedWorkspace(state, snapshot, scope);
+  assertClosed();
+  applyDerivedWorkspace(state, {...snapshot, policy_epoch:2}, scope);
+  assert.equal(context.workspaceIsVisible(), true);
+  state.navigationGeneration++;
+  assertClosed();
 });
 
 test('debug actions switch between all memoir tabs and the exclusive right-hand game pane', () => {

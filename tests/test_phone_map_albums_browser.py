@@ -7,6 +7,8 @@ from pathlib import Path
 
 import pytest
 from playwright.sync_api import expect, sync_playwright
+from browser_atlas_fixture import install_atlas_fixture
+from browser_supabase_fixture import install_supabase_fixture
 
 pytestmark = pytest.mark.skipif(not os.getenv('MEMOIR_BROWSER_URL'), reason='Requires isolated frontend')
 OUTPUT = Path(__file__).resolve().parents[1] / 'output/phone-map-albums'
@@ -73,9 +75,10 @@ def test_reopening_restores_the_active_city_and_city_zoom_keeps_scaled_footprint
 def album_page(request):
     mode = getattr(request, 'param', 'saved')
     state_mode = mode.removeprefix('unresolved-')
+    atlas_opening = mode == 'atlas-opening'
     with_events = mode in ('events', 'estimated-events', 'overlap-events', 'conversation-focus', 'expand-memory')
-    delay_tiles = mode in ('slow-flight', 'preload-flight', 'expand-memory')
-    opening_test = mode in ('slow-flight', 'expand-memory')
+    delay_tiles = atlas_opening or mode in ('slow-flight', 'preload-flight', 'expand-memory')
+    opening_test = atlas_opening or mode in ('slow-flight', 'expand-memory')
     width = request.getfixturevalue('width') if opening_test and 'width' in request.fixturenames else None
     base = os.environ['MEMOIR_BROWSER_URL']
     city = dict(place='承德', hierarchy=['Earth', '中国', '河北', '承德'], granularity='city',
@@ -174,7 +177,11 @@ def album_page(request):
         def api(route):
             path = route.request.url.split('/api/v1/memoir')[-1].split('?')[0]
             data = {}
-            if path == '/agent/config': data = {'auth_mode':'test','google_maps_browser_api_key':'' if mode == 'missing-key' else 'synthetic-key'}
+            if path == '/agent/config':
+                data = {'auth_mode':'test','google_maps_browser_api_key':'' if mode == 'missing-key' else 'synthetic-key'}
+                if atlas_opening:
+                    data.update(auth_mode='supabase', supabase_url='https://auth.test', supabase_publishable_key='public',
+                                debug_early_generation=True)
             elif path in ('/agent/profile','/user/profile'):
                 if route.request.method == 'PATCH': profile.update(route.request.post_data_json)
                 data = profile
@@ -263,8 +270,22 @@ def album_page(request):
         page = context.new_page()
         page.on('pageerror',lambda error:errors.append(str(error)))
         page.on('console',lambda message:errors.append(message.text) if message.text.startswith('Map render failed:') else None)
+        if atlas_opening:
+            session = json.dumps({'access_token':'fixture-only', 'user':{'id':'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa',
+                'is_anonymous':True, 'user_metadata':{'ui_locale':'zh-CN'}}})
+            install_supabase_fixture(page, 'window.supabase={createClient:()=>({auth:{getSession:async()=>({data:{session:'
+                + session + '}})}})};')
+            atlas = dict(project_id='album-project')
+            install_atlas_fixture(page, lambda: atlas)
         page.goto(base+'/memoir/interview/album-project',wait_until='networkidle')
         expect(page.locator('#chat-input')).to_be_enabled(timeout=30000)
+        if atlas_opening:
+            page.wait_for_function('fixtureAtlas.connections === 1')
+            expect(page.locator('#workspace-detail, .workspace-generation-bar')).to_have_count(0)
+            assert script_attempts == 0
+            atlas['derived_workspace'] = dict(project_id='album-project', authoritative=True, policy_epoch=1,
+                source_revision=1, places=places, current_active_location=dict(city, source_sequence=1))
+            page.evaluate('fixtureAtlas.update()')
         if mode == 'unmapped':
             expect(page.locator('.story-shell.conversation-only')).to_be_visible(timeout=30000)
         elif mode == 'conversation-focus':
@@ -303,9 +324,9 @@ def test_slow_map_tiles_recover_after_the_opening_deadline_without_reload(album_
     page.screenshot(path=str(OUTPUT/'slow-map-recovered.png'), full_page=True)
 
 
-@pytest.mark.parametrize('album_page', ['slow-flight'], indirect=True)
+@pytest.mark.parametrize('album_page', ['atlas-opening'], indirect=True)
 @pytest.mark.parametrize('width', [390, 1440])
-def test_restored_overview_waits_for_imagery_without_a_city_flight(album_page, width):
+def test_restored_overview_waits_for_atlas_then_imagery_without_a_city_flight(album_page, width):
     page, _, _ = album_page
     expect(page.locator('#workspace-detail')).to_be_hidden(timeout=1000)
     layout = page.locator('.conversation-layout').bounding_box()
@@ -321,6 +342,7 @@ def test_restored_overview_waits_for_imagery_without_a_city_flight(album_page, w
     page.evaluate('releaseMapTiles()')
     expect(page.locator('.place-journey-scene.is-cesium-map')).to_be_visible(timeout=30000)
     expect(page.locator('#workspace-detail')).to_be_visible()
+    expect(page.locator('.workspace-generation-bar')).to_be_visible()
     assert canvas.evaluate(canvas_size) == pytest.approx(opening_size, abs=1)
     expect(page.locator('.place-journey-fallback')).to_have_css('opacity', '0')
     assert page.evaluate('mapFlights.length') == 0

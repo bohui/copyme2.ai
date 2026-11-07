@@ -1,5 +1,6 @@
 """Viewport and streaming behavior using synthetic history/auth/model fixtures."""
 
+from browser_atlas_fixture import install_atlas_fixture
 from browser_supabase_fixture import install_supabase_fixture
 import json
 import os
@@ -68,6 +69,11 @@ def conversation_page(request):
             return Promise.resolve(new Response(stream,{headers:{'Content-Type':'application/x-ndjson'}}));
           };""")
         page = context.new_page()
+        if variant == 'map':
+            place = profile['memory_places'][0]
+            install_atlas_fixture(page, lambda: dict(project_id='scroll-project',
+                derived_workspace=dict(project_id='scroll-project', authoritative=True, source_revision=1,
+                    policy_epoch=1, places=[place], current_active_location=place)))
         page.goto(base+'/memoir/interview/scroll-project')
         expect(page.locator('#chat-input')).to_be_enabled(timeout=30000)
         toggle = page.locator('[data-action="toggle-chat-history"]')

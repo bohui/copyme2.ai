@@ -25,7 +25,7 @@ def test_workspace_footer_opens_sign_in_or_a_playable_game_and_memoir(locale, wi
     project_id = 'debug-workspace'
     project_path = f'/agent/projects/{project_id}'
     place = dict(place='Chengde', hierarchy=['Earth', 'China', 'Hebei', 'Chengde'],
-        granularity='city', life_stage='childhood', latitude=40.95, longitude=117.96)
+        granularity='city', life_stage='childhood', latitude=40.95, longitude=117.96, status='active', source_sequence=1)
     profile = {'preferred_language': locale, 'memory_places': [place]}
     history = StoryHistoryFixture(STAGE_OWNER, project_id, 'fixture-only')
     history.save(dict(project_id=project_id, client_turn_id='00000000-0000-4000-8000-000000000001',
@@ -37,7 +37,9 @@ def test_workspace_footer_opens_sign_in_or_a_playable_game_and_memoir(locale, wi
     languages, actions = [], []
     draft_checked, published = False, False
     digest = 'a' * 64
-    atlas = dict(project_id=project_id, profile=profile, current_mode=dict(project_id=project_id, mode='explore'))
+    atlas = dict(project_id=project_id, profile=profile, current_mode=dict(project_id=project_id, mode='explore'),
+        derived_workspace=dict(project_id=project_id, authoritative=True, policy_epoch=1, source_revision=1,
+            places=[place], current_active_location=place))
 
     def api(route):
         nonlocal draft_checked

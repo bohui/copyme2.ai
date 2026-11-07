@@ -4,7 +4,7 @@ import {applyCurrentActiveLocation} from './active-location.mjs';
 // An authorized full snapshot is distinct from an empty/failed B delta.
 // This function changes derived place state only; it never saves preferences,
 // moves navigation, starts recording, or marks an interview question delivered.
-export function applyDerivedWorkspace(state, update) {
+export function applyDerivedWorkspace(state, update, atlasScope = null) {
   if (!update || update.authoritative !== true || update.project_id !== state.project?.id
       || !Array.isArray(update.places) || !Number.isSafeInteger(update.source_revision)
       || !Number.isSafeInteger(update.policy_epoch)) return false;
@@ -30,8 +30,14 @@ export function applyDerivedWorkspace(state, update) {
     return Object.fromEntries(Object.entries({...saved,...p}).filter(([key]) => Object.hasOwn(p,key)
       || decorations.includes(key) || key.startsWith('photo_search_') || key === 'photo_next_cursor'));
   });
+  const streamedLocation = atlasScope && update.current_active_location?.place
+    && state.currentActiveLocation === update.current_active_location;
+  const previousAtlasScope = prior?.project_id === update.project_id && prior.policy_epoch === update.policy_epoch
+    ? prior.atlasLocationScope : null;
+  const atlasLocationScope = streamedLocation ? atlasScope : previousAtlasScope;
   state.derivedWorkspace = {project_id:update.project_id, policy_epoch:update.policy_epoch, source_revision:update.source_revision,
-    ...(update.map_source ? {map_source:update.map_source} : {})};
+    ...(update.map_source ? {map_source:update.map_source} : {}),
+    ...(places.length && atlasLocationScope ? {atlasLocationScope} : {})};
   if (!places.length) {
     state.placeWorkspaceMap = null;
   }

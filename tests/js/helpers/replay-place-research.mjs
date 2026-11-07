@@ -4,6 +4,7 @@ import {readFileSync} from 'node:fs';
 import vm from 'node:vm';
 import {readMemoirClientSource} from './memoir-source.mjs';
 import {applyDerivedWorkspace} from '../../../apps/web/client/memoir/derived-workspace.mjs';
+import {createAtlasUpdates} from '../../../apps/web/client/memoir/atlas-updates.mjs';
 import {createPhotoWorkspace} from '../../../apps/web/client/memoir/photo-workspace.mjs';
 import {responsePhotoCards} from '../../../apps/web/client/memoir/interview-photo-turns.mjs';
 import {createPlaceWorkspace} from '../../../apps/web/client/memoir/place-workspace.mjs';
@@ -14,7 +15,7 @@ import {escapeHtml,formatText} from '../../../apps/web/client/memoir/dom.mjs';
 const packet = JSON.parse(readFileSync(0, 'utf8'));
 const projectId = packet.ready.derived_workspace.project_id;
 const state = {project:{id:projectId,profile:{}},projectPrincipalId:'owner',
-  supabase:{accessToken:'fixture',user:{id:'owner'}},navigationGeneration:0,
+  supabase:{auth_mode:'supabase',accessToken:'fixture',user:{id:'owner'}},navigationGeneration:0,
   lifeStage:'childhood',chat:packet.history.items.filter(item=>item.narrator_text)
     .map(item=>({role:'user',text:item.narrator_text})),
   people:[],relationships:[],timeline:[],sources:[],storyPlans:[],photoTurns:{cards:responsePhotoCards}};
@@ -97,7 +98,19 @@ Object.assign(context,photos,{api,saveProfileUpdates:dependencies.saveProfileUpd
 await context.refreshStageReadiness();
 assert.equal(photoCalls.length,0,'No places are ready in the foreground reply');
 assert.equal(timers.size,0,'Pending extraction must not schedule a browser read');
-await context.refreshStageReadiness(); // Atlas publishes the completed workspace.
+await context.refreshStageReadiness();
+assert.equal(places.workspaceMediaOverview(),'','A JSON recovery read cannot open the workspace');
+let delivered;
+const delivery = new Promise(resolve => { delivered = resolve; });
+const atlas = createAtlasUpdates({scope:context.captureProjectScope,current:context.isCurrentProjectScope,
+  token:() => state.supabase.accessToken,url:() => '/v1/story/atlas-events',
+  request:async () => new Response(`event: atlas-update\ndata: ${JSON.stringify(legacy(packet.ready))}\n\n`,
+    {headers:{'Content-Type':'text/event-stream'}}),
+  onUpdate:async (snapshot,scope) => { await context.refreshStageReadiness(snapshot,scope); delivered(); }});
+assert.equal(atlas.start(),true);
+await delivery;
+atlas.stop();
+assert.match(places.workspaceMediaOverview(),/is-cesium-opening/,'Atlas starts preparing the hidden map');
 await Promise.all(loads);
 await settle();
 assert.deepEqual([...photoCalls].sort(),[['承德市','1980s'],['悉尼','']].sort());
