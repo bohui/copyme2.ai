@@ -302,7 +302,7 @@ test('consent withdrawal cancels dictation while microphone permission is pendin
   t.after(()=>{delete globalThis.MediaRecorder;});
   state.dictationId=0;
   state.dictationMonitor=null;
-  const audio=createConversationAudio({...dependencies,ensureRecordingConsent:async()=>true});
+  const audio=createConversationAudio({...dependencies,ensureRecordingConsent:async()=>'retained'});
   const source=readFileSync(new URL('../../apps/web/client/memoir/client.js',import.meta.url),'utf8');
   const setupConsent=source.match(/const recordingConsent = createRecordingConsent\(\{[^]*?\n\}\);/)[0];
   const context=vm.createContext({...dependencies,...audio,authReminder:{open(){}},

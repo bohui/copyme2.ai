@@ -35,6 +35,7 @@ from .stage_readiness import stage_readiness
 from .background_profile import PROFILE_FIELDS
 from .lifetime_memory_read_api import (read_mapped, draft_head, draft_page, retry_draft, collection_page,
     canonical_only, mapped_identity, map_event_page, map_event_places)
+from .original_recordings import MAX_ENCODED_AUDIO
 from .story_payments import (
     StripeAPIError,
     StripeCheckoutClient,
@@ -92,7 +93,7 @@ class StoryRoundInput(BaseModel):
 
 
 class StoryTranscriptionInput(BaseModel):
-    audio_base64: str | None = Field(default=None, min_length=1, max_length=13981016)
+    audio_base64: str | None = Field(default=None, min_length=1, max_length=MAX_ENCODED_AUDIO)
     recording_id: UUID | None = None
     upload_idempotency_key: UUID | None = None
     project_id: str | None = Field(default=None, pattern=r'^[A-Za-z0-9][A-Za-z0-9_-]{0,127}$')
@@ -109,6 +110,13 @@ class StoryTranscriptionInput(BaseModel):
         if self.recording_id is not None and self.upload_idempotency_key is not None:
             raise ValueError('Upload key applies only to new audio')
         return self
+
+
+class TemporaryTranscriptionInput(BaseModel):
+    model_config = {'extra': 'forbid'}
+    audio_base64: str = Field(min_length=1, max_length=MAX_ENCODED_AUDIO)
+    mime_type: str = Field(default="audio/webm", max_length=100)
+    language: str | None = Field(default=None, max_length=32)
 
 
 class StorySpeechInput(BaseModel):
@@ -753,6 +761,13 @@ def build_router(
             return JSONResponse(status, headers={'Cache-Control':'private, no-store', 'Vary':'Authorization'})
         finally: _close(storage)
 
+    def transcription_language(storage, language):
+        if language:
+            return language
+        profile = storage.profile()
+        saved_language = profile.get('conversation_language') or {}
+        return profile.get('preferred_language') or (saved_language.get('locale') if isinstance(saved_language, dict) else None)
+
     @router.post("/transcriptions")
     def story_transcription(payload: StoryTranscriptionInput, authorization: str | None = Header(default=None)):
         storage = storage_for(authorization)
@@ -760,14 +775,23 @@ def build_router(
             from .original_recordings import RecordingStore, RecordingJSONResponse
             try:
                 if not payload.language:
-                    profile = storage.profile()
-                    saved_language = profile.get('conversation_language') or {}
-                    payload = payload.model_copy(update={'language': profile.get('preferred_language')
-                        or (saved_language.get('locale') if isinstance(saved_language, dict) else None)})
+                    payload = payload.model_copy(update={'language': transcription_language(storage, payload.language)})
                 result = RecordingStore(storage).transcribe(payload, speech_service)
                 return RecordingJSONResponse(result, result['recording']['id'], storage.user_id)
             except httpx.HTTPError:
                 raise HTTPException(503, 'Recording storage is unavailable', headers={'X-Error-Code':'RECORDING_STORAGE_UNAVAILABLE'}) from None
+        finally:
+            _close(storage)
+
+    @router.post('/transcriptions/temporary')
+    def temporary_transcription(payload: TemporaryTranscriptionInput, authorization: str | None = Header(default=None)):
+        from .original_recordings import require_recording_capture, transcribe_temporary
+        storage = storage_for(authorization)
+        try:
+            require_recording_capture()
+            result = transcribe_temporary(speech_service, payload.audio_base64, payload.mime_type,
+                language=transcription_language(storage, payload.language))
+            return JSONResponse(result, headers={'Cache-Control':'private, no-store', 'Vary':'Authorization'})
         finally:
             _close(storage)
 

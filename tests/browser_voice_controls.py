@@ -36,8 +36,14 @@ def main():
             path = urlsplit(route.request.url).path
             if path == '/':
                 return route.fulfill(body='<html><body><div id="app"></div></body></html>', content_type='text/html')
-            file = ROOT / 'apps/web' / path.lstrip('/')
-            route.fulfill(body=file.read_text(), content_type='application/json' if file.suffix == '.json' else 'text/javascript')
+            web = ROOT / 'apps/web'
+            file = web / path.lstrip('/')
+            if not file.is_file():
+                file = web / 'public' / path.lstrip('/')
+            if not file.is_file():
+                return route.fulfill(status=404)
+            content_type = 'text/javascript' if file.suffix in {'.js', '.mjs'} else None
+            route.fulfill(path=file, content_type=content_type)
         page.route('http://voice.test/**', serve)
         page.goto('http://voice.test')
         page.wait_for_load_state('networkidle')
@@ -66,6 +72,8 @@ window.testState = state;
 window.recorders = [];
 window.tracks = [];
 window.uploads = 0;
+window.temporaryTranscriptions = [];
+window.recordingConsentStatus = {enabled:true,recoverable_identity:true,consented:true};
 window.turns = 0;
 window.turnRequests = [];
 window.recordingUploads = new Map();
@@ -97,7 +105,15 @@ window.MediaRecorder = class {
     this.listeners.dataavailable?.({data: new Blob(['audio'])}); this.listeners.stop?.();
   }); }
 };
-render = () => { document.querySelector('#app').innerHTML = `<main class="chat-main"><header class="chat-heading"><h1>Your story</h1></header><div class="chat-scroll"><p>Tell me about an afternoon you remember.</p></div>${chatComposer()}</main>`; bindViewActions(); };
+render = () => {
+  document.querySelector('#app').innerHTML = `<main class="chat-main"><header class="chat-heading"><h1>Your story</h1></header><div class="chat-scroll"><p>Tell me about an afternoon you remember.</p></div>${chatComposer()}</main>`;
+  const input = document.querySelector('#chat-input');
+  if (input) {
+    input.value = state.audioTranscript;
+    resizeChatInput(input);
+  }
+  bindViewActions();
+};
 toast = message => notifications.push(message);
 window.micLevel = 128;
 window.audioContexts = [];
@@ -120,7 +136,11 @@ agentTurn = async (text, fallback, tools, language, first, conversationText, act
 };
 streamAssistantMessage = async () => {};
 storyApi = async (path, options) => {
-  if (path === '/v1/story/recording-consent') return {enabled:true,recoverable_identity:true,consented:true};
+  if (path === '/v1/story/recording-consent') return recordingConsentStatus;
+  if (path === '/v1/story/transcriptions/temporary') {
+    temporaryTranscriptions.push(JSON.parse(options.body));
+    return {text: 'A guest remembers the beach.', source: {language: 'en'}};
+  }
   if (path === '/v1/story/transcriptions') {
     uploads++;
     window.lastTranscription = JSON.parse(options.body);
@@ -310,6 +330,44 @@ render();
         assert earlier not in page.evaluate('deletedRecordings')
         page.get_by_role('button', name='Discard draft recordings', exact=True).click()
         page.wait_for_function('testState.audioRecordings.length === 0')
+        # Guests explicitly choose transcription before the browser opens the mic.
+        retained_count, track_count = page.evaluate('[uploads, tracks.length]')
+        page.evaluate("""() => {
+          testState.supabase = {user: {id:'guest-voice',is_anonymous:true}};
+          recordingConsentStatus = {enabled:true,recoverable_identity:false,consented:false};
+          render();
+        }""")
+        voice = page.get_by_role('button', name='Start voice conversation', exact=True)
+        voice.click()
+        choice = page.get_by_role('dialog', name='Sign in to save voice recordings')
+        expect(choice.get_by_role('button', name='Continue with email')).to_be_visible()
+        expect(choice.get_by_text('Groq', exact=False)).to_be_visible()
+        assert page.evaluate('tracks.length') == track_count
+        page.keyboard.press('Escape')
+        expect(choice).to_have_count(0)
+        assert page.evaluate('tracks.length') == track_count
+        voice.click()
+        choice.get_by_role('button', name='Continue without signing in').click()
+        expect(page.get_by_text('Your guest conversation keeps only the transcript.')).to_be_visible()
+        for turn in (8, 9):
+            page.wait_for_function('testState.voiceModeRecorder?.state === "recording"')
+            page.get_by_role('button', name='Send message', exact=True).click()
+            page.wait_for_function('expected => turns === expected && !testState.loading', arg=turn)
+        page.get_by_role('button', name='End voice conversation').click()
+        # Guest dictation still supports review, editing and explicit submission.
+        draft.fill('One more thing.')
+        page.get_by_role('button', name='Dictate', exact=True).click()
+        page.get_by_role('button', name='Stop recording', exact=True).click()
+        expect(draft).to_have_value('One more thing. A guest remembers the beach.')
+        assert page.evaluate('turns') == 9
+        draft.fill('Edited guest transcript.')
+        page.get_by_role('button', name='Send message', exact=True).click()
+        page.wait_for_function('turns === 10 && !testState.loading')
+        assert page.evaluate("turnRequests.slice(-3).every(turn => turn.sourceKind === 'narrator_transcript' && !turn.recordingIds.length)")
+        assert page.evaluate("temporaryTranscriptions.length === 3 && temporaryTranscriptions.every(clip => clip.audio_base64 === 'YXVkaW8=' && !clip.upload_idempotency_key)")
+        assert page.evaluate('uploads') == retained_count
+        assert page.evaluate('!testState.pendingAudioUpload && !testState.audioRecordings.length')
+        page.evaluate('testState.supabase = null; recordingConsentStatus = {enabled:true,recoverable_identity:true,consented:true}; render()')
         # Cancel while permission is pending: the eventual stream must be released.
         page.evaluate('() => { navigator.mediaDevices.getUserMedia = () => new Promise(resolve => window.allowMic = resolve); }')
         page.get_by_role('button', name='Dictate', exact=True).click()
@@ -322,7 +380,7 @@ render();
         assert page.evaluate('document.documentElement.scrollWidth <= innerWidth'), page.evaluate('[...document.querySelectorAll("*")].filter(e => e.getBoundingClientRect().right > innerWidth).map(e => [e.tagName, e.className, e.getBoundingClientRect().right])')
         assert not errors, errors
         browser.close()
-        print('Voice controls passed: ordered recording references, edited multi-clip dictation, append cancellation, cancel, stop/review, draft preservation, explicit send, consistent speaker after synthesis failure, spoken reply/relisten, mute, exit, pending permission cancellation, attachment selection/removal/upload, mobile layout.')
+        print('Voice controls passed, including guest voice and dictation with text-only submission and signed-in recording retention.')
 
 
 if __name__ == '__main__':

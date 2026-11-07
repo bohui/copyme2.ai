@@ -43,6 +43,7 @@
     "Memoir.recall.signIn",
     "Memoir.story.attachmentRights",
     "Memoir.story.attachmentRightsRequired",
+    "Memoir.story.originalVoiceNote",
     "Memoir.story.reviewTranscript",
     "Memoir.story.sourceNote",
     "Memoir.story.voiceNote",
@@ -81,6 +82,8 @@
     "Memoir.storyFlow.savedWithSupabase",
     "Memoir.storyFlow.totalToday",
     "Memoir.workspace.familyPhotoHint",
-    "Memoir.workspace.familyReferenceNote"
+    "Memoir.workspace.familyReferenceNote",
+    "RecordingConsent.guestDescription",
+    "RecordingConsent.guestNote"
   ]
 }

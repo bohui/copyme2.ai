@@ -29,12 +29,16 @@ PRIVATE_RECORDING_BUCKET = 'memoir-original-recordings'
 logger = logging.getLogger(__name__)
 
 
+def is_story_transcription_path(path):
+    return path.endswith(('/story/transcriptions', '/story/transcriptions/temporary'))
+
+
 class RecordingBodyLimit:
     """Bound encoded JSON before FastAPI buffers or decodes a request body."""
     def __init__(self, app): self.app = app
 
     async def __call__(self, scope, receive, send):
-        if scope['type'] != 'http' or scope.get('method') != 'POST' or not scope['path'].endswith('/story/transcriptions'):
+        if scope['type'] != 'http' or scope.get('method') != 'POST' or not is_story_transcription_path(scope['path']):
             return await self.app(scope, receive, send)
         chunks, size = bytearray(), 0
         while True:
@@ -65,6 +69,11 @@ def error(status, code, message, **detail):
 
 def recording_capture_enabled():
     return os.getenv('MEMOIR_ORIGINAL_RECORDINGS') == '1'
+
+
+def require_recording_capture():
+    if not recording_capture_enabled():
+        raise error(503, 'ORIGINAL_RECORDINGS_DISABLED', 'Original recording retention is disabled')
 
 
 def validate_original(encoded, content_type):
@@ -114,6 +123,32 @@ def validate_original(encoded, content_type):
         raise error(503, 'AUDIO_DECODER_UNAVAILABLE', 'Recording validation is unavailable') from None
     except (subprocess.SubprocessError, ValueError, KeyError, OSError):
         raise error(422, 'INVALID_AUDIO_MEDIA', 'The complete recording could not be decoded') from None
+
+
+def _transcribe_clip(speech, content, content_type, *, language, prompt=None):
+    extension = {'audio/webm':'webm', 'audio/mp4':'m4a', 'audio/wav':'wav', 'audio/ogg':'ogg'}[content_type]
+    transcript = speech.transcribe(content, filename='original.' + extension,
+        mime_type=content_type, language=language, prompt=prompt)
+    if not str(transcript.get('text') or '').strip():
+        raise SpeechProviderError('empty', retryable=True)
+    return transcript
+
+
+def _transcript_result(transcription):
+    return {'text':str(transcription['text']).strip(),
+        'source':{'source_kind':'transcript','transcription_method':transcription.get('provider') or 'openai',
+            'transcription_model':transcription.get('model'), 'language':transcription.get('language'),
+            'segments':transcription.get('segments') or []}}
+
+
+def transcribe_temporary(speech, audio_base64, mime_type, *, language):
+    metadata = validate_original(audio_base64, mime_type)
+    content = base64.b64decode(audio_base64, validate=True)
+    try:
+        transcript = _transcribe_clip(speech, content, metadata['content_type'], language=language)
+    except (SpeechUnavailable, SpeechProviderError):
+        raise error(503, 'VOICE_TRANSCRIPTION_FAILED', 'Could not transcribe this clip') from None
+    return _transcript_result(transcript)
 
 
 PUBLIC_FIELDS = ('id','content_type','codec','byte_size','duration_seconds','content_sha256',
@@ -224,8 +259,7 @@ class RecordingStore:
             raise error(503, 'RECORDING_DATABASE_UNAVAILABLE', 'Recording persistence is unavailable') from None
 
     def authorize(self, project_id=None):
-        if not recording_capture_enabled():
-            raise error(503, 'ORIGINAL_RECORDINGS_DISABLED', 'Original recording retention is disabled')
+        require_recording_capture()
         if getattr(self.storage, 'is_anonymous', True):
             raise error(403, 'RECORDING_AUTHORITY_REQUIRED', 'Verify a recoverable identity and recording consent first')
         self.trusted('authorize', data={'project_id':project_id})
@@ -323,10 +357,8 @@ class RecordingStore:
             with self.provider_guard(record['id']) as (connection,current):
                 record = current
                 if record['transcription_status'] != 'succeeded':
-                    transcription = speech.transcribe(content, filename='original.' +
-                        {'audio/webm':'webm','audio/mp4':'m4a','audio/wav':'wav','audio/ogg':'ogg'}[record['content_type']],
-                        mime_type=record['content_type'], language=payload.language, prompt=payload.prompt)
-                    if not str(transcription.get('text') or '').strip(): raise SpeechProviderError('empty', retryable=True)
+                    transcription = _transcribe_clip(speech, content, record['content_type'],
+                        language=payload.language, prompt=payload.prompt)
                     from psycopg.types.json import Jsonb
                     record = connection.execute('select public.recording_server_operation(%s,%s,%s,%s)',
                         (self.storage.user_id,'asr_succeeded',record['id'],Jsonb({'result':transcription}))).fetchone()[0]
@@ -342,10 +374,7 @@ class RecordingStore:
             raise error(503, 'RECORDING_TRANSCRIPTION_UNCERTAIN', 'Original saved; transcription outcome requires metadata reconciliation.',
                 retryable=True, recording_id=record['id'], backend_saved=True, transcription_status='uncertain') from None
         logger.info('recording_transcription_ready recording_id=%s elapsed_ms=%d',record['id'],int((time.monotonic()-started)*1000))
-        return {'text':str(transcription['text']).strip(), 'recording':descriptor(record),
-            'source':{'source_kind':'transcript','transcription_method':transcription.get('provider') or 'openai',
-                'transcription_model':transcription.get('model'), 'language':transcription.get('language'),
-                'segments':transcription.get('segments') or []}}
+        return {**_transcript_result(transcription), 'recording':descriptor(record)}
 
     def delete(self, recording_id, *, draft_only=False):
         record = self.trusted('delete', str(UUID(recording_id)), {'draft_only':draft_only})

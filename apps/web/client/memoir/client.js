@@ -125,6 +125,7 @@ const state = {
   audioTranscriptKind: "narrator_chat",
   audioPlayer: null,
   voiceMode: false,
+  voiceCaptureMode: null,
   voiceModeStatus: "off",
   voiceModeRecorder: null,
   voiceModeStream: null,
@@ -136,6 +137,7 @@ const state = {
   voiceModePlaybackFinish: null,
   voiceMuted: false,
   dictationStatus: "off",
+  dictationCaptureMode: null,
   dictationId: 0,
   dictationSend: false,
   dictationMonitor: null,
@@ -206,6 +208,7 @@ const authReminder = createAuthReminder({
   getAuth: () => state.supabase,
   getConversation: () => ({ id: state.project?.id, messages: state.chat }),
   busy: () => state.loading || state.recording || state.storyRecording || state.voiceMode || state.dictationStatus !== "off",
+  deferPrompt: () => recordingConsent.isPending(),
   signInExisting: provider => guestTransfer.signIn(provider),
   cancelTransfer: () => guestTransfer.cancel(),
   onUserChanged: () => refreshProfileMenu(),
@@ -295,7 +298,7 @@ const {
 });
 
 const recordingConsent = createRecordingConsent({
-  storyApi, captureProjectScope, isCurrentProjectScope, toast, openIdentity:() => authReminder.open(),
+  storyApi, captureProjectScope, isCurrentProjectScope, toast, openIdentity:options => authReminder.open(options),
   onRevoke:() => { stopVoiceMode({silent:true,preservePending:true}); if (state.recording || state.dictationStatus === 'starting') cancelDictation(); },
 });
 
@@ -363,6 +366,7 @@ const ERROR_MESSAGE_KEYS = {
   RECORDING_PRESERVATION_FAILED:'recordingNotSavedRetry',
   RECORDING_TRANSCRIPTION_FAILED:'recordingSavedRetry',
   RECORDING_TRANSCRIPTION_UNCERTAIN:'recordingSavedRetry',
+  VOICE_TRANSCRIPTION_FAILED:'voiceTranscriptionFailed',
   INVALID_AUDIO_MEDIA:'invalidAudio',
   UNSUPPORTED_AUDIO:'invalidAudio',
   AUDIO_DURATION_EXCEEDED:'recordingLimit',
@@ -637,13 +641,15 @@ async function storySession() {
 }
 
 async function storyApi(path, options = {}) {
+  const {isCurrent, ...request} = options;
   const session = await storySession();
+  if (isCurrent && !isCurrent()) throw new DOMException('Request cancelled', 'AbortError');
   const headers = {
     "Content-Type": "application/json",
     Authorization: `Bearer ${session.access_token}`,
-    ...(options.headers || {}),
+    ...(request.headers || {}),
   };
-  const response = await fetch(memoirApiPath(path), { ...options, headers });
+  const response = await fetch(memoirApiPath(path), { ...request, headers });
   const body = await response.json().catch(() => ({}));
   if (!response.ok) {
     const error = new Error(localizedErrorMessage(response.headers.get("X-Error-Code") || body?.error?.code));
@@ -3041,10 +3047,12 @@ function chatComposer() {
   const t = (key) => escapeHtml(translate(`Memoir.story.${key}`));
   const atLimit = chatInputLimitReached();
   const waitNote = atLimit ? `<div class="composer-note" role="status">${t("sendWait")}</div>` : "";
+  const guestNote = escapeHtml(translate("RecordingConsent.guestNote"));
   const button = (action, label, icon, extra = "", disabled = false) => `<button type="button" class="voice-button ${extra}" data-action="${action}" aria-label="${t(label)}" title="${t(label)}"${disabled ? " disabled" : ""}>${composerIcon(icon)}</button>`;
   if (state.dictationStatus !== "off") {
     const processing = ["starting", "processing"].includes(state.dictationStatus);
-    return `<div class="composer-wrap">${focusControls}<div class="chat-composer dictation-composer">${button("cancel-dictation", "cancelDictation", "close")}<div class="dictation-visual"><div class="dictation-wave ${state.recording ? "is-recording" : ""}" aria-hidden="true">${"<i></i>".repeat(40)}</div><span role="status">${t(processing ? (state.dictationStatus === "starting" ? "connectingMic" : "transcribing") : state.recording ? "dictating" : "dictationStopped")}</span></div>${!processing ? `${state.recording ? button("stop-dictation", "stopDictation", "stop") : ""}${button("accept-dictation", "send", "send", "voice-mode-button", atLimit)}` : ""}</div>${waitNote || `<div class="composer-note">${t("dictationNote")}</div>`}</div>`;
+    const note = state.dictationCaptureMode === 'temporary' ? guestNote : t("dictationNote");
+    return `<div class="composer-wrap">${focusControls}<div class="chat-composer dictation-composer">${button("cancel-dictation", "cancelDictation", "close")}<div class="dictation-visual"><div class="dictation-wave ${state.recording ? "is-recording" : ""}" aria-hidden="true">${"<i></i>".repeat(40)}</div><span role="status">${t(processing ? (state.dictationStatus === "starting" ? "connectingMic" : "transcribing") : state.recording ? "dictating" : "dictationStopped")}</span></div>${!processing ? `${state.recording ? button("stop-dictation", "stopDictation", "stop") : ""}${button("accept-dictation", "send", "send", "voice-mode-button", atLimit)}` : ""}</div>${waitNote || `<div class="composer-note">${note}</div>`}</div>`;
   }
   const status = state.voiceMuted ? "muted" : state.voiceModeStatus;
   const voiceStatus = state.voiceMode ? `<div class="voice-session"><div class="voice-orb ${status}" aria-hidden="true"><div class="voice-orb-water"><i></i><i></i><i></i></div></div><div class="voice-mode-status" role="status"><strong class="voice-mode-title">${t("voiceConversation")}</strong><span>${t(state.voiceMuted ? "micMuted" : status === "speaking" ? "miraSpeaking" : status === "processing" ? "listeningBack" : "listening")}</span></div></div>` : "";
@@ -3053,7 +3061,8 @@ function chatComposer() {
     : `${button("dictate", "dictate", "mic", "dictation-button")}${button("voice-input", "startVoice", "wave", "voice-mode-button voice-mode-launcher")}`;
   const sendDisabled = atLimit || (state.loading && !state.conversationInputs?.pending()) || state.photoMemoryTask;
   const canRetry = !state.loading && (state.photoTurns?.pending() || (atLimit && state.conversationInputs?.pending()));
-  const note = waitNote || `<div class="composer-note"><span>${t(state.voiceMode ? "voiceNote" : "sourceNote")}</span><span>${t("shortcutNote")}</span></div>`;
+  const voiceNote = `${t("voiceNote")} ${state.voiceCaptureMode === 'temporary' ? guestNote : t("originalVoiceNote")}`;
+  const note = waitNote || `<div class="composer-note"><span>${state.voiceMode ? voiceNote : t("sourceNote")}</span><span>${t("shortcutNote")}</span></div>`;
   return `<div class="composer-wrap ${state.voiceMode ? "has-voice-orb" : ""}">${focusControls}${voiceStatus}${selectedPhotoCue()}${composerAttachments()}${!state.loading && !state.photoTurns?.pending() && (state.audioRecordings?.length || state.pendingAudioUpload) ? `<button type="button" class="text-button" data-action="discard-audio-draft">${t("discardAudio")}</button>` : ""}${canRetry ? `<button type="button" class="text-button retry-interview-turn" data-action="retry-interview-turn">${t("retryTurn")}</button>` : ""}<form id="chat-form" class="chat-composer" data-voice-mode="${state.voiceMode ? "on" : "off"}"><button type="button" class="voice-button" data-action="attach-media" aria-label="${t("attachMedia")}" title="${t("attachMedia")}" ${state.loading ? "disabled" : ""}>${composerIcon("plus")}</button><input id="chat-attachments" type="file" accept="${Object.keys(ATTACHMENT_TYPES).join(",")}" multiple hidden /><textarea id="chat-input" rows="1" placeholder="${t(state.voiceMode ? "voicePlaceholder" : "textPlaceholder")}" aria-label="${t("yourMessage")}"></textarea>${controls}<button type="submit" class="send-button" aria-label="${t("send")}" ${sendDisabled ? "disabled" : ""}>${composerIcon("send")}</button></form>${note}</div>`;
 }
 

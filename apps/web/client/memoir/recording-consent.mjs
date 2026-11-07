@@ -2,6 +2,7 @@ import {currentUiLocale, translate} from '../i18n.js';
 
 export function createRecordingConsent({storyApi, captureProjectScope, isCurrentProjectScope, openIdentity, onRevoke, toast}) {
   let pending;
+  let guestConsent;
   const t = key => translate(`RecordingConsent.${key}`);
 
   function review(status, scope) {
@@ -57,9 +58,18 @@ export function createRecordingConsent({storyApi, captureProjectScope, isCurrent
       const status = await storyApi('/v1/story/recording-consent');
       if (!isCurrentProjectScope(scope)) return false;
       if (!status.enabled && !manage) { toast(translate('Errors.recordingRetentionDisabled')); return false; }
-      if (!status.recoverable_identity && !(manage && status.consented)) { toast(t('identity')); openIdentity(); return false; }
-      if (status.consented && !manage) return true;
-      return await review(status, scope);
+      if (!status.recoverable_identity && !(manage && status.consented)) {
+        if (manage) { toast(t('identity')); openIdentity(); return false; }
+        if (!guestConsent || guestConsent.ownerId !== scope.ownerId) {
+          const choice = openIdentity({voice:true});
+          if (!choice) { toast(t('identity')); return false; }
+          if (!await choice || !isCurrentProjectScope(scope)) return false;
+          guestConsent = scope;
+        }
+        return 'temporary';
+      }
+      if (status.consented && !manage) return 'retained';
+      return await review(status, scope) ? 'retained' : false;
     } catch (error) { if (isCurrentProjectScope(scope)) toast(error.message); return false; }
   }
 
@@ -67,5 +77,6 @@ export function createRecordingConsent({storyApi, captureProjectScope, isCurrent
     if (!pending) pending = check(false).finally(() => { pending = null; });
     return pending;
   }
-  return {ensure, open:() => pending || (pending = check(true).finally(() => { pending = null; }))};
+  return {ensure, isPending:() => Boolean(pending),
+    open:() => pending || (pending = check(true).finally(() => { pending = null; }))};
 }
