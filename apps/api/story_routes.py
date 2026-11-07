@@ -140,6 +140,10 @@ class StoryPreviewCreate(BaseModel):
     retry: bool = False
 
 
+class DebugDraftCreate(StoryPreviewCreate):
+    recompose: bool = False
+
+
 class InMemoryStoryStorage:
     """Test-only stand-in for the external Supabase user-data boundary."""
 
@@ -542,7 +546,7 @@ def build_router(
             await asyncio.to_thread(_close, storage)
 
     @router.post('/private-draft/generate', status_code=202, include_in_schema=False)
-    async def generate_debug_draft(payload: StoryPreviewCreate, request: Request,
+    async def generate_debug_draft(payload: DebugDraftCreate, request: Request,
                                    authorization: str | None = Header(default=None)):
         from .formal_memoir_routes import _rpc_error
         from .local_debug import debug_early_generation, debug_generation_rpc
@@ -551,7 +555,7 @@ def build_router(
         storage = await asyncio.to_thread(storage_for, authorization)
         try:
             return await debug_generation_rpc('queue_debug_memoir_composer', storage.user_id,
-                p_project_id=payload.project_id, p_locale=payload.language)
+                p_project_id=payload.project_id, p_locale=payload.language, p_recompose=payload.recompose)
         except httpx.HTTPStatusError as error:
             raise _rpc_error(error) from None
         except httpx.RequestError:
@@ -628,11 +632,16 @@ def build_router(
             await asyncio.to_thread(_close, storage)
 
     @router.get('/events')
-    async def memory_events(project_id: str, cursor: UUID | None = None,
+    async def memory_events(project_id: str, request: Request, cursor: UUID | None = None,
                             limit: int = Query(default=8, ge=1, le=8),
                             authorization: str | None = Header(default=None)):
         storage = await asyncio.to_thread(storage_for, authorization)
         try:
+            from .local_debug import debug_early_generation
+            if debug_early_generation(request):
+                return await asyncio.to_thread(read_mapped, storage, project_id,
+                    lambda fence: collection_page(storage, project_id, kind='events', cursor=cursor, limit=limit),
+                    canonical_only)
             if not family_features_enabled(await asyncio.to_thread(storage.story_entitlement)):
                 raise HTTPException(403, 'Timeline display requires Family legacy access')
             return await asyncio.to_thread(read_mapped, storage, project_id,

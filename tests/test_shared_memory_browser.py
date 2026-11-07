@@ -120,8 +120,7 @@ def test_browser_polls_undelivered_checkpoint_until_saved_and_then_stops(sql, tm
         page.clock.pause_at(page.evaluate('Date.now()/1000')+1)
         if checkpoint == 10:
             expect(status).to_contain_text(copy['privateDraftSaved'].replace('{round}','5'))
-            status.locator('summary').click()
-            expect(status).to_contain_text('I started school around 1964.')
+            expect(status.locator('.memoir-chapter')).to_contain_text('I started school around 1964.')
         initial_coverage = 0 if checkpoint == 5 else 5
         assert reads[-1]['covered_round'] == initial_coverage and reads[-1]['updating']
         queued = [service_rpc(sql, 'queue_memoir_receipt', f"'{receipt}',5")
@@ -142,8 +141,7 @@ def test_browser_polls_undelivered_checkpoint_until_saved_and_then_stops(sql, tm
             expect(status.locator('[data-action="retry-private-draft"]')).to_be_visible()
             assert reads[-1]['updating'] is False and reads[-1]['error'] == 'MEMOIR_PROVIDER_UNAVAILABLE'
             if checkpoint == 10:
-                status.locator('summary').click()
-                expect(status).to_contain_text('I started school around 1964.')
+                expect(status.locator('.memoir-chapter')).to_contain_text('I started school around 1964.')
             read_count = len(reads)
             page.clock.run_for(45001)
             page.wait_for_timeout(100)

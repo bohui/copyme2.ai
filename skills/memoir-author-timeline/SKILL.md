@@ -62,12 +62,11 @@ continuations. Only legacy requests can include a separate place_journeys array.
 When only a country or broader setting is plausible, still choose a provisional
 real city within that setting, preferring the narrator's known places. Give this
 city a confidence strictly between 0 and 0.2, typically 0.05–0.15. Its name need
-not appear in the original: location_basis quotes the actual country/context
-clues, and uncertainty explains the assumed country/city and why that city was
-chosen. Keep it distinct from the narrator's stated facts. Mira will prioritize
+not appear in the original. Cite the actual country or context clues in
+location_basis. Keep this candidate separate from the narrator's stated facts. Mira will prioritize
 a neutral city clarification in Lane A. Retain the candidate even when confidence
 is very low; location=null and score=0 mean no plausible setting can be inferred
-from any available context. Explain every inference in uncertainty. Birth in Chengde followed by
+from any available context. Birth in Chengde followed by
 “小时候在爸爸学校家属院玩” supports a tentative Chengde candidate with low confidence,
 plus a broad childhood age/year estimate anchored to the original birth evidence.
 The workspace groups provisional candidates with a small question mark below
@@ -93,7 +92,7 @@ For “2012年7月开始在这里住”, the stated start is 2012 and the stated
 Any endpoint derived from created_at belongs only in temporal_estimate, even
 after one bound has been confirmed.
 For missing years or ages, return the best provisional temporal_estimate: bounded year and/or
-age ranges, confidence strictly between 0 and 1, a concise rationale, and exact
+age ranges, confidence strictly between 0 and 1, and exact
 basis references. Use contextual dates, elapsed durations and before/after links
 across the authorized originals. Anchor “now” and “fourteen years here” to the
 cited original's created_at year, recorded as reference_year, so replay keeps the
@@ -103,8 +102,7 @@ at its original capture year. For a point event, the range expresses uncertainty
 When a narrated sequence supplies a start age and durations, use them to revise
 the affected periods together, including an already saved current residence.
 Use stated anchors and durations first. Where a duration is missing, make a
-context-specific provisional assumption, explain it in rationale and lower
-confidence; there is no fixed study length or residence age band. Propagate the
+context-specific provisional assumption and lower confidence. Propagate the
 result through the connected periods so an earlier residence ends around the
 next move and the later residence starts around that same transition. Only an
 explicitly current residence runs to the original capture year. Preserve stated
@@ -113,7 +111,7 @@ canonical events as well as new proposals; city labels are only their projection
 Use the narrator's own birth evidence to convert years and ages; a relative's
 birth year is not that anchor. A supported life stage may justify a broad age
 range with low confidence (typically 0.2–0.5); calendar estimates need an original
-birth/date/duration anchor. Explain those assumptions in rationale. Derive both
+birth, date or duration anchor. Derive both
 year and age ranges when anchors permit. Set temporal_estimate=null only when
 the originals cannot support either estimate or stated timing already suffices.
 Uncertainty lowers confidence instead of deleting a supported estimate. For a

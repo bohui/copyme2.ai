@@ -33,6 +33,7 @@ def test_resolved_language_reaches_background_skills_and_map_cards(sql,tmp_path,
     monkeypatch.delenv('MEMORY_SPARK_HISTORICAL_NEWS',raising=False)
     phases=[]
     title='1983年4月出生在承德' if locale=='zh-CN' else 'Born in Chengde in April 1983'
+    description='故事讲述者于1983年4月在承德出生。' if locale=='zh-CN' else 'The storyteller was born in Chengde in April 1983.'
     class LocalizedConnection(ControlledSkillConnection):
         async def turn(self,thread_id,prompt,**options):
             task=json.loads(prompt)['task']
@@ -50,7 +51,7 @@ def test_resolved_language_reaches_background_skills_and_map_cards(sql,tmp_path,
         output=empty_document(body)
         if phase=='extract':
             packet=task['payload']
-            output['events']=[episode(packet,packet['sources'][0]['text'],title=title)]
+            output['events']=[{**episode(packet,packet['sources'][0]['text'],title=title), 'description':description}]
         return output
     install_document_provider(monkeypatch, respond)
     monkeypatch.setattr('apps.api.codex_worker_service.CodexConnection',LocalizedConnection)
@@ -75,8 +76,12 @@ def test_resolved_language_reaches_background_skills_and_map_cards(sql,tmp_path,
         response=conversation.client.get('/v1/story/atlas-events',params={'view':'map','project_id':conversation.project})
         assert response.status_code==200,response.text
         assert [event['title'] for event in response.json()['events']]==[title]
+        timeline=conversation.client.get('/v1/story/events',params={'project_id':conversation.project})
+        assert timeline.status_code==200,timeline.text
+        assert timeline.json()['events'][0]['description']==description
         replay=subprocess.run(['node',str(Path(__file__).parent/'js/helpers/replay-background-locale.mjs')],
-            input=json.dumps(dict(project_id=conversation.project,feed=response.json(),profile=profile,locale=locale,title=title)),
+            input=json.dumps(dict(project_id=conversation.project,feed=response.json(),timeline=timeline.json(),
+                profile=profile,locale=locale,title=title,description=description)),
             text=True,capture_output=True,timeout=10)
         assert replay.returncode==0,replay.stdout+replay.stderr
 

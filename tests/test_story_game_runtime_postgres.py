@@ -200,6 +200,18 @@ def test_local_debug_generates_a_private_draft_and_game_from_one_round(sql, tmp_
         draft = client.get('/v1/story/private-draft', params={'project_id': project}).json()
         assert draft['status'] == 'ready' and draft['coverage_round'] == 1 and draft['preview']['text']
         assert client.post(draft_url, json=draft_payload, headers=local).json() == {'status': 'ready'}
+        previous = draft
+        recompose = {**draft_payload, 'recompose': True}
+        admitted = len(conversation.admissions)
+        for _ in range(2):
+            assert client.post(draft_url, json=recompose, headers=local).json() == {'status': 'queued'}
+        pending = client.get('/v1/story/private-draft', params={'project_id': project}).json()
+        assert pending['updating'] and pending['snapshot_id'] == previous['snapshot_id']
+        asyncio.run(compose_game_chapters(conversation))
+        draft = client.get('/v1/story/private-draft', params={'project_id': project}).json()
+        assert draft['status'] == 'ready' and draft['snapshot_id'] != previous['snapshot_id']
+        assert draft['page_complete'] and draft['preview']['text']
+        assert [phase for phase, _ in conversation.admissions[admitted:]] == ['draft', 'review']
         assert sql('select count(*) from public.user_completed_round;').stdout.strip() == '1'
         assert sql('select count(*) from public.user_memoir_milestone;').stdout.strip() == '0'
 

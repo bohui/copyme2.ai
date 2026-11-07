@@ -204,6 +204,7 @@ CREATE TABLE public.user_lifetime_lane_snapshot (
     background_batch_id uuid,
     background_turn_id uuid,
     background_source_start bigint,
+    recompose boolean DEFAULT false NOT NULL,
     CONSTRAINT user_lifetime_lane_snapshot_state_check CHECK ((state = ANY (ARRAY['pending'::text, 'completed'::text, 'proposed'::text, 'stale'::text])))
 );
 
@@ -236,6 +237,7 @@ CREATE TABLE public.user_memoir_lane (
     error text,
     guidance_revision bigint DEFAULT 0 NOT NULL,
     locale text DEFAULT 'en-AU'::text NOT NULL,
+    recompose boolean DEFAULT false NOT NULL,
     CONSTRAINT user_memoir_lane_skill_check CHECK ((skill = ANY (ARRAY['timeline'::text, 'composer'::text, 'guidance'::text])))
 );
 
@@ -3058,10 +3060,12 @@ begin
     proposal_index:=proposal_index+1;
     if pg_catalog.jsonb_typeof(proposal) is distinct from 'object' or
        exists(select 1 from pg_catalog.jsonb_object_keys(proposal) k where k not in
-         ('id','existing_id','expected_revision','kind','title','life_stage','temporal','temporal_estimate','timing_hint','stage_evidence','source_refs','uncertainty','person_ids','visibility','include_in_print','attribution','candidate_ids','relations','correction',
+         ('id','existing_id','expected_revision','kind','title','description','life_stage','temporal','temporal_estimate','timing_hint','stage_evidence','source_refs','uncertainty','person_ids','visibility','include_in_print','attribution','candidate_ids','relations','correction',
           'location','location_basis','locationConfidenceScore','yearConfidenceScore')) or
        proposal->>'kind' not in ('event','period') or
        length(pg_catalog.btrim(coalesce(proposal->>'title',''))) not between 1 and 300 or
+       (proposal ? 'description' and (jsonb_typeof(proposal->'description') is distinct from 'string'
+         or length(proposal->>'description')>500 or length(btrim(proposal->>'description'))=0)) or
        pg_catalog.jsonb_typeof(proposal->'source_refs') is distinct from 'array' or
        pg_catalog.jsonb_array_length(proposal->'source_refs') not between 1 and 100 then
       raise exception 'invalid event proposal' using errcode='22023';
@@ -3095,8 +3099,7 @@ begin
         raise exception 'location confidence required' using errcode='22023';end if;
       contextual_city:=coalesce(proposal->'location'->>'granularity'='city'
         and (proposal->>'locationConfidenceScore')::numeric>0 and (proposal->>'locationConfidenceScore')::numeric<0.2
-        and jsonb_array_length(coalesce(proposal->'location_basis','[]'))>0
-        and jsonb_typeof(proposal->'uncertainty')='string' and length(btrim(proposal->>'uncertainty'))>0,false);
+        and jsonb_array_length(coalesce(proposal->'location_basis','[]'))>0,false);
       perform public.validate_two_lane_places((select string_agg(value->>'quote',E'\n')
         from jsonb_array_elements(coalesce(proposal->'location_basis','[]'))),
         jsonb_build_array(jsonb_build_object('schema_version',1)||(proposal->'location')),0,not contextual_city,true);
@@ -4265,7 +4268,8 @@ begin
    join public.user_narrator_source s on s.user_id=r.user_id and s.project_id=r.project_id and s.client_turn_id=r.turn_id
    where r.user_id=lane.user_id and r.project_id=lane.project_id and s.sequence<=frontier;
  -- An explicit debug request can queue composition before the first milestone.
- if lane.skill='composer' and (rounds<lane.target_milestone or exists(select 1 from public.user_narrator_source
+ if lane.skill='composer' and (rounds<lane.target_milestone or (lane.recompose and frontier<lane.target_source)
+   or exists(select 1 from public.user_narrator_source
    where user_id=lane.user_id and project_id=lane.project_id and status='active' and sequence<=frontier and processing_status<>'succeeded')) then return null;end if;
  if lane.skill='guidance' and (not exists(select 1 from public.lifetime_two_lane_rollout where singleton and enabled)
    or exists(select 1 from public.user_agent_turn_lease where user_id=lane.user_id and expires_at>clock_timestamp())
@@ -4273,26 +4277,26 @@ begin
      and status='active' and processing_status<>'succeeded')) then return null;end if;
  update public.user_lifetime_lane_snapshot set state='stale' where lane_id=lane.id and state='pending' and
    (policy_epoch<>project.policy_epoch or preference_revision<>identity.preference_revision or locale<>lane.locale
-    or (lane.skill='composer' and event_high_water<>project.event_sequence)
+    or (lane.skill='composer' and (event_high_water<>project.event_sequence or recompose<>lane.recompose))
     or (lane.skill='guidance' and (event_high_water<>project.event_sequence or source_high_water<>project.source_sequence or guidance_revision<>lane.guidance_revision)));
  select * into snap from public.user_lifetime_lane_snapshot where lane_id=lane.id and state='pending' order by created_at desc limit 1;
  if not found then
    select * into previous from public.user_lifetime_lane_snapshot where lane_id=lane.id and locale=lane.locale and state='completed' order by created_at desc limit 1;
    seed:=jsonb_build_object('owner',lane.user_id,'project',lane.project_id,'conversation',identity.conversation_id,
      'policy',project.policy_epoch,'preferences',identity.preference_revision,'privacy_digest',privacy_hash,'source',frontier,
-     'events',project.event_sequence,'predecessor',previous.id,'predecessor_digest',previous.root_digest)::text;
+     'events',project.event_sequence,'predecessor',previous.id,'predecessor_digest',previous.root_digest,'recompose',lane.recompose)::text;
    insert into public.user_lifetime_lane_snapshot(lane_id,user_id,project_id,conversation_id,policy_epoch,preference_revision,privacy_digest,locale,
-     source_high_water,event_high_water,round_high_water,milestone,base_revision,predecessor,base_event,last_event,root_digest,guidance_revision,guidance_news,working_context,background_batch_id,background_turn_id,background_source_start)
+     source_high_water,event_high_water,round_high_water,milestone,base_revision,predecessor,base_event,last_event,root_digest,guidance_revision,guidance_news,working_context,background_batch_id,background_turn_id,background_source_start,recompose)
    values(lane.id,lane.user_id,lane.project_id,identity.conversation_id,project.policy_epoch,identity.preference_revision,privacy_hash,lane.locale,
      frontier,project.event_sequence,rounds,lane.target_milestone,
      coalesce((select revision from public.user_memoir_edition where user_id=lane.user_id and project_id=lane.project_id and locale=lane.locale),0),
-     previous.id,case when previous.preference_revision=identity.preference_revision and previous.policy_epoch=project.policy_epoch and previous.locale=lane.locale then previous.event_high_water else 0 end,
-     case when previous.preference_revision=identity.preference_revision and previous.policy_epoch=project.policy_epoch and previous.locale=lane.locale then previous.event_high_water else 0 end,
+     previous.id,case when not lane.recompose and previous.preference_revision=identity.preference_revision and previous.policy_epoch=project.policy_epoch then previous.event_high_water else 0 end,
+     case when not lane.recompose and previous.preference_revision=identity.preference_revision and previous.policy_epoch=project.policy_epoch then previous.event_high_water else 0 end,
      encode(sha256(convert_to(seed,'UTF8')),'hex'),lane.guidance_revision,coalesce(news_manifest,'{}'),
      case when lane.skill='guidance' then '{}'::jsonb else jsonb_build_object('active_question',pins->'active_question',
        'known_continuity',pins->'known_continuity','known_continuity_complete',pins->'known_continuity_complete') end,
      (background->>'batch_id')::uuid,(background->>'batch_turn_id')::uuid,
-     (background->>'source_low_water')::bigint) returning * into snap;
+     (background->>'source_low_water')::bigint,lane.recompose) returning * into snap;
  end if;
  update public.user_memoir_lane set token=run_token,lease_until=least(clock_timestamp()+interval '60 seconds',clock_timestamp()+make_interval(secs=>p_run_seconds)),
    run_deadline=clock_timestamp()+make_interval(secs=>p_run_seconds),pending=false,active_manifest='[]',active_events='[]',
@@ -5128,7 +5132,8 @@ CREATE FUNCTION public.commit_lifetime_memoir_lane_page_before_summary_windows(p
     AS $$
 declare snap public.user_lifetime_lane_snapshot%rowtype; page jsonb;batch jsonb;item jsonb;ref jsonb;e jsonb;s jsonb;deps jsonb;
  result_hash text;new_root text;key text;source_deps jsonb;event_deps jsonb; prior public.user_lifetime_lane_page_receipt%rowtype;
- title text; preview jsonb; protected public.user_lifetime_memoir_section%rowtype;locked boolean;protected_safe boolean;
+ title text; preview jsonb; position text; ordinal bigint;
+ protected public.user_lifetime_memoir_section%rowtype;locked boolean;protected_safe boolean;
 begin
  snap:=public.lock_lifetime_memoir_lane(p_lane_id,p_token);
  page:=public.read_lifetime_memoir_lane_page(p_lane_id,p_token);batch:=page->'batch';
@@ -5150,7 +5155,7 @@ begin
    raise exception 'progressive model draft and review evidence required';end if;
   if (p_result->'validation'->>'ok')::boolean is distinct from true or not public.memoir_review_covers(page,p_result)
    or jsonb_typeof(p_result->'sections') is distinct from 'array' or jsonb_array_length(p_result->'sections') not between 1 and 256 then raise exception 'progressive review required';end if;
-  for item in select value from jsonb_array_elements(p_result->'sections') loop
+  for item,ordinal in select value,ordinality from jsonb_array_elements(p_result->'sections') with ordinality loop
    if not item ? 'block' then continue;end if;
    if jsonb_array_length(item->'source_refs')=0 or jsonb_array_length(item->'event_ids')=0 then raise exception 'progressive original evidence required';end if;
    for ref in select value from jsonb_array_elements(item->'source_refs') loop
@@ -5188,14 +5193,16 @@ begin
    end if;
    title:=coalesce(item->'heading'->>'title',(select value->'heading'->>'title' from jsonb_array_elements(p_result->'sections') where value->>'chapter_id'=item->>'chapter_id' and value ? 'heading' limit 1),'Memories');
    preview:=jsonb_build_object('id',item->>'id','title',title,'text',coalesce(item->'block'->>'text',''),'locale',snap.locale);
+   position:=coalesce(case when page->'editorial_request'<>'null'::jsonb then protected.bundle->>'reading_position' end,
+     '1:'||to_char(snap.created_at at time zone 'UTC','YYYYMMDDHH24MISSUS')||':'||lpad(snap.page_number::text,20,'0')||':'||lpad(ordinal::text,3,'0'));
    insert into public.user_lifetime_memoir_section(user_id,project_id,locale,partition_key,event_id,event_revision,source_id,source_version,char_start,char_end,evidence_hash,snapshot_id,
      bundle,approved,human_locked,proposal,source_dependencies,event_dependencies,composition_config)
    values(snap.user_id,snap.project_id,snap.locale,key,e->>'id',(e->>'revision')::bigint,(ref->>'source_id')::uuid,(ref->>'version')::bigint,
      (ref->>'char_start')::integer,(ref->>'char_end')::integer,encode(sha256(convert_to((item->'source_refs')::text,'UTF8')),'hex'),snap.id,
-     case when locked then case when protected_safe then protected.bundle else '{}'::jsonb end else jsonb_build_object('kind',p_result->'manuscript'->>'kind','preview',preview,'source_refs',item->'source_refs',
+     case when locked then case when protected_safe then protected.bundle else '{}'::jsonb end else jsonb_build_object('kind',p_result->'manuscript'->>'kind','preview',preview,'reading_position',position,'source_refs',item->'source_refs',
        'photo_association_manifest',coalesce(p_result->'photo_association_manifest','{}'::jsonb),
        'sections',jsonb_build_array(item)||(select coalesce(jsonb_agg(value),'[]') from jsonb_array_elements(p_result->'sections') where value ? 'heading' and value->>'chapter_id'=item->>'chapter_id')) end,
-     coalesce(protected.approved,false),locked,case when locked then jsonb_build_object('kind',p_result->'manuscript'->>'kind','preview',preview,'source_refs',item->'source_refs','sections',jsonb_build_array(item)) else null end,
+     coalesce(protected.approved,false),locked,case when locked then jsonb_build_object('kind',p_result->'manuscript'->>'kind','preview',preview,'reading_position',position,'source_refs',item->'source_refs','sections',jsonb_build_array(item)) else null end,
      source_deps,event_deps,p_result->>'content_config')
    on conflict(user_id,project_id,locale,partition_key,snapshot_id) do nothing;
   end loop;
@@ -5879,6 +5886,7 @@ begin
  update public.user_memoir_lane set token=null,lease_until=null,run_deadline=null,successful_source=snap.source_high_water,
    successful_event=case when skill='composer' then snap.event_high_water else successful_event end,successful_round=snap.round_high_water,
    pending=pending or target_source>snap.source_high_water or (skill='composer' and target_event>snap.event_high_water),attempts=0,error=null,
+   recompose=recompose and (not snap.recompose or locale<>snap.locale),
    active_manifest='[]',active_events='[]' where id=lane.id;
  return jsonb_build_object('status',case when locked then 'proposed' else 'saved' end,'snapshot_id',snap.id,
    'root_digest',snap.root_digest,'retrieval_complete',true,'pages',snap.page_number,'publication_approved',false);
@@ -8963,7 +8971,8 @@ begin
             (excluded.target_event>public.user_memoir_lane.successful_event or excluded.target_source>public.user_memoir_lane.successful_source)),
         attempts=case when excluded.target_milestone>public.user_memoir_lane.target_milestone or excluded.target_event>public.user_memoir_lane.target_event then 0 else public.user_memoir_lane.attempts end,
         error=case when excluded.target_milestone>public.user_memoir_lane.target_milestone or excluded.target_event>public.user_memoir_lane.target_event then null else public.user_memoir_lane.error end,
-        target_source=excluded.target_source,target_event=excluded.target_event,target_milestone=excluded.target_milestone,locale=excluded.locale
+        target_source=excluded.target_source,target_event=excluded.target_event,target_milestone=excluded.target_milestone,
+        locale=case when public.user_memoir_lane.recompose then public.user_memoir_lane.locale else excluded.locale end
       returning id into composer_id;
   end if;
   update public.user_private_draft_outbox set delivered=true where id=p_receipt_id;
@@ -9248,25 +9257,28 @@ begin
          then event_record.data->'relations' else '[]'::jsonb end)
        where value->>'kind' in ('before','after') and jsonb_typeof(value->'event_id')='string') edges;
      primary_refs:=null;
-     if event_record.kind='period' and event_record.data->'temporal'->>'year_start' is null then
-       -- Date dependencies must not hide the period's one complete primary assertion.
-       select coalesce(jsonb_agg(item order by key),'[]') into primary_refs from (
-         select s.source_id::text||':'||s.source_version::text||':'||s.evidence_hash key,s.evidence item
+     if event_record.data->>'description' is null
+       or (event_record.kind='period' and event_record.data->'temporal'->>'year_start' is null) then
+       -- Use primary testimony for excerpts and present-tense residence checks.
+       select coalesce(jsonb_agg(item order by sequence desc,key),'[]') into primary_refs from (
+         select s.evidence_hash key,s.evidence item,n.sequence
          from public.user_memory_event_source s join public.user_narrator_source n
            on n.user_id=s.user_id and n.project_id=s.project_id and n.id=s.source_id
            and n.version=s.source_version and n.status='active'
          where s.user_id=owner and s.project_id=p_project_id and s.event_id=event_record.id
            and s.stage_progress_role in ('primary','legacy_primary')
-         order by key limit 2) selected;
+         order by n.sequence desc,key limit 2) selected;
      end if;
      records:=records||jsonb_build_array(jsonb_build_object('id',event_record.id,'revision',event_record.revision,
        'kind',event_record.kind,'life_stage',event_record.life_stage,'status',event_record.status,
        'change_sequence',event_record.change_sequence,'title',event_record.data->'title',
+       'description',event_record.data->'description',
+       'original_excerpt',case when event_record.data->>'description' is null then left(primary_refs->0->>'quote',500) end,
        'temporal',jsonb_build_object('expression',event_record.data->'temporal'->'expression',
          'precision',event_record.data->'temporal'->'precision','year_start',event_record.data->'temporal'->'year_start',
          'year_end',event_record.data->'temporal'->'year_end'),
        'temporal_estimate',case when jsonb_typeof(event_record.data->'temporal_estimate')='object'
-         then (event_record.data->'temporal_estimate')-'basis' end,
+         then (event_record.data->'temporal_estimate')-array['basis','rationale'] end,
        'timing_hint',(event_record.data->'timing_hint')-'basis',
        'uncertainty',event_record.data->'uncertainty','assertion',event_record.data->'assertion',
        'location',event_record.data->'location',
@@ -9984,8 +9996,11 @@ begin
  -- Only affected, independently supported prior passages enter the model.
  for prior in select distinct on (section.partition_key) section.* from public.user_lifetime_memoir_section section
   join public.user_lifetime_lane_snapshot root on root.id=section.snapshot_id
-  where section.user_id=snap.user_id and section.project_id=snap.project_id and section.locale=snap.locale and not section.retired
+  where (not snap.recompose or root.id=snap.id) and section.user_id=snap.user_id and section.project_id=snap.project_id and section.locale=snap.locale and not section.retired
    and (root.state='completed' or root.id=snap.id) and root.policy_epoch=snap.policy_epoch and root.privacy_digest=snap.privacy_digest
+   and not exists(select 1 from public.user_lifetime_lane_snapshot rebuilt where rebuilt.lane_id=snap.lane_id
+     and rebuilt.locale=snap.locale and rebuilt.state='completed' and rebuilt.recompose
+     and rebuilt.created_at>root.created_at and rebuilt.created_at<=snap.created_at)
    and root.created_at<=snap.created_at and (section.event_id in (select value->>'id' from jsonb_array_elements(events))
      or exists(select 1 from jsonb_array_elements(section.event_dependencies) dependency,jsonb_array_elements(events) changed where dependency->>'id'=changed->>'id'))
   order by section.partition_key,root.created_at desc limit 8 loop
@@ -10165,7 +10180,7 @@ begin
    'source_high_water',snap.source_high_water,'event_high_water',snap.event_high_water,'page_number',snap.page_number,
    'root_digest',snap.root_digest,'coverage_round',snap.round_high_water,'base_revision',snap.base_revision,
    'preferences',preferences,'previous',null,'reuse',false,'complete',false);
- if lane.skill='composer' and snap.milestone=0 then
+ if lane.skill='composer' and (snap.milestone=0 or snap.recompose) then
    payload:=payload||'{"debug_early_generation":true}'::jsonb;end if;
  if lane.skill='timeline' then
    select * into source from public.user_narrator_source where user_id=snap.user_id and project_id=snap.project_id
@@ -10603,12 +10618,13 @@ begin
    'error',case when root.id is null then coalesce(lane.error,'LIFETIME_COMPOSITION_PENDING') else null end);
 end $$;
 
-CREATE FUNCTION public.read_lifetime_private_draft_page(p_project_id text, p_snapshot_id uuid, p_after text DEFAULT NULL::text, p_limit integer DEFAULT 8) RETURNS jsonb
+CREATE FUNCTION public.read_lifetime_private_draft_page(p_project_id text, p_snapshot_id uuid, p_after text DEFAULT NULL::text, p_limit integer DEFAULT 8, p_partition_id text DEFAULT NULL::text) RETURNS jsonb
     LANGUAGE plpgsql SECURITY DEFINER
     SET search_path TO 'public', 'auth'
     AS $$
 declare owner uuid:=auth.uid(); identity public.user_lifetime_conversation%rowtype; project public.user_memoir_project%rowtype;
  root public.user_lifetime_lane_snapshot%rowtype; records jsonb; has_more boolean; next_key text; after_key text:=''; next_cursor uuid;
+ rebuilt_at timestamptz;
 begin
  if owner is null or p_limit is null or p_limit not between 1 and 8 or length(coalesce(p_after,''))>512 then raise exception 'invalid memoir page';end if;
  select * into identity from public.user_lifetime_conversation where user_id=owner and project_id=p_project_id;
@@ -10620,13 +10636,15 @@ begin
    where s.id=p_snapshot_id and s.user_id=owner and s.project_id=p_project_id and s.conversation_id=identity.conversation_id
      and s.state in ('completed','proposed') and l.skill='composer' and s.policy_epoch=project.policy_epoch and s.preference_revision=identity.preference_revision;
  if not found then raise exception 'stale memoir root' using errcode='PT409';end if;
+ select max(created_at) into rebuilt_at from public.user_lifetime_lane_snapshot
+   where lane_id=root.lane_id and locale=root.locale and recompose and state='completed' and created_at<=root.created_at;
  if p_after is not null then
    select last_partition into after_key from public.user_lifetime_memoir_cursor where id=p_after::uuid
      and snapshot_id=root.id and user_id=owner and project_id=p_project_id and root_digest=root.root_digest;
    if not found then raise exception 'memoir page cursor scope mismatch';end if;
  end if;
- select coalesce(jsonb_agg(item order by partition_key),'[]') into records from (
-   select s.partition_key,jsonb_build_object('id',s.partition_key,'event_id',s.event_id,'event_revision',s.event_revision,
+ select coalesce(jsonb_agg(item order by reading_key),'[]'),(array_agg(reading_key order by reading_key))[p_limit] into records,next_key from (
+   select reading.key reading_key,jsonb_build_object('id',s.partition_key,'event_id',s.event_id,'event_revision',s.event_revision,
      'source_refs',coalesce(s.bundle->'source_refs',jsonb_build_array(jsonb_build_object('source_id',s.source_id,'version',s.source_version,'char_start',s.char_start,'char_end',s.char_end))),
      'preview',case when root.state='proposed' and s.snapshot_id=root.id and s.proposal is null and not(s.approved or s.human_locked) then null
        when validity.all_current or s.approved or s.human_locked then s.bundle->'preview'
@@ -10638,6 +10656,8 @@ begin
    from public.user_lifetime_memoir_section s join public.user_lifetime_lane_snapshot ss on ss.id=s.snapshot_id
      join public.user_memory_event e on e.user_id=s.user_id and e.project_id=s.project_id and e.id=s.event_id and e.revision=s.event_revision and e.status='active'
      join public.user_narrator_source n on n.user_id=s.user_id and n.project_id=s.project_id and n.id=s.source_id and n.version=s.source_version and n.status='active'
+   cross join lateral (select coalesce(s.bundle->>'reading_position',s.proposal->>'reading_position',
+     '0:'||lpad(n.sequence::text,20,'0')||':'||lpad(s.char_start::text,6,'0'))||':'||s.partition_key key) reading
    cross join lateral (select
      not exists(select 1 from jsonb_array_elements(s.event_dependencies) dependency where not exists(
        select 1 from public.user_memory_event original where original.user_id=s.user_id and original.project_id=s.project_id
@@ -10649,7 +10669,9 @@ begin
            on original.user_id=s.user_id and original.project_id=s.project_id and original.id=dependency->>'id'
              and original.revision::text=dependency->>'revision' and original.status='active'
          where dependency->>'id'=id))) body_current) validity
-   where s.user_id=owner and s.project_id=p_project_id and s.locale=root.locale and s.partition_key>after_key and not s.retired
+   where s.user_id=owner and s.project_id=p_project_id and s.locale=root.locale and reading.key>after_key and not s.retired
+     and (p_partition_id is null or s.partition_key=p_partition_id)
+     and (rebuilt_at is null or ss.created_at>=rebuilt_at or s.approved or s.human_locked)
      and not exists(select 1 from jsonb_array_elements(s.source_dependencies) dependency where not exists(
        select 1 from public.user_narrator_source original where original.user_id=s.user_id and original.project_id=s.project_id
         and original.id::text=dependency->>'id' and original.version::text=dependency->>'version' and original.status='active'))
@@ -10659,10 +10681,10 @@ begin
      and not exists(select 1 from public.user_lifetime_memoir_section newer join public.user_lifetime_lane_snapshot ns on ns.id=newer.snapshot_id
        where newer.user_id=s.user_id and newer.project_id=s.project_id and newer.locale=s.locale and newer.partition_key=s.partition_key
          and (ns.state='completed' or ns.id=root.id and ns.state='proposed') and ns.created_at>ss.created_at and ns.created_at<=root.created_at)
-   order by s.partition_key limit p_limit+1) selected;
+   order by reading.key limit p_limit+1) selected;
  has_more:=jsonb_array_length(records)>p_limit;
  if has_more then
-   records:=records-p_limit;next_key:=records->-1->>'id';
+   records:=records-p_limit;
    insert into public.user_lifetime_memoir_cursor(snapshot_id,user_id,project_id,last_partition,root_digest) values(root.id,owner,p_project_id,next_key,root.root_digest)
      on conflict(snapshot_id,last_partition,root_digest) do update set last_partition=excluded.last_partition returning id into next_cursor;
  end if;
@@ -11563,17 +11585,11 @@ CREATE FUNCTION public.read_workspace_draft_section(p_project_id text, p_snapsho
     LANGUAGE plpgsql SECURITY DEFINER
     SET search_path TO 'public', 'auth'
     AS $$
-declare root public.user_lifetime_lane_snapshot%rowtype; after_key text; cursor_id uuid; page jsonb;
+declare page jsonb;
 begin
- select * into root from public.user_lifetime_lane_snapshot where id=p_snapshot_id and user_id=auth.uid() and project_id=p_project_id;
- if not found or p_partition_id is null or length(p_partition_id)>512 then raise exception 'section unavailable' using errcode='42501';end if;
- select coalesce(max(partition_key),'') into after_key from public.user_lifetime_memoir_section where user_id=auth.uid()
-   and project_id=p_project_id and locale=root.locale and partition_key<p_partition_id;
- insert into public.user_lifetime_memoir_cursor(snapshot_id,user_id,project_id,last_partition,root_digest)
-   values(root.id,auth.uid(),p_project_id,after_key,root.root_digest)
-   on conflict(snapshot_id,last_partition,root_digest) do update set last_partition=excluded.last_partition returning id into cursor_id;
+ if p_partition_id is null or length(p_partition_id)>512 then raise exception 'section unavailable' using errcode='42501';end if;
  -- Reuse the canonical page reader's ownership, policy, evidence and root fences.
- page:=public.read_lifetime_private_draft_page(p_project_id,p_snapshot_id,cursor_id::text,1);
+ page:=public.read_lifetime_private_draft_page(p_project_id,p_snapshot_id,null,1,p_partition_id);
  if page->'records'->0->>'id' is distinct from p_partition_id then raise exception 'section changed' using errcode='PT409';end if;
  return page->'records'->0;
 end $$;
@@ -12106,7 +12122,7 @@ begin
    and newer.locale=root.locale and newer.state in ('completed','proposed') and newer.created_at>root.created_at) then
    raise exception 'section root changed' using errcode='PT409';end if;
  select * into lane from public.user_memoir_lane where id=root.lane_id and skill='composer' for update;
- if not found or (lane.token is not null and lane.lease_until>clock_timestamp() and lane.run_deadline>clock_timestamp()) then
+ if not found or lane.recompose or (lane.token is not null and lane.lease_until>clock_timestamp() and lane.run_deadline>clock_timestamp()) then
    raise exception 'section is already changing' using errcode='PT409';end if;
  select s.* into section from public.user_lifetime_memoir_section s join public.user_lifetime_lane_snapshot r on r.id=s.snapshot_id
    where s.user_id=owner and s.project_id=p_project_id and s.locale=root.locale and s.partition_key=p_partition_id
@@ -12245,9 +12261,9 @@ begin
   return pg_catalog.jsonb_build_object('queued',queued);
 end $$;
 
-CREATE FUNCTION public.queue_debug_memoir_composer(p_owner uuid,p_project_id text,p_locale text) RETURNS jsonb
+CREATE FUNCTION public.queue_debug_memoir_composer(p_owner uuid,p_project_id text,p_locale text,p_recompose boolean DEFAULT false) RETURNS jsonb
     LANGUAGE plpgsql SECURITY DEFINER SET search_path TO '' AS $$
-declare project public.user_memoir_project%rowtype; head jsonb; previous_owner text; outcome text:='queued';
+declare project public.user_memoir_project%rowtype; head jsonb; previous_owner text; outcome text:='queued'; rewrite boolean;
 begin
  select p.* into project from public.user_memoir_project p join public.user_lifetime_conversation c
    on c.user_id=p.user_id and c.project_id=p.project_id
@@ -12260,24 +12276,29 @@ begin
  previous_owner:=current_setting('request.jwt.claim.sub',true);
  perform set_config('request.jwt.claim.sub',p_owner::text,true);
  head:=public.read_lifetime_private_draft_head(p_project_id,p_locale);
- if head->>'snapshot_id' is not null and head->'source_revision'=head->'current_source_revision'
+ rewrite:=p_recompose is true and head->>'snapshot_id' is not null
+   and not exists(select 1 from public.user_memoir_edition where user_id=p_owner and project_id=p_project_id
+     and locale=head->>'locale' and human_locked)
+   and not exists(select 1 from public.user_lifetime_memoir_section where user_id=p_owner and project_id=p_project_id
+     and locale=head->>'locale' and (approved or human_locked) and not retired);
+ if not rewrite and head->>'snapshot_id' is not null and head->'source_revision'=head->'current_source_revision'
    and head->'event_revision'=head->'current_event_revision' then
    outcome:=head->>'status';
  else
-   insert into public.user_memoir_lane as lane(user_id,project_id,skill,target_source,target_event,locale)
-     values(p_owner,p_project_id,'composer',project.source_sequence,project.event_sequence,head->>'locale')
-   on conflict(user_id,project_id,skill) do update set pending=true,
+   insert into public.user_memoir_lane as lane(user_id,project_id,skill,target_source,target_event,locale,recompose)
+     values(p_owner,p_project_id,'composer',project.source_sequence,project.event_sequence,head->>'locale',rewrite)
+   on conflict(user_id,project_id,skill) do update set pending=true,recompose=lane.recompose or excluded.recompose,
      target_source=excluded.target_source,target_event=excluded.target_event,locale=excluded.locale
    where (lane.target_source,lane.target_event,lane.locale) is distinct from
      (excluded.target_source,excluded.target_event,excluded.locale)
-     or lane.attempts>=3 or (not lane.pending and lane.token is null);
+     or (excluded.recompose and not lane.recompose) or lane.attempts>=3 or (not lane.pending and lane.token is null);
    if found then perform public.retry_user_memoir_lane(p_project_id,'composer');end if;
  end if;
  perform set_config('request.jwt.claim.sub',coalesce(previous_owner,''),true);
  return jsonb_build_object('status',outcome);
 end $$;
-revoke all on function public.queue_debug_memoir_composer(uuid,text,text) from public,anon,authenticated,service_role;
-grant execute on function public.queue_debug_memoir_composer(uuid,text,text) to service_role;
+revoke all on function public.queue_debug_memoir_composer(uuid,text,text,boolean) from public,anon,authenticated,service_role;
+grant execute on function public.queue_debug_memoir_composer(uuid,text,text,boolean) to service_role;
 
 CREATE FUNCTION public.revalidate_user_historical_news(p_project_id text, p_hypothesis jsonb, p_snapshot jsonb) RETURNS jsonb
     LANGUAGE plpgsql SECURITY DEFINER
@@ -13660,7 +13681,8 @@ begin
      ('year_start','year_end','age_start','age_end','confidence','reference_year','rationale','basis')) or
    jsonb_typeof(p_estimate->'confidence') is distinct from 'number' or
    (p_estimate->>'confidence')::numeric<=0 or (p_estimate->>'confidence')::numeric>=1 or
-   jsonb_typeof(p_estimate->'rationale') is distinct from 'string' or length(btrim(p_estimate->>'rationale')) not between 1 and 1000 or
+   (p_estimate ? 'rationale' and (jsonb_typeof(p_estimate->'rationale') is distinct from 'string'
+     or length(btrim(p_estimate->>'rationale')) not between 1 and 1000)) or
    jsonb_typeof(p_estimate->'basis') is distinct from 'array' or jsonb_array_length(p_estimate->'basis') not between 1 and 20 then
    raise exception 'bounded cited timing estimate required' using errcode='22023';end if;
  foreach field in array array['year_start','year_end','age_start','age_end','reference_year'] loop
@@ -14796,7 +14818,7 @@ revoke all on function public.read_lifetime_private_draft_head(text) from public
 revoke all on function public.read_lifetime_private_draft_head(text, text) from public,anon,authenticated,service_role;
 revoke all on function public.read_lifetime_private_draft_head_before_extraction_progress(text, text) from public,anon,authenticated,service_role;
 revoke all on function public.read_lifetime_private_draft_head_before_progress(text, text) from public,anon,authenticated,service_role;
-revoke all on function public.read_lifetime_private_draft_page(text, uuid, text, integer) from public,anon,authenticated,service_role;
+revoke all on function public.read_lifetime_private_draft_page(text, uuid, text, integer, text) from public,anon,authenticated,service_role;
 revoke all on function public.read_lifetime_profile_automation() from public,anon,authenticated,service_role;
 revoke all on function public.read_lifetime_profile_page(uuid, uuid) from public,anon,authenticated,service_role;
 revoke all on function public.read_lifetime_project_identity(text) from public,anon,authenticated,service_role;
@@ -15117,8 +15139,8 @@ grant EXECUTE on function public.read_lifetime_private_draft_head(text) to authe
 grant EXECUTE on function public.read_lifetime_private_draft_head(text) to service_role;
 grant EXECUTE on function public.read_lifetime_private_draft_head(text, text) to authenticated;
 grant EXECUTE on function public.read_lifetime_private_draft_head(text, text) to service_role;
-grant EXECUTE on function public.read_lifetime_private_draft_page(text, uuid, text, integer) to authenticated;
-grant EXECUTE on function public.read_lifetime_private_draft_page(text, uuid, text, integer) to service_role;
+grant EXECUTE on function public.read_lifetime_private_draft_page(text, uuid, text, integer, text) to authenticated;
+grant EXECUTE on function public.read_lifetime_private_draft_page(text, uuid, text, integer, text) to service_role;
 grant EXECUTE on function public.read_lifetime_profile_automation() to authenticated;
 grant EXECUTE on function public.read_lifetime_profile_automation() to service_role;
 grant EXECUTE on function public.read_lifetime_profile_page(uuid, uuid) to service_role;
@@ -16860,7 +16882,8 @@ LANGUAGE sql STABLE SET search_path TO '' AS $$
    and (l.pending or l.token is not null and (l.lease_until<=clock_timestamp() or l.run_deadline<=clock_timestamp()))
    and l.available_at<=clock_timestamp() and (l.token is null or l.lease_until<=clock_timestamp() or l.run_deadline<=clock_timestamp())
    and (l.skill='timeline' and (l.successful_source<p_agent.source_high_water or l.target_source<=p_agent.source_high_water)
-     or l.skill='composer' and l.target_milestone<=p_agent.round_high_water)
+     or l.skill='composer' and l.target_milestone<=p_agent.round_high_water
+       and (not l.recompose or l.target_source<=p_agent.source_high_water))
 $$;
 REVOKE ALL ON FUNCTION public.memoir_background_lanes(public.user_memoir_background_agent) FROM PUBLIC,anon,authenticated,service_role;
 
@@ -17136,7 +17159,8 @@ begin
      and s.sequence<=a.source_high_water) and not exists(select 1 from public.user_memoir_lane l
    where l.user_id=a.user_id and l.project_id=a.project_id and l.skill in ('timeline','composer') and (l.pending or l.token is not null)
      and (l.skill='timeline' and (l.successful_source<a.source_high_water or l.target_source<=a.source_high_water)
-       or l.skill='composer' and l.target_milestone<=a.round_high_water));
+       or l.skill='composer' and l.target_milestone<=a.round_high_water
+         and (not l.recompose or l.target_source<=a.source_high_water)));
  remaining:=not batch_complete or a.pending or a.target_source>a.source_high_water or
    exists(select 1 from public.user_memoir_lane l where l.user_id=a.user_id and l.project_id=a.project_id
      and l.skill in ('timeline','composer') and (l.pending or l.token is not null));

@@ -1,4 +1,4 @@
-import { $, escapeHtml, formatText } from "./dom.mjs";
+import { $, escapeHtml, formatText, memoirParagraphs } from "./dom.mjs";
 import { currentUiLocale, translate, translateWith } from "../i18n.js";
 
 export function createPrivateDraft({
@@ -23,14 +23,14 @@ export function createPrivateDraft({
     $("#section-rework-instruction")?.focus();
   }
 
-  function sectionReworkMarkup(record, saved) {
+  function sectionReworkMarkup(record, saved, number) {
     if (!saved.snapshot_id || !record.id || !state.supabase?.accessToken) return "";
     const t = key => escapeHtml(translate(`Memoir.workspace.${key}`));
     const rework = currentSectionRework();
     if (rework?.partitionId === record.id && !rework.queued) {
       return `<form id="section-rework-form" class="section-rework-form"><label for="section-rework-instruction">${t("reworkInstruction")}</label><textarea id="section-rework-instruction" required maxlength="1000" rows="3" ${rework.busy || rework.payload ? "disabled" : ""} placeholder="${t("reworkPlaceholder")}">${escapeHtml(rework.instruction)}</textarea><div class="workspace-task-actions"><button type="submit" class="button button-secondary button-small" ${rework.busy ? "disabled" : ""}>${t(rework.busy ? "reworkSending" : rework.error ? "retrySectionRework" : "requestSectionRework")}</button><button type="button" class="text-button" data-cancel-section-rework ${rework.busy ? "disabled" : ""}>${t("cancelSectionRework")}</button></div></form>`;
     }
-    return `<button type="button" class="text-button" data-rework-section="${escapeHtml(record.id)}" ${saved.updating || saved.deciding || record.proposed_preview || rework?.queued && !rework.ready ? "disabled" : ""}>${t("reworkThisSection")}</button>`;
+    return `<button type="button" class="text-button" data-rework-section="${escapeHtml(record.id)}" ${saved.updating || saved.deciding || record.proposed_preview || rework?.queued && !rework.ready ? "disabled" : ""}>${escapeHtml(translateWith("Memoir.workspace.reworkPassage", {number}))}</button>`;
   }
 
   function sectionReworkNotice() {
@@ -90,7 +90,12 @@ export function createPrivateDraft({
     if (!isCurrentProjectScope(scope) || requestId !== state.privateDraftRequest) return;
     const previous = state.privateDraft;
     const sameRoot = result.snapshot_id && previous?.snapshot_id === result.snapshot_id && previous.root_digest === result.root_digest;
-    state.privateDraft={...result, pages: sameRoot ? previous.pages || [] : []};
+    const changed = !sameRoot || previous.updating !== result.updating || previous.status !== result.status || previous.error !== result.error;
+    if (sameRoot) {
+      Object.assign(previous, result, {next_cursor:previous.next_cursor, page_complete:previous.page_complete});
+    } else {
+      state.privateDraft = {...result, pages:[]};
+    }
     updateBackgroundComposerProgress(result);
     const rework = currentSectionRework();
     if (rework && result.snapshot_id) {
@@ -102,11 +107,15 @@ export function createPrivateDraft({
         if (section.proposed_preview) rework.ready = true;
       } catch (_) { /* A stale selected section does not hide the remaining draft. */ }
     }
-    if (!state.loading && (!sameRoot || previous?.updating !== result.updating || previous?.status !== result.status || previous?.error !== result.error)) {
+    if (!state.loading && changed) {
       // A stream update can arrive before the browser dispatches the details toggle event.
-      const details = globalThis.document?.querySelector?.(".saved-draft-sections");
-      if (details) state.privateDraftExpanded = details.open;
+      const details = globalThis.document?.querySelector?.(".draft-edit-controls");
+      if (details) state.privateDraftEditing = details.open;
       render();
+    }
+    const saved = state.privateDraft;
+    if (state.workspaceTab === "memoir" && saved.next_cursor && !saved.updating && !saved.pages?.length && !saved.page_error) {
+      void loadMorePrivateDraft();
     }
   }
 
@@ -220,7 +229,7 @@ export function createPrivateDraft({
     if (!state.debugEarlyGeneration || !scope.projectId || !state.supabase?.accessToken) return;
     const language = forGame ? null : state.privateDraftLocale || profile().preferred_language || currentUiLocale();
     const submit = () => storyApi("/v1/story/private-draft/generate", {method:"POST", signal,
-      body:JSON.stringify({project_id:scope.projectId, language})});
+      body:JSON.stringify({project_id:scope.projectId, language, ...(!forGame ? {recompose:true} : {})})});
     if (forGame) return (await submit()).status;
     if (generation?.busy && isCurrentProjectScope(generation)) return;
     const attempt = generation = {...scope, busy:true, status:null};
@@ -333,9 +342,21 @@ export function createPrivateDraft({
         !saved.updating) return "";
     const t=(key,values={})=>escapeHtml(translateWith(`Memoir.workspace.${key}`,values));
     const preview=saved.preview;
-    const status=[preview ? t('privateDraftSaved',{round:saved.covered_round ?? saved.coverage_round ?? saved.milestone}) : "", saved.updating ? t('privateDraftUpdating') : saved.error ? t('privateDraftBlocked') : ""].filter(Boolean).join(" ");
+    const status = saved.updating ? t('privateDraftUpdating') : saved.error ? t('privateDraftBlocked') : "";
     const records = [...new Map([saved.first_record, ...(saved.pages || []), saved.selected_record].filter(Boolean).map(record => [record.id, record])).values()];
-    const sections = records.length ? records.filter(record => record.preview).map(record => `<article class="private-draft-section" data-draft-section="${escapeHtml(record.id)}"><h3>${escapeHtml(record.preview.title)}</h3>${formatText(record.preview.text)}${sectionReworkMarkup(record, saved)}</article>`).join("") : preview ? `<h3>${escapeHtml(preview.title)}</h3>${formatText(preview.text)}` : "";
+    const passages = [...(!saved.first_record && preview ? [{preview}] : []), ...records]
+      .filter(record => record.preview?.text?.trim() && record.preview.text.trim() !== record.preview.title?.trim());
+    const chapters = new Map();
+    for (const record of passages) {
+      const title = record.preview.title?.trim() || t("chapter");
+      const paragraphs = `<div class="private-draft-section">${memoirParagraphs(record.preview.text)}</div>`;
+      chapters.set(title, (chapters.get(title) || "") + paragraphs);
+    }
+    const sections = [...chapters].map(([title, paragraphs]) =>
+      `<article class="memoir-chapter"><h2>${escapeHtml(title)}</h2>${paragraphs}</article>`).join("");
+    const reworkActions = passages.map((record, index) => sectionReworkMarkup(record, saved, index + 1))
+      .filter(Boolean).map(action => `<li>${action}</li>`).join("");
+    const editing = reworkActions ? `<details class="draft-edit-controls" ${state.privateDraftEditing || currentSectionRework() ? "open" : ""}><summary>${t('editDraftPassages')}</summary><ol>${reworkActions}</ol></details>` : "";
     const proposalRecords = records.length ? records.filter(section => section.proposed_preview)
       : saved.proposed_preview ? [{proposed_preview:saved.proposed_preview}] : [];
     const proposalMarkup = proposalRecords.length ? `<details><summary>${t('draftProposalReview')}</summary>${proposalRecords.map(section => `<h3>${escapeHtml(section.proposed_preview.title)}</h3>${formatText(section.proposed_preview.text)}${section.proposal_digest ? `<div><button type="button" class="text-button" data-proposal-id="${escapeHtml(section.id)}" data-proposal-accept="true" ${saved.deciding || saved.loading_page ? "disabled" : ""}>${t('acceptDraftProposal')}</button><button type="button" class="text-button" data-proposal-id="${escapeHtml(section.id)}" data-proposal-accept="false" ${saved.deciding || saved.loading_page ? "disabled" : ""}>${t('rejectDraftProposal')}</button></div>` : ""}`).join("")}</details>` : "";
@@ -347,7 +368,8 @@ export function createPrivateDraft({
     const edition = !state.debugEarlyGeneration && (saved.snapshot_id || saved.error) ? `<label>${t('draftEditionLanguage')} <select data-draft-locale ${saved.deciding || saved.loading_page ? "disabled" : ""}><option value="en-AU" ${locale === "en-AU" ? "selected" : ""}>English</option><option value="zh-CN" ${locale === "zh-CN" ? "selected" : ""}>简体中文</option></select></label>` : "";
     const decisionError = saved.decision_error ? `<p role="status">${t('draftProposalChanged')}</p><button type="button" class="text-button" data-action="refresh-private-draft">${t('reloadSavedPages')}</button>` : "";
     const retry = !state.debugEarlyGeneration && saved.error && !saved.updating ? `<button type="button" class="button button-secondary button-small" data-action="${saved.error === 'PRIVATE_DRAFT_UNAVAILABLE' ? 'refresh-private-draft' : 'retry-private-draft'}">${t('retryPrivateDraft')}</button>` : "";
-    return `<section class="private-draft-status">${edition}<p>${status}</p>${sections ? `<details class="saved-draft-sections" ${state.privateDraftExpanded || currentSectionRework() ? "open" : ""}><summary>${t('readSavedDraft')}</summary>${sections}</details>` : ""}${sectionReworkNotice()}${protectedNotice}${withheldNotice}${proposalMarkup}${decisionError}${pagination}${saved.page_error ? `<p role="status">${t('savedPageChanged')}</p><button type="button" class="text-button" data-action="refresh-private-draft">${t('reloadSavedPages')}</button>` : ""}${retry}</section>`;
+    const savedStatus = preview ? `<p class="visually-hidden">${t('privateDraftSaved',{round:saved.covered_round ?? saved.coverage_round ?? saved.milestone})}</p>` : "";
+    return `<section class="private-draft-status">${sections}${savedStatus}${status ? `<p role="status">${status}</p>` : ""}${edition}${pagination}${editing}${sectionReworkNotice()}${protectedNotice}${withheldNotice}${proposalMarkup}${decisionError}${saved.page_error ? `<p role="status">${t('savedPageChanged')}</p><button type="button" class="text-button" data-action="refresh-private-draft">${t('reloadSavedPages')}</button>` : ""}${retry}</section>`;
   }
 
   return {
