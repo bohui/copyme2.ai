@@ -158,7 +158,9 @@ async def run_lifetime_turn(runtime,storage,text,*,publication,project_id=None,l
                 raise
         requested_language=next((locale for original in (text, *(item['text'] for item in reversed(prior_inputs or [])))
             if (locale:=explicit_request(original))), None)
-        async def review_policy(*, include_decision=False, batch_ids=None):
+        can_stream_opening = on_delta is not None and source_kind == 'narrator_chat' and not (
+            uploaded_photo_ids or photo_selection or recording_ids or workspace_focus)
+        async def review_policy(*, include_decision=False, batch_ids=None, request_acknowledgement=False):
             # Reviewing original narration is provider dispatch too.
             if lifetime_generation_paused():
                 raise GenerationPaused('Conversation generation is paused; saved history and receipts remain available')
@@ -168,6 +170,7 @@ async def run_lifetime_turn(runtime,storage,text,*,publication,project_id=None,l
                     model=collector_configuration(runtime.model).model,
                     base_url=runtime.base_url, api_key=runtime.api_key,
                     language=requested_language, fallback_language=language, include_decision=include_decision,
+                    request_acknowledgement=request_acknowledgement,
                     **({'batch_turn_ids':batch_ids} if batch_ids else {}))
             except (PolicyUnavailable, ValueError, OSError) as error:
                 raise await policy_pending() from error
@@ -265,7 +268,7 @@ async def run_lifetime_turn(runtime,storage,text,*,publication,project_id=None,l
             reviewed_opening=None
             pending_review=revisable
             if not revisable:
-                reviewed_opening=await review_policy(batch_ids=batch_ids)
+                reviewed_opening=await review_policy(batch_ids=batch_ids, request_acknowledgement=can_stream_opening)
                 if recording_ids:
                     # Acceptance can precede policy clearance; publish the
                     # current authorized descriptors after that review.
@@ -328,12 +331,12 @@ async def run_lifetime_turn(runtime,storage,text,*,publication,project_id=None,l
                 if two_lane:
                     context['two_lane_memory']=True
                 from .policy_review import reviewed_acknowledgement
-                opening=None if revisable else reviewed_acknowledgement(reviewed_opening or policy_status.get('reviewed_acknowledgement'),
-                    source,selected_language)
+                opening=None
+                if can_stream_opening and not revisable and not context['photo_context']:
+                    opening=reviewed_acknowledgement(reviewed_opening or policy_status.get('reviewed_acknowledgement'),
+                        source,selected_language,setup['evidence']['pins'])
                 if opening:
                     context['reviewed_acknowledgement']=opening
-                else:
-                    opening=None
                 context['reply_contract'] = 'reply-v2'
                 if revisable:
                     context.update(revisable_reply=True, policy_review_pending=pending_review)

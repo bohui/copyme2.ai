@@ -197,6 +197,7 @@ def test_inconclusive_review_retries_before_reply_and_keeps_audit(
         assert pending == '0', 'Reply generation must wait for completed policy review'
         if outcome == 'restricted':
             assert restriction in json.dumps(body['interview_context'], ensure_ascii=False)
+            assert 'reviewed_acknowledgement' not in body['interview_context']
         output = {**proposal(), 'question': '您还记得小时候和伙伴一起做过什么吗？'}
         output['acknowledgement'] = acknowledgement
         return worker_reply(request, dict(reply=json.dumps(output, ensure_ascii=False),
@@ -238,6 +239,8 @@ def test_inconclusive_review_retries_before_reply_and_keeps_audit(
             assert receipt['receipt']['policy_review_attempts'] == [
                 dict(response_id='policy-attempt-1', complete=False, reason=first_reason),
                 dict(response_id='policy-attempt-2', complete=True, reason=None)]
+            if outcome == 'restricted':
+                assert 'acknowledgement' not in receipt['receipt']
             assert 'reason' not in receipt['output']  # Keep the existing SQL review contract.
             # A saved retry must replay without another model call or duplicate source.
             replay = client.post('/v1/agent/turn', json=dict(project_id=result['project_id'],

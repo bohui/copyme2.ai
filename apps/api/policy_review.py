@@ -51,17 +51,23 @@ def early_ack_enabled():
     return os.getenv('MEMORY_SPARK_EARLY_POLICY_ACK', '').lower() in {'1', 'true', 'yes'}
 
 
-def reviewed_acknowledgement(value, source, language):
+def _acknowledgement_text(text):
+    if not isinstance(text, str) or not text.strip() or len(text) > 500 or '?' in text or '？' in text:
+        return None
+    return text.strip()
+
+
+def reviewed_acknowledgement(value, source, language, pins):
     if not early_ack_enabled() or not isinstance(value, dict):
+        return None
+    if (pins.get('privacy_complete') is not True
+            or any(pins.get(key) for key in ('excluded_topics', 'paused_topics', 'unresolved_references'))):
         return None
     if (type(value.get('source_version')) is not int or value.get('source_id') != source['id']
             or value.get('source_version') != source['version']
             or value.get('language') != language):
         return None
-    text = value.get('text')
-    if not isinstance(text, str) or not text.strip() or len(text) > 500 or '?' in text or '？' in text:
-        return None
-    return text.strip()
+    return _acknowledgement_text(value.get('text'))
 
 
 def validate_review(output, source):
@@ -96,7 +102,8 @@ def reviews_by_source(output, model_source, sources):
 
 
 async def _review_pending_policy(storage, lease, conversation_id, *, model=None, base_url=None, api_key=None,
-                                 language=None, fallback_language='en-AU', include_decision=False, batch_turn_ids=None):
+                                 language=None, fallback_language='en-AU', include_decision=False, batch_turn_ids=None,
+                                 request_acknowledgement=False):
     """An unavailable review leaves durable pending state and all other work closed."""
     from psycopg import AsyncConnection
     from psycopg.types.json import Jsonb
@@ -118,7 +125,7 @@ async def _review_pending_policy(storage, lease, conversation_id, *, model=None,
     selected_language = language or saved_language or fallback_language
     if selected_language not in {'en-AU', 'zh-CN'}:
         selected_language = 'en-AU'
-    opening = len(sources) == 1 and early_ack_enabled()
+    opening = request_acknowledgement and early_ack_enabled()
     schema = (PolicyReviewOpening if opening else PolicyReview).model_json_schema()
     schema['required'] = list(schema['properties'])
     for field in schema['properties'].values():
@@ -157,13 +164,17 @@ async def _review_pending_policy(storage, lease, conversation_id, *, model=None,
                 failure_class=failure_class(error,status_code=status),http_status=status)
             await asyncio.sleep(.25)
             output, receipt = await complete()
-        parsed = (PolicyReviewOpening if opening else PolicyReview).model_validate(output)
+        acknowledgement = None
+        if opening and isinstance(output, dict):
+            output = output.copy()
+            acknowledgement = _acknowledgement_text(output.pop('acknowledgement', None))
+        parsed = PolicyReview.model_validate(output)
         reason = parsed.reason.model_dump() if parsed.reason else None
         attempts.append(dict(response_id=receipt['response_id'], complete=parsed.complete, reason=reason))
         invalid_review = False
         if parsed.complete:
             try:
-                reviews = reviews_by_source(parsed.model_dump(exclude={'acknowledgement'}), model_source, sources)
+                reviews = reviews_by_source(parsed.model_dump(), model_source, sources)
             except ValueError:
                 invalid_review = True
                 attempts[-1]['validation_error'] = 'invalid_review'
@@ -183,16 +194,16 @@ async def _review_pending_policy(storage, lease, conversation_id, *, model=None,
             error_code='invalid_review' if invalid_review else parsed.reason.code if parsed.reason else 'reason_missing')
         if attempt == 1:
             raise PolicyUnavailable()
-        payload['previous_review'] = parsed.model_dump(exclude={'acknowledgement'})
+        payload['previous_review'] = parsed.model_dump()
         if invalid_review:
             payload['validation_error'] = 'invalid_review'
     receipt = {**receipt, 'policy_review_attempts': attempts}
-    acknowledgement = None
-    if opening:
-        acknowledgement = parsed.acknowledgement.strip() if parsed.acknowledgement else None
+    restricted = any(review['restrictions'] for review in reviews)
+    acknowledgement = None if restricted else acknowledgement
+    latest_receipt = receipt
     if acknowledgement:
-        receipt = {**receipt, 'acknowledgement': acknowledgement,
-                   'acknowledgement_language': selected_language}
+        latest_receipt = {**receipt, 'acknowledgement': acknowledgement,
+                          'acknowledgement_language': selected_language}
     connection = await AsyncConnection.connect(os.environ['MEMOIR_PUBLICATION_DATABASE_URL'], connect_timeout=2)
     try:
         async with connection.transaction():
@@ -200,7 +211,7 @@ async def _review_pending_policy(storage, lease, conversation_id, *, model=None,
             await connection.execute("set local lock_timeout='5s'")
             for item, review in zip(sources, reviews, strict=True):
                 cursor = await connection.execute('select public.complete_lifetime_policy_review(%s,%s,%s,%s,%s)',
-                    (Jsonb(fence), item['id'], item['version'], Jsonb(review), Jsonb(receipt)))
+                    (Jsonb(fence), item['id'], item['version'], Jsonb(review), Jsonb(latest_receipt if item is source else receipt)))
                 if item is not source:
                     # A restrictive receipt advances the fence within this transaction.
                     fence = (await cursor.fetchone())[0]
@@ -210,18 +221,19 @@ async def _review_pending_policy(storage, lease, conversation_id, *, model=None,
                     language=selected_language, text=acknowledgement) if acknowledgement else None)
     if include_decision:
         return dict(source_id=source['id'], source_version=source['version'],
-                    restricted=any(review['restrictions'] for review in reviews), acknowledgement=opening)
+                    restricted=restricted, acknowledgement=opening)
     return opening
 
 
 async def review_pending_policy(storage, lease, conversation_id, *, model=None, base_url=None, api_key=None,
-                                language=None, fallback_language='en-AU', include_decision=False, batch_turn_ids=None):
+                                language=None, fallback_language='en-AU', include_decision=False, batch_turn_ids=None,
+                                request_acknowledgement=False):
     import httpx
     import psycopg
     try:
         return await _review_pending_policy(storage, lease, conversation_id,
             model=model, base_url=base_url, api_key=api_key, language=language, fallback_language=fallback_language,
-            include_decision=include_decision, batch_turn_ids=batch_turn_ids)
+            include_decision=include_decision, batch_turn_ids=batch_turn_ids, request_acknowledgement=request_acknowledgement)
     except (ValueError, KeyError, TypeError, OSError, httpx.HTTPError, psycopg.Error) as error:
         status = getattr(getattr(error, 'response', None), 'status_code', None)
         log_diagnostic(diagnostic_logger, 'policy_review_failed', conversation_id,

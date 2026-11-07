@@ -74,12 +74,12 @@
     "version": 1,
     "sha256": "f6fb9f8a8e0d9ca2f74f1c1624c1bb95aa51f53f05f4bb822a25dd6c4f344354",
     "use": "runtime",
-    "scenario": "Review the exact accepted original before context/model admission; retry incomplete reviews.",
+    "scenario": "Review the exact accepted original before context/model admission; retry incomplete reviews. Eligible streaming text can request an opening in the same single-source or batch review. The newest exact source receipt can carry that opening when the review adds no restriction.",
     "consumers": [
       {
         "path": "apps/api/policy_review.py",
         "symbol": "_review_pending_policy",
-        "line": 80
+        "line": 104
       }
     ],
     "targets": [
@@ -208,7 +208,8 @@
     "regressions": [
       "tests/test_policy_review_recovery.py",
       "tests/test_llm_boundary_regressions.py",
-      "tests/test_automatic_prompt_evaluation.py"
+      "tests/test_automatic_prompt_evaluation.py",
+      "tests/test_policy_early_ack.py"
     ],
     "gaps": [
       "No scored experiment items verified for the current pin"
@@ -520,7 +521,7 @@
     "version": 7,
     "sha256": "b4270c4c59303c8a7c101afb43c4661cf3ba1367047bd8040fc76378ddb54dfb",
     "use": "runtime",
-    "scenario": "Every narrator reply; persistent native Mira thread ordered as system instructions, authorized chat history, optional Atlas context and current narrator answer. Atlas supplies context only; Mira chooses one next question. Consecutive accepted inputs retain separate native user messages; cancelled replies are discarded and a resumed thread receives every intervening unanswered input before the latest answer.",
+    "scenario": "Every narrator reply; persistent native Mira thread ordered as system instructions, authorized chat history, optional Atlas context and current narrator answer. Atlas supplies context only; Mira chooses one next question. Consecutive accepted inputs retain separate native user messages; cancelled replies are discarded and a resumed thread receives every intervening unanswered input before the latest answer. Eligible streaming turns can deliver the reviewed opening before the reply request and bind it to the final response.",
     "consumers": [
       {
         "path": "apps/api/conversation_reply.py",
@@ -661,7 +662,9 @@
       "tests/test_automatic_prompt_evaluation.py",
       "tests/test_conversation_interruptions.py",
       "tests/test_conversation_interruptions_browser.py",
-      "tests/test_interview_native_harness.py::test_cancelled_native_reply_uses_turn_interrupt_before_reaping_the_process"
+      "tests/test_interview_native_harness.py::test_cancelled_native_reply_uses_turn_interrupt_before_reaping_the_process",
+      "tests/test_policy_early_ack.py",
+      "tests/test_lifetime_memory_engine.py::test_reviewed_reply_binds_first_attempt_without_changing_native_home"
     ],
     "gaps": [
       "No scored experiment items verified for the current pin"
@@ -2481,7 +2484,7 @@
       {
         "path": "apps/api/lifetime_memory_lane_engine.py",
         "symbol": "lane_contract",
-        "line": 214
+        "line": 215
       }
     ],
     "targets": [
@@ -2636,12 +2639,12 @@
       {
         "path": "apps/api/lifetime_memory_composer.py",
         "symbol": "_reconcile_timeline",
-        "line": 148
+        "line": 149
       },
       {
         "path": "apps/api/lifetime_memory_lane_engine.py",
         "symbol": "lane_contract",
-        "line": 214
+        "line": 215
       }
     ],
     "targets": [
@@ -2680,7 +2683,7 @@
       {
         "path": "apps/api/lifetime_memory_lane_engine.py",
         "symbol": "lane_contract",
-        "line": 214
+        "line": 215
       }
     ],
     "targets": [
@@ -3377,7 +3380,7 @@
       {
         "path": "apps/api/lifetime_memory_lane_engine.py",
         "symbol": "lane_contract",
-        "line": 214
+        "line": 215
       }
     ],
     "targets": [
@@ -3522,7 +3525,7 @@
       {
         "path": "apps/api/lifetime_memory_lane_engine.py",
         "symbol": "lane_contract",
-        "line": 214
+        "line": 215
       }
     ],
     "targets": [

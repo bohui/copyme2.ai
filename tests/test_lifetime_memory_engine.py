@@ -199,6 +199,28 @@ def run(tmp_path, governed=None, context=None, **options):
         **options))
 
 
+def test_reviewed_reply_binds_first_attempt_without_changing_native_home(tmp_path):
+    from test_conversation_reply import proposal
+
+    governed, context = fixture()
+    context.update(reply_contract='reply-v2', two_lane_memory=True)
+    packet = json.loads(governed.packet)
+    for acknowledgement in (None, 'You remember carrying the blue umbrella.'):
+        if acknowledgement is not None:
+            context['reviewed_acknowledgement'] = acknowledgement
+        packet['interview_context'] = {k:v for k,v in context.items() if k not in {'source', 'sources'}}
+        output = proposal()
+        if acknowledgement is not None:
+            output['acknowledgement'] = acknowledgement
+        FakeConnection.reply = json.dumps(output)
+        assert json.loads(run(tmp_path, encode(packet), context)['reply']) == output
+
+    plain, reviewed = FakeConnection.instances
+    assert reviewed.home == plain.home
+    field = reviewed.turns[0][2]['output_schema']['properties']['acknowledgement']
+    assert field['enum'] == [context['reviewed_acknowledgement']] and 'pattern' not in field
+
+
 def test_governed_config_disables_both_memory_paths_without_changing_legacy():
     legacy = tomllib.loads(provider_config('http://provider.invalid/v1', BUDGET.model))
     governed = tomllib.loads(provider_config('http://provider.invalid/v1', BUDGET.model, governed=True))
