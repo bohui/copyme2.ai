@@ -487,6 +487,40 @@ def test_policy_epoch_rejects_a_late_session_write_after_consent_changes(client:
     assert late.json()["error"]["code"] == "POLICY_EPOCH_CONFLICT"
 
 
+def test_follow_up_accepts_workspace_profile_update_without_resuming(client: TestClient) -> None:
+    headers = h("workspace-profile-owner")
+    base = "/api/v1/memoir"
+    created = client.post(f"{base}/projects", json={"mode": "self"}, headers=headers)
+    assert created.status_code == 201
+    project = created.json()
+    project_url = f"{base}/projects/{project['id']}"
+    assert client.post(f"{project_url}/consents", json={"purpose": "recording"}, headers=headers).status_code == 200
+    started = client.post(f"{project_url}/memory-sessions", json={}, headers=headers)
+    assert started.status_code == 201
+    session = started.json()
+    answers_url = f"{base}/memory-sessions/{session['id']}/answers"
+    assert client.post(answers_url, json={"text": "我在杭州长大。"}, headers=headers).status_code == 200
+
+    places = [{"place": "杭州", "hierarchy": ["Earth", "中国", "杭州"], "granularity": "city"}]
+    updated = client.patch(
+        project_url,
+        json={"profile": {**project["profile"], "memory_places": places}, "expected_revision": project["revision"]},
+        headers=headers,
+    )
+    assert updated.status_code == 200
+    assert updated.json()["profile"]["memory_places"] == places
+    assert updated.json()["revision"] == project["revision"] + 1
+
+    follow_up = "上大学的时候我搬去了南京。"
+    answered = client.post(
+        answers_url, json={"text": follow_up, "upload_id": None, "turn_type": "follow_up"}, headers=headers,
+    )
+    assert answered.status_code == 200, answered.json()
+    assert [turn["text"] for turn in answered.json()["turns"]] == ["我在杭州长大。", follow_up]
+    assert answered.json()["follow_ups_used"] == 1
+    assert updated.json()["policy_epoch"] == session["policy_epoch"]
+
+
 def test_policy_epoch_can_be_resynced_before_a_session_answer(client: TestClient) -> None:
     account = "policy-epoch-resume-owner"
     project = client.post("/v1/projects", json={"mode": "self"}, headers=h(account)).json()
@@ -502,19 +536,23 @@ def test_policy_epoch_can_be_resynced_before_a_session_answer(client: TestClient
     ).json()
     changed = client.patch(
         f"/v1/projects/{project['id']}",
-        json={"profile": {"birth_place": "Hobart"}, "expected_revision": project["revision"]},
+        json={"preferences": {"muted_topics": ["work"]}, "expected_revision": project["revision"]},
         headers=h(account),
     )
     assert changed.status_code == 200
+
+    answers_url = f"/v1/memory-sessions/{session['id']}/answers"
+    answer = {"text": "A remembered harbour morning."}
+    stale = client.post(answers_url, json=answer, headers=h(account))
+    assert stale.status_code == 409
+    assert stale.json()["error"]["code"] == "POLICY_EPOCH_CONFLICT"
+
     resumed = client.post(f"/v1/memory-sessions/{session['id']}/resume", headers=h(account))
     assert resumed.status_code == 200
     assert resumed.json()["policy_epoch"] == changed.json()["policy_epoch"]
-    answered = client.post(
-        f"/v1/memory-sessions/{session['id']}/answers",
-        json={"text": "A remembered harbour morning."},
-        headers=h(account),
-    )
+    answered = client.post(answers_url, json=answer, headers=h(account))
     assert answered.status_code == 200
+    assert len(answered.json()["turns"]) == 1
 
 
 def test_project_collections_support_opaque_cursor_pagination(client: TestClient) -> None:
