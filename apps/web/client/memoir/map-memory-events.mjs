@@ -1,11 +1,10 @@
 import { updateMemoryCards } from "./map-memory-card-updates.mjs";
 import { escapeHtml } from "./dom.mjs";
 import { buildMapMemoryJourney, cityEventCards, map2DViewRectangle, mapCityInView, mapCityOverlapsView, mapTrailWindow, matchesEventPlace, memoryEventCardMarkup } from "./map-memory-journey.mjs";
-import { placeHistoryKey } from "./places.mjs";
 
 export function createMapMemoryEvents({getEvents, getGroups, getProfile, getScope, getIdentity = getScope, getStage,
   getActiveLocation = () => null, getLocationChange = () => 0,
-  getPage = () => null, getReadiness = () => ({}), getCanAddMemory = () => true, readPlaces, resolvePlaces = async places => places,
+  getPage = () => null, getReadiness = () => ({}), getCanAddMemory = () => true,
   t, lifeStageText, onExplore, onAdd, onLoadMore, onOverview = () => {}, onChange = () => {}}) {
   let layer, sceneElement, viewer, cesium, removePostRender, scope, journey, stage, signature, selectedKey;
   let focusedCity = null, viewCity = null, listView, lastMode, hasView, overviewRequested = false, overviewMode = true;
@@ -13,8 +12,6 @@ export function createMapMemoryEvents({getEvents, getGroups, getProfile, getScop
   let visibleCityKeys = [];
   let renderedIdentity, toolbarSignature;
   let placeGroups = [];
-  const places = new Map();
-  const retainedPlaces = new Map();
   const footprint = typeof Image === "undefined" ? null : new Image();
   if (footprint) footprint.src = "/static/map-footprints.svg";
 
@@ -40,92 +37,22 @@ export function createMapMemoryEvents({getEvents, getGroups, getProfile, getScop
     if (viewer && nodes.length) frame(nodes,12000,city);
   }
 
-  function loadPlaces(events) {
-    for (const event of events) {
-      if (!event.canonical || event.status !== "active") {
-        retainedPlaces.delete(event.id);
-        continue;
-      }
-      const key = `${event.id}:${event.revision}`;
-      if (places.has(key)) continue;
-      const captured = scope, identity = getIdentity(), known = retainedPlaces.get(event.id);
-      const current = () => getScope() === captured && getIdentity() === identity && places.get(key) === entry;
-      const supplied = Array.isArray(event.places);
-      const cached = (known?.items || []).filter(link => !event.place_conflicts?.includes(link.role)
-        && !(link.role === "setting" && (event.locationConfidenceScore === 0
-          || event.location && placeHistoryKey(link.place) !== placeHistoryKey(event.location)
-          || Object.hasOwn(event,"location") && !event.location && known.locationKey)));
-      const entry = {eventId:event.id, items:supplied ? event.places.filter(item => !item.status || item.status === "supported") : cached,
-        conflicted:event.place_conflicts?.includes("setting") || event.places?.some(item => item.status === "conflicted")
-          || known?.revision === event.revision && known.conflicted};
-      places.set(key, entry);
-      if (!supplied && known?.complete && known.revision === event.revision) {
-        entry.complete = true;
-        continue;
-      }
-      const retain = () => retainedPlaces.set(event.id,{items:entry.items, revision:event.revision,
-        locationKey:event.location ? placeHistoryKey(event.location) : null, conflicted:entry.conflicted, complete:Boolean(entry.complete)});
-      // Read into a separate buffer so incomplete pages cannot replace a visible card.
-      void (async () => {
-        let cursor, readComplete = supplied;
-        const items = supplied ? [...entry.items] : [], seen = new Set();
-        try {
-          if (!supplied) do {
-              const page = await readPlaces(event.id, cursor);
-              if (!current()) return;
-              entry.conflicted ||= page.items?.some(item => item.status === "conflicted");
-              items.push(...(page.items || []).filter(item => item.status === "supported"));
-              cursor = page.next_cursor;
-              if (cursor && seen.has(cursor)) throw new Error("Repeated event location page");
-              seen.add(cursor);
-            } while (cursor);
-          readComplete = true;
-          if (!items.length && !entry.conflicted && event.location && event.locationConfidenceScore > 0) {
-            items.push({role:"setting",status:"candidate",place:event.location});
-          }
-          entry.items = items.map(item => {
-            const previous = cached.find(link => link.role === item.role && placeHistoryKey(link.place) === placeHistoryKey(item.place));
-            return previous ? {...item,place:{...previous.place,...item.place}} : item;
-          });
-          const resolved = await resolvePlaces(entry.items.map(item => item.place));
-          if (!current()) return;
-          entry.items = entry.items.map((item,index) => ({...item,place:resolved[index] || item.place}));
-          entry.complete = true;
-          retain();
-        } catch {
-          if (!current()) return;
-          entry.failed = true;
-          if (readComplete) retain();
-        }
-        if (current()) sync(sceneElement?.isConnected ? sceneElement : null);
-      })();
-    }
-  }
-
   function updateJourney() {
     const nextScope = getScope();
     const identity = getIdentity();
     if (identity !== renderedIdentity) {
       if (layer) layer.querySelector(".map-memory-cards").innerHTML = "";
-      retainedPlaces.clear();
       renderedIdentity = identity;selectedKey = null;listView = null;signature = null;
     }
     if (nextScope !== scope) {
-      scope = nextScope;places.clear();signature = null;
+      scope = nextScope;signature = null;
       visibleCityKeys = [];
       activeCity();
     }
-    const events = getEvents();
-    loadPlaces(events);
     stage = getStage();
-    const visible = events.filter(event => stage === "all" || event.life_stage === stage)
-      .map(event => {
-        const entry = places.get(`${event.id}:${event.revision}`);
-        return {...event,map_places:entry?.items || event.places,
-          map_location_status:entry?.failed ? "failed" : entry && !entry.complete ? "refreshing" : null};
-      });
+    const visible = getEvents().filter(event => stage === "all" || event.life_stage === stage);
     const eventPlaces = visible.filter(event => !event.status || event.status === "active")
-      .flatMap(event => (event.map_places || []).filter(link => link.status !== "conflicted"
+      .flatMap(event => (event.map_places || event.places || []).filter(link => link.status !== "conflicted"
         && !event.place_conflicts?.includes(link.role)).map(link => link.place));
     placeGroups = getGroups(eventPlaces);
     journey = buildMapMemoryJourney(visible, placeGroups, getProfile());
@@ -146,21 +73,12 @@ export function createMapMemoryEvents({getEvents, getGroups, getProfile, getScop
       layer.className = "map-memory-layer";
       layer.innerHTML = '<canvas class="map-memory-trail" aria-hidden="true"></canvas><div class="map-memory-toolbar"></div><div class="map-memory-cards"></div><div class="map-memory-overflow"></div>';
       layer.addEventListener("click", event => {
-        const target = event.target.closest("[data-map-memory], [data-memory-city], [data-memory-overview], [data-memory-explore], [data-memory-add], [data-memory-retry], [data-memory-more]");
+        const target = event.target.closest("[data-map-memory], [data-memory-city], [data-memory-overview], [data-memory-explore], [data-memory-add], [data-memory-more]");
         if (!target) return;
         if (target.hasAttribute("data-memory-add")) { if (getCanAddMemory()) onAdd(); return; }
         if (target.hasAttribute("data-memory-overview")) { overview(); return; }
         if (target.hasAttribute("data-memory-explore")) { onExplore(target.dataset.memoryExplore); return; }
         if (target.hasAttribute("data-memory-more")) { onLoadMore(); return; }
-        if (target.hasAttribute("data-memory-retry")) {
-          const key = target.dataset.memoryRetry;
-          const card = journey.nodes.find(node => node.key === key) || cityEventCards(journey.nodes).find(city => city.key === key);
-          if (!card) return;
-          const ids = new Set((card.nodes || [card]).map(node => node.event.id));
-          for (const [key, entry] of places) if (entry.failed && ids.has(entry.eventId)) places.delete(key);
-          sync(sceneElement,document.activeElement === target ? card.key : null);
-          return;
-        }
         const key = target.dataset.mapMemory;
         const unlocated = journey.unlocated.find(node => node.key === key);
         if (unlocated) { onExplore(unlocated.event.id); return; }
@@ -190,7 +108,7 @@ export function createMapMemoryEvents({getEvents, getGroups, getProfile, getScop
       signature = null;toolbarSignature = null;
     }
     const page = getPage();
-    layer.hidden = !journey.nodes.length && !journey.unmapped && !places.size && !page?.next_cursor && !page?.page_error;
+    layer.hidden = !journey.nodes.length && !journey.unmapped && !page?.next_cursor && !page?.page_error;
     scene.classList.toggle("has-map-memories", journey.nodes.length > 0);
     const note = page?.page_error ? t("savedPageChanged") : "";
     const toolbar = layer.querySelector(".map-memory-toolbar");
@@ -263,7 +181,7 @@ export function createMapMemoryEvents({getEvents, getGroups, getProfile, getScop
         .filter(place => Number.isFinite(place?.latitude) && Number.isFinite(place?.longitude))
         : [...journey.nodes,...placeGroups.flatMap(group => group.members.map(member => Object.hasOwn(member,"map_pin") ? member.map_pin : member))]
           .filter(place => Number.isFinite(place?.latitude) && Number.isFinite(place?.longitude));
-      const pending = [...places.values()].some(entry => !entry.complete && !entry.failed);
+      const pending = getPage()?.next_cursor;
       if (nodes.length && (group || !city || !pending || overviewRequested)) {
         hasView = true;
         if (!pendingLocation) handledLocationChange = getLocationChange();

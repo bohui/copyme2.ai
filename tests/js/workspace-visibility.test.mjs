@@ -60,7 +60,7 @@ test('map paints reuse loaded imagery but replace a failed scene and an explicit
     const h=workspaceHarness({}, {
       $:selector=>({'#app':app,'.place-journey-scene':previousScene,'[data-cesium-place]':nextMap}[selector] || null),
       disposeCesiumPlaceJourney:()=>disposed++,initCesiumPlaceJourney:()=>initialized++,
-      resizeCesiumPlaceJourney:()=>resized++,photos:{refreshMapPhotos() {}},
+      resizeCesiumPlaceJourney:()=>resized++,
     });
     app=h.app;
     h.context.renderStory();

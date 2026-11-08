@@ -168,7 +168,8 @@ state.atlasUpdates = createAtlasUpdates({
     ? captureProjectScope() : null,
   current: isCurrentProjectScope,
   token: () => state.supabase?.accessToken,
-  url: projectId => memoirApiPath(`/v1/story/atlas-events?project_id=${encodeURIComponent(projectId)}`),
+  url: projectId => memoirApiPath(`/v1/story/atlas-events?project_id=${encodeURIComponent(projectId)}&language=${currentUiLocale()}`
+    + (state.familyFeaturesEnabled ? "&include_map=false" : "")),
   onUpdate: refreshStageReadiness,
   onUnavailable: () => void refreshStageReadiness(),
 });
@@ -265,7 +266,7 @@ const {
 } = createPlaceWorkspace({
   api, captureProjectScope, isCurrentProjectScope, lifeStageText, loadPlacePictures, persistChatHistory,
   profile, recordWorkspaceSkillProgress, render, saveProfileUpdates, state, supabaseApi, workspaceHasContent,
-  photos, storyApi, onExploreMapMemory: eventId => focusWorkspaceMemory(eventId),
+  photos, onExploreMapMemory: eventId => focusWorkspaceMemory(eventId),
   onAddMapMemory: () => focusWorkspaceMemory(),
   onLoadMoreMapEvents: () => state.memoryEventPage?.page_error ? refreshFamilyContext() : loadMoreMemoryEvents(),
 });
@@ -283,7 +284,7 @@ const storyGameDialog = createStoryGameDialog({state,storyApi,captureProjectScop
   onWorkspaceClose: closeDebugWorkspace});
 
 const {
-  addPerson, applyPersistedFamilyContext, closeFamilyPerson, familyWorkspace, initFamilyVisualizations,
+  addPerson, applyMapEventPage, applyPersistedFamilyContext, closeFamilyPerson, familyWorkspace, initFamilyVisualizations,
   loadMoreEventDetails, loadMoreEventEvidence, loadMoreMemoryEvents, openMemoryEventEdit, refreshFamilyContext,
   saveFamilyPersonPhoto, saveMemoryEventEdit, selectFamilyPerson, timelineWorkspace, zoomFamilyChart
 } = createFamilyWorkspace({
@@ -1480,6 +1481,7 @@ async function refreshFamilyEntitlement() {
     state.familyFeaturesEnabled = false;
     state.familyContext = null;
   }
+  state.atlasUpdates?.renew?.();
   return state.familyFeaturesEnabled;
 }
 
@@ -2474,7 +2476,6 @@ function renderStory() {
   }
   mapPhotoAlbums.sync($(".place-journey-scene"), albumFocus);
   mapMemoryEvents.sync($(".place-journey-scene"), mapMemoryFocus);
-  if ($(".place-journey-scene")) void photos.refreshMapPhotos();
   if (!retainedWorkspace) initFamilyVisualizations();
   const nextGallery = $(".place-pictures[data-photo-place]");
   if (nextGallery && nextGallery.dataset.photoPlace === galleryPlace) nextGallery.scrollTop = galleryTop;
@@ -2666,6 +2667,13 @@ function lifeStageNavigator(showStages = true) {
 async function refreshStageReadiness(snapshot = null, scope = captureProjectScope()) {
   const projectId = scope.projectId;
   if (!projectId || !state.supabase?.accessToken || !isCurrentProjectScope(scope)) return;
+  if (snapshot?.map_page) {
+    if (!state.familyFeaturesEnabled && !(state.debugEarlyGeneration && state.debugWorkspace === "memoir")) {
+      if (snapshot.map_page.after_cursor) applyMapEventPage(snapshot.map_page);
+      else await refreshFamilyContext({mapSnapshot:snapshot.map_page});
+    }
+    return;
+  }
   const active = state.stageReadinessRefresh;
   if (active && !active.controller.signal.aborted && isCurrentProjectScope(active.scope)) {
     active.requested = true;
@@ -2677,7 +2685,7 @@ async function refreshStageReadiness(snapshot = null, scope = captureProjectScop
   state.stageReadinessRefresh = job;
   const current = () => state.stageReadinessRefresh === job && isCurrentProjectScope(scope)
     && Boolean(state.supabase?.accessToken) && !job.controller.signal.aborted;
-  const read = async (path = `/v1/story/atlas-events?project_id=${encodeURIComponent(projectId)}`) => {
+  const read = async (path = `/v1/story/atlas-events?project_id=${encodeURIComponent(projectId)}&language=${currentUiLocale()}`) => {
     const request = new AbortController();
     const cancel = () => request.abort();
     job.controller.signal.addEventListener('abort', cancel, {once:true});
@@ -2724,6 +2732,7 @@ async function refreshStageReadiness(snapshot = null, scope = captureProjectScop
           if (job.requested) continue;
           state.currentInterviewMode = result.current_mode || null;
           state.stageReadiness = result.stages || {};
+          if (Array.isArray(result.map_photos)) photos.applyMapPhotos(result, scope);
           if (result.profile) state.project = {...state.project, profile:mergePrivateProfile(result.profile, profile())};
           if (result.derived_workspace && applyDerivedWorkspace(state, result.derived_workspace, pushed ? scope : null)) {
             if (state.placeJourney) {
@@ -2738,7 +2747,8 @@ async function refreshStageReadiness(snapshot = null, scope = captureProjectScop
           const mapChanged = page?.project_id !== projectId || page.policy_epoch !== result.policy_epoch
             || page.source_revision !== result.source_revision || page.event_revision !== result.event_revision;
           if (state.familyFeaturesEnabled && mapChanged) void refreshFamilyContext();
-          else if (result.map_events && (mapChanged || page.preference_revision !== result.preference_revision || page.page_error)) {
+          else if (result.map_events && (mapChanged || result.map_events.streaming_pages
+              || page.preference_revision !== result.preference_revision || page.page_error)) {
             void refreshFamilyContext({mapSnapshot: {...result.map_events, preference_revision: result.preference_revision}});
           }
         } catch { /* Keep the last snapshot until another update or explicit refresh. */ }
@@ -3654,7 +3664,7 @@ async function boot({openProjectId = null} = {}) {
         if (openProjectId && state.projectRecoveryBlocked) return;
         await syncProfileUiLocale();
         if (!current()) return;
-        await hydratePlaceJourney();
+        if (state.supabase?.auth_mode !== 'supabase') await hydratePlaceJourney();
         if (!current()) return;
         await refreshFamilyEntitlement();
         if (!current()) return;
@@ -3723,6 +3733,7 @@ window.addEventListener("pagehide", () => {
 window.addEventListener("pageshow", event => { if (event.persisted) state.atlasUpdates.start(); });
 window.addEventListener("copyme2:ui-locale-change", () => {
   closeProfileMenu();
+  state.atlasUpdates?.renew();
   if (!refreshOpeningMessageLocale()) render();
   if (currentPath() === "/" || currentPath() === MEMOIR_ROUTES.home) return;
   const place = typeof placeWorkspaceSelection === "function"

@@ -13,7 +13,7 @@ function albums(entries) {
   const pins=groupMapPins(group);
   const context=vm.createContext({
     state:{placeJourney:entries.at(-1),lifeStage:'all'},profile:()=>({memory_places:entries}),mergePlaces,placeHistoryKey,
-    mapMemoryEvents:{nodes:()=>[]},photos:{mapPhotos:()=>[],mapPhotosUnavailable:()=>false,mergePlacePictures:(_,pictures)=>pictures,
+    mapMemoryEvents:{nodes:()=>[]},photos:{mapPhotos:()=>[],mergePlacePictures:(_,pictures)=>pictures,
       photoSearchPeriod:entry=>entry.period || ''},
     workspacePictureItems:entry=>entry.pictures,placeMapTarget:entry=>entry,
     photoRequestKey:()=>'',translateWith:key=>key,currentUiLocale:()=> 'en-AU',

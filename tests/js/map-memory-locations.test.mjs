@@ -3,13 +3,12 @@ import assert from 'node:assert/strict';
 import {createMapMemoryEvents} from '../../apps/web/client/memoir/map-memory-events.mjs';
 import {groupPlaces} from '../../apps/web/client/memoir/places.mjs';
 
-const settle = () => new Promise(resolve=>setImmediate(resolve));
 const city = {place:'Sydney',granularity:'city',hierarchy:['Earth','Australia','Sydney'],latitude:-33.86,longitude:151.2};
 const events = [{id:'school',revision:1,canonical:true,status:'active',title:'Starting school',
   temporal:{precision:'age',expression:'Age 6'},life_stage:'childhood'}];
 const supported = {role:'setting',status:'supported',place:city};
 
-function setup(t, readPlaces, options = {}) {
+function setup(t, options = {}) {
   const toolbar = {innerHTML:''};
   const panel = {hidden:true};
   const layer = {hidden:true,innerHTML:'',addEventListener(){},querySelector:selector=>selector==='.map-memory-toolbar'?toolbar:panel,
@@ -22,152 +21,34 @@ function setup(t, readPlaces, options = {}) {
   t.after(()=>{if(original===undefined)delete globalThis.document;else globalThis.document=original;});
   let scope='project:1';
   const overlay = createMapMemoryEvents({getEvents:()=>events,getGroups:()=>groupPlaces([city]),getProfile:()=>({}),
-    getScope:()=>scope,getStage:()=> 'all',readPlaces,t:key=>key,lifeStageText:()=> 'Childhood',...options});
+    getScope:()=>scope,getStage:()=> 'all',t:key=>key,lifeStageText:()=> 'Childhood',...options});
   return {overlay,scene,toolbar,classes,setScope:value=>{scope=value;}};
 }
 
-test('event locations follow every bounded page and reuse the same revision', async t => {
-  const calls=[];
-  const h=setup(t,async(id,cursor)=>{
-    calls.push([id,cursor]);
-    return cursor ? {items:[supported],next_cursor:null} : {items:[],next_cursor:'second'};
-  });
+test('an Atlas page supplies its locations before the map mounts', t => {
+  const h=setup(t,{getEvents:()=>[{...events[0],places:[supported]}]});
+  h.overlay.sync(null);
+  assert.equal(h.overlay.nodes().length,1);
+  assert.equal(h.scene.child,undefined);
   h.overlay.sync(h.scene);
-  await settle();
-  assert.deepEqual(calls,[['school',undefined],['school','second']]);
   assert.ok(h.classes.has('has-map-memories'));
+});
+
+test('a conflicting snapshot removes the prior pin even when its metadata names a city', t => {
+  let event={...events[0],places:[supported]};
+  const h=setup(t,{getEvents:()=>[event]});
   h.overlay.sync(h.scene);
-  await settle();
-  assert.equal(calls.length,2);
-});
-
-test('conflicted locations are excluded even when they have a matching city', async t => {
-  const h=setup(t,async()=>({items:[{...supported,status:'conflicted'}],next_cursor:null}));
-  h.overlay.sync(h.scene);await settle();
-  assert.equal(h.classes.has('has-map-memories'),false);
-  assert.doesNotMatch(h.toolbar.innerHTML,/mapEventsUnmapped/);
-});
-
-test('a conflicting location read cannot restore a provisional city from the event metadata', async t => {
-  const h=setup(t,async()=>({items:[{...supported,status:'conflicted'}]}),{
-    getEvents:()=>[{...events[0],location:city,locationConfidenceScore:.3}],
-  });
-  h.overlay.sync(h.scene);await settle();
+  assert.equal(h.overlay.nodes().length,1);
+  event={...event,revision:2,places:[],location:city,locationConfidenceScore:.3,place_conflicts:['setting']};
+  h.setScope('project:2');
+  h.overlay.sync(h.scene);
   assert.equal(h.overlay.nodes().length,0);
 });
 
-test('a late location page cannot paint into a different project or policy scope', async t => {
-  const requests=[];
-  const h=setup(t,()=>new Promise(resolve=>requests.push(resolve)));
+test('a failed continuation leaves the existing cards visible with a reload action', t => {
+  const h=setup(t,{getEvents:()=>[{...events[0],places:[supported]}],getPage:()=>({page_error:true})});
   h.overlay.sync(h.scene);
-  h.setScope('another-project:2');
-  h.overlay.sync(h.scene);
-  requests[0]({items:[supported],next_cursor:null});
-  await settle();
-  assert.equal(h.classes.has('has-map-memories'),false);
-  requests[1]({items:[],next_cursor:null});await settle();
-  assert.equal(h.classes.has('has-map-memories'),false);
-});
-
-test('a first location failure stays quiet and cannot become an automatic request loop', async t => {
-  let calls=0;
-  const h=setup(t,async()=>{calls++;throw new Error('private provider detail');});
-  h.overlay.sync(h.scene);await settle();
-  h.overlay.sync(h.scene);await settle();
-  assert.equal(calls,1);
-  assert.doesNotMatch(h.toolbar.innerHTML,/data-memory-retry|mapEventLocationsUnavailable/);
-  assert.doesNotMatch(h.toolbar.innerHTML,/private provider detail/);
-});
-
-test('failed event ordering remains visible with a reload action after the last event page', async t => {
-  const h=setup(t,async()=>({items:[supported]}),{getPage:()=>({page_error:true})});
-  h.overlay.sync(h.scene);await settle();
+  assert.equal(h.overlay.nodes().length,1);
   assert.match(h.toolbar.innerHTML,/savedPageChanged/);
   assert.match(h.toolbar.innerHTML,/data-memory-more[^]*reloadSavedPages/);
-});
-
-test('canonical locations resolve before a map exists and join the map groups independently', async t => {
-  const received=[];
-  const h=setup(t,async()=>({items:[{...supported,place:{...city,latitude:null,longitude:null}}],next_cursor:null}),{
-    resolvePlaces:async entries=>entries.map(place=>({...place,latitude:city.latitude,longitude:city.longitude})),
-    getGroups:entries=>{received.push(...entries);return groupPlaces(entries);},
-  });
-  h.overlay.sync(null);await settle();
-  assert.ok(received.some(place=>place.latitude===city.latitude));
-  assert.equal(h.scene.child,undefined,'Location resolution must not require a map DOM container');
-  h.overlay.sync(h.scene);
-  assert.ok(h.classes.has('has-map-memories'));
-});
-
-test('a late geocoding result cannot revive a previous policy scope', async t => {
-  const pending=[];
-  const h=setup(t,async()=>({items:[supported],next_cursor:null}),{
-    resolvePlaces:entries=>new Promise(resolve=>pending.push(()=>resolve(entries))),
-  });
-  h.overlay.sync(h.scene);await settle();
-  h.setScope('project:2');h.overlay.sync(h.scene);await settle();
-  pending[0]();await settle();
-  assert.equal(h.classes.has('has-map-memories'),false);
-  pending[1]();await settle();
-  assert.ok(h.classes.has('has-map-memories'));
-});
-
-
-test('location reads stay out of the map toolbar even if the first read fails',async t=>{
-  let reject;
-  const h=setup(t,()=>new Promise((_,fail)=>{reject=fail;}));
-  h.overlay.sync(h.scene);
-  assert.doesNotMatch(h.toolbar.innerHTML,/mapEventLocationsLoading/);
-  reject(new Error('Unavailable'));await settle();
-  assert.doesNotMatch(h.toolbar.innerHTML,/mapEventLocationsUnavailable|data-memory-retry/);
-  assert.equal(h.overlay.nodes().length,0);
-});
-
-test('a failed refresh retains the known event location and refreshes only that event',async t=>{
-  const current=[{...events[0]},{...events[0],id:'birth',title:'Birth'}];
-  const pending=[];
-  let calls=0;
-  const h=setup(t,()=>{
-    calls++;
-    return calls<=2 ? Promise.resolve({items:[supported]}) : new Promise((resolve,reject)=>pending.push({resolve,reject}));
-  },{getEvents:()=>current,getIdentity:()=> 'same-project-policy'});
-  h.overlay.sync(h.scene);await settle();
-  assert.equal(h.overlay.nodes().length,2);
-  current[0]={...current[0],revision:2,title:'Starting school with friends'};
-  h.setScope('project:2');h.overlay.sync(h.scene);
-  assert.equal(h.overlay.nodes().length,2,'Refreshing one location must retain both event cards');
-  assert.equal(calls,3,'An unchanged event revision needs no new location read');
-  assert.equal(h.overlay.nodes().find(node=>node.event.id==='school').event.map_location_status,'refreshing');
-  assert.equal(h.overlay.nodes().find(node=>node.event.id==='birth').event.map_location_status,null);
-  pending[0].reject(new Error('Unavailable'));await settle();
-  assert.equal(h.overlay.nodes().length,2,'A failed refresh must not empty the list');
-  assert.equal(h.overlay.nodes().find(node=>node.event.id==='school').event.map_location_status,'failed');
-  assert.doesNotMatch(h.toolbar.innerHTML,/mapEventLocationsLoading|mapEventLocationsUnavailable|data-memory-retry/);
-});
-
-
-test('a new privacy identity discards retained locations before its read completes',async t=>{
-  let identity='owner:policy-1',reject;
-  let calls=0;
-  const h=setup(t,()=>++calls===1 ? Promise.resolve({items:[supported]}) : new Promise((_,fail)=>{reject=fail;}),
-    {getIdentity:()=>identity});
-  h.overlay.sync(h.scene);await settle();
-  assert.equal(h.overlay.nodes().length,1);
-  identity='owner:policy-2';h.setScope('project:2');h.overlay.sync(h.scene);
-  assert.equal(h.overlay.nodes().length,0,'A different privacy scope cannot retain old pins');
-  reject(new Error('Unavailable'));await settle();
-  assert.equal(h.overlay.nodes().length,0);
-  assert.doesNotMatch(h.toolbar.innerHTML,/mapEventLocationsUnavailable/);
-});
-
-test('a completed conflicting location read replaces the cached setting',async t=>{
-  let event={...events[0],location:city,locationConfidenceScore:1.},calls=0;
-  const h=setup(t,async()=>({items:[++calls===1 ? supported : {...supported,status:'conflicted'}]}),
-    {getEvents:()=>[event],getIdentity:()=> 'same-policy'});
-  h.overlay.sync(h.scene);await settle();
-  assert.equal(h.overlay.nodes().length,1);
-  event={...event,revision:2};h.setScope('project:2');h.overlay.sync(h.scene);
-  assert.equal(h.overlay.nodes().length,1);
-  await settle();
-  assert.equal(h.overlay.nodes().length,0,'Conflicting evidence must remove a formerly supported location');
 });
