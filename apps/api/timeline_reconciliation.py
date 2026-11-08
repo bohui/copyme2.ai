@@ -141,12 +141,15 @@ def group_event_drafts(drafts, links, published, profile):
                     draft.pop('yearConfidenceScore', None)
                     if draft.get('correction'):
                         draft.pop('temporal', None)
-                        draft.pop('timing_hint', None)
+                        if not draft.get('stage_evidence'):
+                            draft.pop('timing_hint', None)
             if not draft.get('location') and not draft.get('location_basis'):
                 for key in ('location', 'location_basis', 'locationConfidenceScore'):
                     draft.pop(key, None)
-            if draft.get('correction') and draft.get('life_stage') == 'unplaced' and not draft.get('stage_evidence'):
-                draft.pop('life_stage')
+            if draft.get('correction') and not draft.get('stage_evidence'):
+                draft.pop('stage_evidence', None)
+                if draft.get('life_stage') == 'unplaced':
+                    draft.pop('life_stage')
             if identity in by_identity:
                 index = by_identity[identity]
                 _merge_update(events[index], draft)

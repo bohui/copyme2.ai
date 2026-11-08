@@ -1,6 +1,6 @@
 {
   "project_id": "cmut9t75w00071z02n8bdv7it",
-  "captured_at": "2026-11-07T07:03:54.032288+00:00",
+  "captured_at": "2026-11-08T04:09:13.222619+00:00",
   "scope": "Metadata, case hashes and score presence; no trace text, model calls or mutations",
   "prompts": [
     {
@@ -420,7 +420,8 @@
     {
       "name": "memoir/skills/author-timeline/reconcile",
       "versions": [
-        1
+        1,
+        2
       ],
       "labels": [
         "latest"
@@ -702,6 +703,98 @@
     }
   ],
   "datasets": [
+    {
+      "id": "cmw62igyo0e6n1z02quafdpa7",
+      "name": "memoir/workflows/composer-checkpoints/golden/campaign-c47aa667249a",
+      "metadata": {
+        "suite": "memoir-skills/1",
+        "target": "memoir/workflows/composer-checkpoints",
+        "synthetic": true,
+        "content_sha256": "ea6072395ad83f3fccb2f1633e65a359dc993b7a6ac50c759414e118e1115691",
+        "contains_customer_data": false
+      },
+      "items": [
+        {
+          "id": "9324bd553660ca38bac9520b7510ca31",
+          "status": "ACTIVE",
+          "case_id": "skills/memoir-composer/new-evidence/zh-CN",
+          "input_sha256": "26ba5f65f56c004033caecaaae4de5721f7be5612e7701347d68e02019ce01b3",
+          "expected_sha256": "1544d7cc3c6d8caba2465b36b348a001c9e5b4c58d913dbc87ac4eb5dfd5a852",
+          "input_keys": [
+            "case_id",
+            "component",
+            "locale",
+            "skill",
+            "task"
+          ],
+          "expected_keys": [
+            "facts",
+            "forbidden",
+            "required",
+            "witnesses"
+          ]
+        }
+      ],
+      "runs": [],
+      "experiment_items": 0,
+      "scored_experiment_items": 0
+    },
+    {
+      "id": "cmw626hcu0e6i1z02dq50qaro",
+      "name": "memoir/workflows/composer-checkpoints/golden/campaign-04464b088444",
+      "metadata": {
+        "suite": "memoir-skills/1",
+        "target": "memoir/workflows/composer-checkpoints",
+        "synthetic": true,
+        "content_sha256": "ab15d9944316463c0a493608d572469be1553c6bb0996d72b2806cadf9fcb5c8",
+        "contains_customer_data": false
+      },
+      "items": [
+        {
+          "id": "8e32e90bc2ddf56e0ce7c2782fa7a7e9",
+          "status": "ACTIVE",
+          "case_id": "skills/memoir-composer/new-evidence/zh-CN",
+          "input_sha256": "26ba5f65f56c004033caecaaae4de5721f7be5612e7701347d68e02019ce01b3",
+          "expected_sha256": "1544d7cc3c6d8caba2465b36b348a001c9e5b4c58d913dbc87ac4eb5dfd5a852",
+          "input_keys": [
+            "case_id",
+            "component",
+            "locale",
+            "skill",
+            "task"
+          ],
+          "expected_keys": [
+            "facts",
+            "forbidden",
+            "required",
+            "witnesses"
+          ]
+        },
+        {
+          "id": "4e48fc827a76c0dbd4c9d29b1e38b910",
+          "status": "ACTIVE",
+          "case_id": "skills/memoir-composer/first-checkpoint/en-AU",
+          "input_sha256": "487d171907a8fff4130c27685d92c7b787de87413ce54b8f19a3fb97b61b7e2d",
+          "expected_sha256": "98f0eea2811fbe384b19e7138949eb712a8e4fa5aa65801ab6365479f16e0015",
+          "input_keys": [
+            "case_id",
+            "component",
+            "locale",
+            "skill",
+            "task"
+          ],
+          "expected_keys": [
+            "facts",
+            "forbidden",
+            "required",
+            "witnesses"
+          ]
+        }
+      ],
+      "runs": [],
+      "experiment_items": 0,
+      "scored_experiment_items": 0
+    },
     {
       "id": "cmw3baiyp0cb51z02tpruimjn",
       "name": "memoir/skills/place-journey/extract/golden/campaign-5ab262c11c1f",
@@ -24943,8 +25036,8 @@
     {
       "name": "memoir/skills/author-timeline/extract/golden/delivery-v3",
       "target": "memoir/skills/author-timeline/extract",
-      "items": 8,
-      "content_sha256": "465a34c42292744868660ba6bfae137a1fb07e0a70a5f087c187ad3e57e3d8f1",
+      "items": 10,
+      "content_sha256": "ede3af1ccc24b1b289070d23651000fdf6844bddac5a70cb818b277565373dc1",
       "source": "scripts/run_memoir_skill_evaluation.py:datasets"
     },
     {
@@ -24986,7 +25079,7 @@
       "name": "memoir/skills/story-game/brief/golden/delivery-v3",
       "target": "memoir/skills/story-game/brief",
       "items": 1,
-      "content_sha256": "573d03dba57703313f8ac83b51bbd98e35ab1c2bcc4378b728355642bb438aad",
+      "content_sha256": "3d95a4c017cc1c4248c0211a5f6daf82a326f093a89487fec8243c6c5367832b",
       "source": "scripts/run_memoir_skill_evaluation.py:datasets"
     }
   ]

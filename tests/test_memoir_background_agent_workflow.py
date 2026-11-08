@@ -282,7 +282,8 @@ def test_chat_correction_revises_the_published_event(sql, tmp_path, monkeypatch,
         quote = original_event if initial else correction
         ref = reference(packet, quote)
         event = {**episode(packet, quote, title=original_title if initial else updated_title),
-            'location': None, 'location_basis': [], 'locationConfidenceScore': 0.0, 'yearConfidenceScore': 0.0}
+            'life_stage': 'unplaced', 'stage_evidence': [], 'location': None, 'location_basis': [],
+            'locationConfidenceScore': 0.0, 'yearConfidenceScore': 0.0}
         if date_case:
             year = 1912 if initial else 2012
             event.update(temporal=dict(expression=str(year), precision='year', year_start=year, year_end=year, basis=[ref]),
@@ -344,6 +345,7 @@ def test_chat_correction_revises_the_published_event(sql, tmp_path, monkeypatch,
         updated = next(event for event in after['events'] if event['id'] == saved['id'])
         assert updated['title'] == updated_title
         assert updated['revision'] > saved['revision']
+        assert after['event_revision'] > before['event_revision']
         assert updated['locationConfidenceScore'] == 1
         if case == 'place':
             assert [link['place']['place'] for link in updated['places']] == ['Launceston']
