@@ -59,11 +59,11 @@ async function requestBody(request) {
   return { body, systemPrompt: instructions.content.map(part => part.text).join('\n'), messages };
 }
 
-async function hostTool(name, args, send, signal) {
+async function hostTool(name, args, send, signal, turnToken) {
   const id = randomUUID();
   const { promise, resolve: settle } = Promise.withResolvers();
   const abort = () => settle(null);
-  pendingTools.set(id, settle);
+  pendingTools.set(id, { settle, turnToken });
   signal.addEventListener('abort', abort, { once: true });
   try {
     await send({ type: 'memoir.tool_call', id, name, arguments: args });
@@ -79,8 +79,8 @@ async function hostTool(name, args, send, signal) {
 async function acceptToolResult(request, response) {
   try {
     const { id, result } = await readBody(request, 131_072);
-    const settle = pendingTools.get(id);
-    if (!settle) {
+    const pending = pendingTools.get(id);
+    if (!pending || pending.turnToken !== request.headers['x-memoir-aas-turn']) {
       response.writeHead(404).end();
       return;
     }
@@ -91,7 +91,7 @@ async function acceptToolResult(request, response) {
     }
     const value = JSON.parse(content[0].text);
     pendingTools.delete(id);
-    settle(value);
+    pending.settle(value);
     response.writeHead(204).end();
   } catch {
     response.writeHead(400).end();
@@ -126,10 +126,15 @@ const server = createServer(async (request, response) => {
 
   const { body, systemPrompt, messages } = payload;
   const traceparent = request.headers.traceparent;
+  const turnToken = request.headers['x-memoir-aas-turn'];
+  if (body.tools.length && (typeof turnToken !== 'string' || !/^[a-f0-9]{64}$/.test(turnToken))) {
+    response.writeHead(400).end();
+    return;
+  }
   const registry = new ToolRegistry();
   for (const tool of body.tools) {
     registry.register(buildTool({ name: tool.name, description: tool.description,
-      inputSchema: z.record(z.unknown()), call: args => hostTool(tool.name, args, send, signal) }));
+      inputSchema: z.record(z.unknown()), call: args => hostTool(tool.name, args, send, signal, turnToken) }));
   }
   const executor = new StreamingToolExecutor(registry);
   const recall = registry.has('memoir_read_context');

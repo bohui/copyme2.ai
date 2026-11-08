@@ -6,6 +6,7 @@ from functools import partial
 from hashlib import sha256
 import json
 import os
+from secrets import token_hex
 import shutil
 import time
 from uuid import uuid4
@@ -162,7 +163,7 @@ def test_disconnected_recall_drops_callback():
         input=[dict(role='developer', content=[dict(type='input_text', text='Return JSON.')]),
                dict(role='user', content='Recall the kite.')],
         text={'format': dict(type='json_schema', name='recall', strict=True, schema={'type':'object'})})
-    headers = {'Authorization': 'Bearer ' + secret}
+    headers = {'Authorization': 'Bearer ' + secret, 'X-Memoir-AAS-Turn': token_hex(32)}
     with (provider_fixture(calls, [1], script=lambda _: tool_call('recall', tool['name'], {})) as gateway,
           aas_server(os.environ['MEMOIR_TEST_AAS_CORE'], gateway, secret) as aas,
           httpx.Client(timeout=5, trust_env=False) as client):
@@ -178,6 +179,48 @@ def test_disconnected_recall_drops_callback():
             assert result.status_code == 400
             time.sleep(0.05)
         assert result.status_code == 404 and len(calls) == 1
+
+
+def test_overlapping_turns_reject_foreign_and_replayed_callbacks():
+    secret, calls = uuid4().hex, []
+    name = 'memoir_read_context'
+    tool = dict(name=name, description='Read authorized earlier testimony.', inputSchema={'type': 'object'})
+
+    def script(body):
+        result = returned_tool(body, 'recall')
+        if result is None:
+            return tool_call('recall', name, {})
+        witness = next(text_of(item.get('content')) for item in body['input'] if item.get('role') == 'user')
+        assert result == {'witness': witness}
+        return json.dumps(result)
+
+    with (provider_fixture(calls, [4], script=script) as gateway,
+          aas_server(os.environ['MEMOIR_TEST_AAS_CORE'], gateway, secret) as aas,
+          httpx.Client(timeout=5, trust_env=False) as client,
+          ExitStack() as streams):
+        turns = []
+        for witness in ('tenant-a-canary', 'tenant-b-canary'):
+            headers = {'Authorization': 'Bearer ' + secret, 'X-Memoir-AAS-Turn': token_hex(32)}
+            body = dict(model=MODEL, stream=True, store=False, tool_choice='auto', tools=responses_tools([tool]),
+                input=[dict(role='developer', content=[dict(type='input_text', text='Return JSON.')]),
+                       dict(role='user', content=witness)],
+                text={'format': dict(type='json_schema', name='recall', strict=True, schema={'type': 'object'})})
+            response = streams.enter_context(client.stream('POST', aas + '/responses', json=body, headers=headers))
+            response.raise_for_status()
+            events = (json.loads(line[6:]) for line in response.iter_lines() if line.startswith('data: '))
+            callback = next(events)
+            assert callback['type'] == 'memoir.tool_call'
+            result = dict(success=True, contentItems=[dict(type='inputText', text=json.dumps({'witness': witness}))])
+            turns.append((headers, {'id': callback['id'], 'result': result}, events))
+
+        for index, (headers, callback, events) in enumerate(turns):
+            wrong_headers, wrong_callback, _ = turns[1 - index]
+            swapped = {'id': callback['id'], 'result': wrong_callback['result']}
+            assert client.post(aas + '/tool-results', json=swapped, headers=wrong_headers).status_code == 404
+            assert client.post(aas + '/tool-results', json=callback, headers=headers).status_code == 204
+            assert client.post(aas + '/tool-results', json=callback, headers=headers).status_code == 404
+            assert any(event['type'] == 'response.completed' for event in events)
+        assert len(calls) == 4
 
 
 def test_bilingual_follow_up_and_resumed_recall(benchmark_database, app_setup, tmp_path, monkeypatch):
@@ -311,9 +354,11 @@ class AtlasBenchmarkConnection:
                    dict(role='user', content=text)],
             text={'format': dict(type='json_schema', name='atlas', strict=True, schema=output_schema)})
         encoded = json.dumps(body, ensure_ascii=False, separators=(',', ':')).encode()
+        aas_turn_token = token_hex(32)
         reply, _ = await stream_document(request=self.guarded_body(encoded), content_length=len(encoded),
             base_url=self.aas, api_key=self.secret, timeout=self.timeout,
-            on_tool=aas_tool_relay(self.aas, self.secret, self.tool_handler, self.guarded_body))
+            aas_turn_token=aas_turn_token,
+            on_tool=aas_tool_relay(self.aas, self.secret, self.tool_handler, self.guarded_body, aas_turn_token))
         return reply
 
 

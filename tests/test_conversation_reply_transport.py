@@ -278,6 +278,7 @@ def test_aas_rechecks_fence_when_sending_recall_result(stale):
     callback = dict(type='memoir.tool_call', id=str(uuid4()), name='memoir_read_context', arguments={})
     result = dict(contentItems=[dict(type='inputText', text='{"items":["authorized evidence"]}')], success=True)
     sent = []
+    turn_tokens = []
     revoked = False
 
     class Publisher:
@@ -302,8 +303,11 @@ def test_aas_rechecks_fence_when_sending_recall_result(stale):
         async def handle_async_request(self, request):
             body = json.loads(await request.aread())
             sent.append(request.url.path)
+            turn_tokens.append(request.headers['X-Memoir-AAS-Turn'])
+            assert len(bytes.fromhex(turn_tokens[0])) == 32
             if request.url.path.endswith('/tool-results'):
                 assert body == {'id': callback['id'], 'result': result}
+                assert turn_tokens[1] == turn_tokens[0]
                 return httpx.Response(204)
             assert body['tools'][0]['name'] == callback['name']
             return httpx.Response(200, content=sse([callback, *events('{"ok":true}')]))

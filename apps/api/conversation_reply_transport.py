@@ -3,6 +3,7 @@ import asyncio
 import hashlib
 import json
 import os
+from secrets import token_hex
 from urllib.parse import urlsplit
 from uuid import UUID
 
@@ -102,9 +103,11 @@ async def stream_reply(*, view, prompt, schema, model, effort, budget, base_url,
     def guarded_body(content):
         return ReplyRequestBody(content, publisher=publisher, fence=snapshot, issue14_admission=issue14_admission)
 
+    aas_turn_token = token_hex(32) if tools else None
     return await stream_document(request=guarded_body(encoded), content_length=len(encoded), base_url=base_url,
         api_key=api_key, timeout=timeout, on_delta=on_delta, transport=transport,
-        on_tool=aas_tool_relay(base_url, api_key, tools.call, guarded_body) if tools else None)
+        aas_turn_token=aas_turn_token,
+        on_tool=aas_tool_relay(base_url, api_key, tools.call, guarded_body, aas_turn_token) if tools else None)
 
 
 def responses_tools(specs):
@@ -112,7 +115,7 @@ def responses_tools(specs):
         parameters=spec['inputSchema'], strict=False) for spec in specs]
 
 
-def aas_tool_relay(base_url, api_key, tool_handler, guarded_body):
+def aas_tool_relay(base_url, api_key, tool_handler, guarded_body, aas_turn_token):
     async def relay(client, event):
         try:
             identifier = str(UUID(event['id']))
@@ -125,6 +128,7 @@ def aas_tool_relay(base_url, api_key, tool_handler, guarded_body):
         try:
             async with client.stream('POST', base_url.rstrip('/') + '/tool-results', content=request,
                     headers={'Authorization': 'Bearer ' + api_key, 'Content-Type': 'application/json',
+                        'X-Memoir-AAS-Turn': aas_turn_token,
                         'Content-Length': str(len(encoded))}) as response:
                 response.raise_for_status()
         finally:
@@ -133,7 +137,8 @@ def aas_tool_relay(base_url, api_key, tool_handler, guarded_body):
 
 
 async def stream_document(*, request, content_length, base_url, api_key, timeout,
-                          on_delta=None, transport=None, max_response_bytes=None, on_tool=None):
+                          on_delta=None, transport=None, max_response_bytes=None, on_tool=None,
+                          aas_turn_token=None):
     """Consume a bounded completed JSON document through its caller's guarded body."""
     deltas = []
     try:
@@ -143,6 +148,7 @@ async def stream_document(*, request, content_length, base_url, api_key, timeout
                 async with client.stream('POST', base_url.rstrip('/') + '/responses', content=request,
                     headers={'Authorization': 'Bearer ' + api_key, 'Content-Type': 'application/json',
                              'Content-Length': str(content_length), 'Accept': 'text/event-stream',
+                             **({'X-Memoir-AAS-Turn': aas_turn_token} if aas_turn_token else {}),
                              **gateway_trace_headers()}) as response:
                     response.raise_for_status()
                     async for event in _events(response, max_response_bytes=max_response_bytes):

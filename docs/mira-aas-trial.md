@@ -2,7 +2,7 @@
 
 Memoir sends reviewed text turns through the existing `POST /v1/agent/turn` route. The private worker can send the governed Responses request to a loopback Node process running `@aas/core`’s `query()`. Each AAS turn starts from authorized PostgreSQL dialogue and the current source. This works after a sidecar restart because Memoir owns the committed history.
 
-The sidecar can call `memoir_read_context` through the private worker. Memoir checks the publication fence at the initial handoff and again when sending each bounded tool result, then uses its existing validators and commit. The AAS process aborts the gateway connection and outstanding tool callbacks when the worker disconnects. Mira allows four recall calls per attempt under the existing byte and deadline limits.
+The sidecar can call `memoir_read_context` through the private worker. Memoir checks the publication fence at the initial handoff and again when sending each bounded tool result, then uses its existing validators and commit. The worker sends a fresh turn token when it opens a tool-bearing stream and on each callback. The sidecar requires that token alongside the single-use callback ID. An overlap test swaps callbacks between two streams and verifies that both original turns still receive their own results. The AAS process aborts the gateway connection and outstanding callbacks when the worker disconnects. Mira allows four recall calls per attempt under the existing byte and deadline limits.
 
 `MEMOIR_MIRA_AAS_URL` enables the AAS text path. Photo and transcription turns and revisable replies use Codex. Atlas’s normal path uses its existing Temporal and Codex workflow. The benchmark injects AAS at Atlas’s activity runner for comparison.
 
