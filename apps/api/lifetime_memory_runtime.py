@@ -255,8 +255,12 @@ async def run_lifetime_turn(runtime,storage,text,*,publication,project_id=None,l
                 accepted=await lease.io(storage.accept_interview_batch,project_id,[
                     {**item, 'language':detect_reply_locale(item['text']) or language or 'en-AU'} for item in inputs])
             else:
+                source_language=detect_reply_locale(text) or language
+                if not source_language:
+                    source_language=(await lease.io(storage.profile)).get('preferred_language')
                 accepted=await lease.io(storage.accept_interview_turn,project_id,client_turn_id,text,kind=source_kind,
-                    language=detect_reply_locale(text) or language,uploaded_photo_ids=uploaded_photo_ids,photo_selection=photo_selection,
+                    language=source_language if source_language in {'en-AU','zh-CN'} else 'en-AU',
+                    uploaded_photo_ids=uploaded_photo_ids,photo_selection=photo_selection,
                     **({'recording_ids':recording_ids} if recording_ids else {}),
                     **({'two_lane':True} if two_lane else {}))
             source=accepted.get('source')

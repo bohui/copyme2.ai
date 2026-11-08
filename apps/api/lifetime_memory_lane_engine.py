@@ -560,9 +560,11 @@ def _validate_phase_packet(fence,phase,payload):
     if phase == 'reconcile':
         from .memory_events import ExtractionResult
         from .timeline_reconciliation import uses_reconciliation
+        dialogue = fence.attribution_context.recent_dialogue if fence.attribution_context else None
         if (not fence.two_lane or fence.two_lane.work_mode != 'extract'
                 or not uses_reconciliation(fence.two_lane.selected_skills)
-                or set(payload)-{'drafts','published_events','message_id','retry_reason'}
+                or set(payload)-{'drafts','published_events','message_id','recent_dialogue','retry_reason'}
+                or payload.get('recent_dialogue', []) != (dialogue or [])
                 or not isinstance(payload.get('published_events'),list) or len(payload['published_events']) > 16
                 or not isinstance(payload.get('drafts'),list) or not payload['drafts']
                 or payload.get('retry_reason') not in (None,'INVALID_RECONCILIATION')

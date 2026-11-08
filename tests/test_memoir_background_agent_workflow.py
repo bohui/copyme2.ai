@@ -227,6 +227,154 @@ def test_timeline_reconciles_and_revises_a_city_period(sql,tmp_path,monkeypatch)
         assert len(reconciliation_calls) == 3 and reconciliation_calls[-1]['retry_reason'] == 'INVALID_RECONCILIATION'
 
 
+@pytest.mark.parametrize('case', ['short-answer', 'year-only', 'explicit-correction', 'place', 'stage', 'wording'])
+def test_chat_correction_revises_the_published_event(sql, tmp_path, monkeypatch, case):
+    from test_conversation_attribution import episode, reference
+    from test_conversation_reply import proposal
+    from test_shared_memory_events_postgres import literal, rpc
+
+    monkeypatch.setenv('MEMORY_SPARK_DISABLE_PRIVDROP', '1')
+    monkeypatch.setenv('MEMORY_SPARK_TASK_DB', str(tmp_path / 'tasks.sqlite'))
+    monkeypatch.setenv('MEMORY_SPARK_COLLECTOR_PROMPT_VERSION', 'reply-v2')
+    date_case = case in {'short-answer', 'year-only', 'explicit-correction'}
+    if date_case:
+        original_event = '1912年的时候才来的悉尼'
+        unrelated = '16岁才去上海学习工作'
+        first = f'对的,我是在成德长大,一直到{unrelated},{original_event}'
+        original_title = updated_title = '来到悉尼'
+        question = '你刚才说“1912年”来到悉尼，是指2012年，还是另一个年份？'
+        correction = {'short-answer': '2012 年来的悉尼', 'year-only': '2012',
+                      'explicit-correction': '其实是2012 年来的悉尼'}[case]
+        confirmed = '明白了，你是2012年来到悉尼的。'
+        clarification = correction
+    else:
+        original_event = 'I repaired a bicycle with Leo in Hobart as a teenager.'
+        unrelated = 'I kept a dog called Pip.'
+        first = f'{original_event} {unrelated}'
+        original_title = 'Bicycle repair with Leo'
+        updated_title = 'Bicycle repair with Maya' if case == 'wording' else original_title
+        question, correction, confirmed = {
+            'place': ('Was the bicycle repair in Hobart or Launceston?', 'Launceston.', 'It happened in Launceston.'),
+            'stage': ('Were you a teenager then?', 'I was in my twenties then.', 'You were in your twenties.'),
+            'wording': ('Who helped you with the bicycle?', 'My sister Maya helped with the bicycle.', 'Maya helped.'),
+        }[case]
+        clarification = f'{correction} Thanks for checking.' if case == 'wording' else correction
+
+    def reply(context):
+        return {**proposal(), 'acknowledgement': confirmed if context['source']['text'] == clarification else original_event,
+            'question': question if context['source']['text'] == first else None,
+            'reason': 'current_correction' if context['source']['text'] == clarification else 'latest_story'}
+
+    def respond(body):
+        packet = json.loads(body['input'])['payload']
+        output = empty_document(body)
+        if 'decisions' in output:
+            if packet['published_events']:
+                saved = next(event for event in packet['published_events'] if event['title'] == original_title)
+                exchange, = packet['recent_dialogue']
+                assert exchange['question']['text'] == question and exchange['question']['personal_testimony'] is False
+                assert exchange['response']['text'] == clarification
+                output['decisions'][0].update(action='update', event_id=saved['id'], correction=True)
+            return output
+        if 'events' not in output:
+            return output
+        initial = packet['sources'][0]['text'] == first
+        quote = original_event if initial else correction
+        ref = reference(packet, quote)
+        event = {**episode(packet, quote, title=original_title if initial else updated_title),
+            'location': None, 'location_basis': [], 'locationConfidenceScore': 0.0, 'yearConfidenceScore': 0.0}
+        if date_case:
+            year = 1912 if initial else 2012
+            event.update(temporal=dict(expression=str(year), precision='year', year_start=year, year_end=year, basis=[ref]),
+                yearConfidenceScore=1.0)
+        elif initial or case == 'stage':
+            event.update(life_stage='adolescence' if initial else 'young_adulthood', stage_evidence=[ref])
+        if initial or case == 'wording':
+            event['description'] = quote
+        if initial or case == 'place':
+            city = '悉尼' if date_case else 'Hobart' if initial else 'Launceston'
+            country = '澳大利亚' if date_case else 'Australia'
+            event.update(location=dict(place=city, hierarchy=['Earth', country, city], granularity='city'),
+                location_basis=[ref], locationConfidenceScore=1.0)
+        output['events'] = [event]
+        if initial:
+            output['events'].append(episode(packet, unrelated, title=unrelated))
+        return output
+
+    install_document_provider(monkeypatch, respond)
+    monkeypatch.setattr('apps.api.codex_worker_service.CodexConnection', ControlledSkillConnection)
+    conversation = Conversation(sql, tmp_path / 'conversation', monkeypatch, empty, reply=reply)
+    native = CodexWorker(home_root=tmp_path / 'worker', command=['controlled'],
+        base_url='http://synthetic.invalid', api_key='synthetic')
+    app = FastAPI()
+
+    @app.post('/internal/codex/turn')
+    async def turn(payload: WorkerTurnInput):
+        return await native.turn(payload)
+
+    worker = MemoryEventWorker(Broker(sql), worker_url='http://controlled.invalid', worker_secret='synthetic',
+        worker_transport=httpx.ASGITransport(app=app))
+
+    def publish():
+        conversation.deliver_receipts()
+        sql('update public.user_memoir_background_agent set available_at=clock_timestamp();')
+        run, = service(sql, 'pending_memoir_background_agents')
+        asyncio.run(worker.execute_background_agent(run))
+        response = conversation.client.get('/v1/story/atlas-events',
+            params={'view': 'map', 'project_id': conversation.project})
+        assert response.status_code == 200, response.text
+        return response.json()
+
+    with conversation.client:
+        original = conversation.say(first)
+        before = publish()
+        saved = next(event for event in before['events'] if event['title'] == original_title)
+        response = conversation.say(clarification)
+        assert confirmed in response['reply']
+        if case == 'year-only':
+            source = dict(id=response['accepted_source_id'], version=1)
+            ref = dict(source_id=source['id'], version=1, quote=correction)
+            unscoped = dict(kind='event', title=original_title, existing_id=saved['id'], expected_revision=saved['revision'],
+                temporal=dict(expression='2012', precision='year', year_start=2012, year_end=2012, basis=[ref]),
+                correction=ref, source_refs=[ref])
+            rejected = rpc(sql, 'apply_user_memory_events',
+                f"{literal(conversation.project)},{literal([source])},{literal([unscoped])}", check=False)
+            assert 'chat correction requires explicit current original testimony' in rejected.stderr
+        after = publish()
+        updated = next(event for event in after['events'] if event['id'] == saved['id'])
+        assert updated['title'] == updated_title
+        assert updated['revision'] > saved['revision']
+        assert updated['locationConfidenceScore'] == 1
+        if case == 'place':
+            assert [link['place']['place'] for link in updated['places']] == ['Launceston']
+        else:
+            assert updated['location'] == saved['location']
+        assert [event for event in after['events'] if event['id'] != saved['id']] == [
+            event for event in before['events'] if event['id'] != saved['id']]
+        view = rpc(sql, 'read_user_memory_events', literal(conversation.project))
+        record = next(event for event in view['events'] if event['id'] == saved['id'])
+        assert record['message_ids'] == [original['client_turn_id'], response['client_turn_id']]
+        assert sql(f"select count(*) from public.user_memory_event_revision where event_id={literal(saved['id'])} "
+            f"and origin='chat' and actor={literal(OWNER)};").stdout.strip() == '1'
+        if case == 'wording':
+            assert record['description'] == correction
+        if case == 'stage':
+            assert updated['life_stage'] == 'young_adulthood'
+            assert record['user_overrides']['life_stage']['origin'] == 'chat'
+        else:
+            assert updated['life_stage'] == saved['life_stage']
+        if date_case:
+            assert view['sources'][-1]['language'] == 'zh-CN'
+            assert saved['temporal']['year_start'] == 1912
+            assert (updated['temporal']['year_start'], updated['temporal']['year_end']) == (2012, 2012)
+            assert record['user_overrides']['temporal']['source_id'] == response['accepted_source_id']
+            assert record['user_overrides']['temporal']['origin'] == 'chat'
+            replay = subprocess.run(['node', str(Path(__file__).parent / 'js/helpers/replay-map-year-clarification.mjs')],
+                input=json.dumps(dict(project=conversation.project, event_id=saved['id'], feeds=[before, after])),
+                text=True, capture_output=True, timeout=10)
+            assert replay.returncode == 0, replay.stdout + replay.stderr
+
+
 @pytest.mark.parametrize('profile_first',[False,True])
 def test_foreground_keeps_replying_while_background_finishes_then_batches_queued_narrations(sql,tmp_path,monkeypatch,profile_first):
     from test_conversation_reply import proposal

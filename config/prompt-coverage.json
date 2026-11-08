@@ -1348,20 +1348,21 @@
     },
     "memoir/skills/author-timeline/reconcile": {
       "use": "runtime",
-      "scenario": "Reconcile nonempty validated drafts with nearby active events under the same Timeline publication fence. Scope create, update, and unresolved decisions before saving message links.",
+      "scenario": "Reconcile validated drafts with active events under the same Timeline publication fence. Use authorized dialogue context to identify corrections of saved facts and preserve the narrator’s original evidence.",
       "consumers": [
         "apps/api/lifetime_memory_composer.py:_reconcile_timeline",
         "apps/api/lifetime_memory_lane_engine.py:lane_contract"
       ],
       "regressions": [
         "tests/test_memoir_background_agent_workflow.py::test_timeline_reconciles_and_revises_a_city_period",
+        "tests/test_memoir_background_agent_workflow.py::test_chat_correction_revises_the_published_event",
         "tests/test_lifetime_memory_lane_engine.py",
         "tests/test_memoir_live_skills.py"
       ],
       "review": {
-        "dataset_decision": "Use separate bilingual synthetic identity cases for a revisable residence and a distinct same-city recollection. The prior extraction datasets retain their own output contract. The controlled worker replay includes a wrong target, same-page retry, later date revision and exact message IDs.",
-        "evaluator_decision": "Reuse the runtime structured identity validator and add independent expected create and update assignments to the isolated cases. Verify exact model phase dispatch and canonical revisions in PostgreSQL. Isolated synthetic runs cover selected cases and require broader evaluation for a general model-quality claim.",
-        "prompt_sha256": "469fd86900933eb0ef50f5dad45de931d8419bb94775034528f827c35e82198f",
+        "dataset_decision": "Retain the bilingual residence and separate recollection cases to distinguish ordinary enrichment from corrections. Add bilingual clarification cases with expected place and participant corrections. The controlled chat replay checks date, place, stage and wording corrections against the saved event. The extraction datasets keep their existing contract.",
+        "evaluator_decision": "Reuse the runtime identity validator and expected create and update assignments. Check the correction flag separately so an ordinary update cannot pass a correction case. The controlled PostgreSQL replay verifies evidence and the committed revision. Isolated cases cover selected behavior.",
+        "prompt_sha256": "46c462bf901f51afa205395f597116977a540bb2e24f496f0c284ae6585767ab",
         "datasets_sha256": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
         "evaluators_sha256": "5d1bd3f52a888d156cb5ba85f07dac05f3f5cd5c404f2c09747b9eb7888ba338"
       }

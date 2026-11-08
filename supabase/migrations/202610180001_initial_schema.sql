@@ -3025,7 +3025,8 @@ begin
   return public.read_user_memory_events(p_project_id);
 end $$;
 
-CREATE FUNCTION public.apply_user_memory_events_before_photos(p_project_id text, p_sources jsonb, p_events jsonb) RETURNS jsonb
+CREATE FUNCTION public.apply_user_memory_events_before_photos(p_project_id text, p_sources jsonb, p_events jsonb,
+    p_reconciled boolean DEFAULT false) RETURNS jsonb
     LANGUAGE plpgsql SECURITY DEFINER
     SET search_path TO ''
     AS $$
@@ -3034,6 +3035,7 @@ declare owner_id uuid:=auth.uid(); item jsonb; saved public.user_narrator_source
   current_event public.user_memory_event%rowtype; event_id text; event_data jsonb; event_refs jsonb; event_stage text; next_change bigint;
   contextual_city boolean; publication_ids text[]; proposal_index integer:=0; target_index integer; relations jsonb;
   previous_timing jsonb; new_timing jsonb; timing_hint jsonb; timing_changed boolean; start_year integer; end_year integer;
+  correction_ref jsonb; corrects_stage boolean; corrects_timing boolean; override_field text; overrides jsonb;
 begin
   if owner_id is null then raise exception 'authenticated user required' using errcode='42501'; end if;
   if pg_catalog.jsonb_typeof(p_sources) is distinct from 'array' or pg_catalog.jsonb_array_length(p_sources) not between 1 and 1000 or
@@ -3162,22 +3164,27 @@ begin
       end loop;
       proposal:=jsonb_set(proposal,'{relations}',relations);
     end if;
+    correction_ref:=null;
     if proposal ? 'correction' then
       ref:=proposal->'correction';
       perform public.validate_memory_evidence(owner_id,p_project_id,ref);
       select * into evidence from public.user_narrator_source where user_id=owner_id and project_id=p_project_id and id=(ref->>'source_id')::uuid;
-      if current_event.id is null or evidence.text is distinct from ref->>'quote' or
-         not exists(select 1 from pg_catalog.jsonb_array_elements(p_sources) s where s->>'id'=ref->>'source_id' and s->>'version'=ref->>'version') or
-         evidence.text !~* '(correct|actually|year was|i meant|should be|更正|纠正|应该|其实|不是)' then
+      if current_event.id is null or not exists(select 1 from pg_catalog.jsonb_array_elements(p_sources) s
+          where s->>'id'=ref->>'source_id' and s->>'version'=ref->>'version') or
+         (case when p_reconciled then not(proposal->'source_refs' @> jsonb_build_array(ref))
+          else evidence.text is distinct from ref->>'quote' or evidence.text !~* '(correct|actually|year was|i meant|should be|更正|纠正|应该|其实|不是)' end) then
         raise exception 'chat correction requires explicit current original testimony' using errcode='22023'; end if;
-      select coalesce(pg_catalog.jsonb_object_agg(key,value),'{}') into event_data from pg_catalog.jsonb_each(proposal)
-        where key in ('life_stage','temporal');
-      perform public.correct_user_memory_event(p_project_id,event_id,current_event.revision,event_data,evidence.text,'chat',evidence.id);
-      if not(proposal ?| array['location','locationConfidenceScore','yearConfidenceScore']) then continue;end if;
-      -- Save model placement metadata after the explicit stage/date override.
-      select * into current_event from public.user_memory_event
-        where user_id=owner_id and project_id=p_project_id and id=event_id;
-      proposal:=proposal-array['correction','life_stage','temporal'];
+      if p_reconciled then
+        correction_ref:=ref;
+      else
+        select coalesce(pg_catalog.jsonb_object_agg(key,value),'{}') into event_data from pg_catalog.jsonb_each(proposal)
+          where key in ('life_stage','temporal');
+        perform public.correct_user_memory_event(p_project_id,event_id,current_event.revision,event_data,evidence.text,'chat',evidence.id);
+        if not(proposal ?| array['location','locationConfidenceScore','yearConfidenceScore']) then continue;end if;
+        select * into current_event from public.user_memory_event
+          where user_id=owner_id and project_id=p_project_id and id=event_id;
+        proposal:=proposal-array['correction','life_stage','temporal'];
+      end if;
     end if;
     event_stage:=coalesce(proposal->>'life_stage',current_event.life_stage,'unplaced');
     if event_stage not in ('baby','childhood','adolescence','young_adulthood','midlife','later_life','unplaced') then
@@ -3185,12 +3192,17 @@ begin
     end if;
     previous_timing:=current_event.data->'temporal';
     new_timing:=proposal->'temporal';
+    corrects_stage:=correction_ref is not null and event_stage<>current_event.life_stage and exists(
+      select 1 from jsonb_array_elements(proposal->'stage_evidence') b where b->>'source_id'=correction_ref->>'source_id');
+    corrects_timing:=correction_ref is not null and new_timing is not null
+      and (new_timing-'basis') is distinct from (previous_timing-'basis') and exists(
+        select 1 from jsonb_array_elements(new_timing->'basis') b where b->>'source_id'=correction_ref->>'source_id');
     timing_changed:=previous_timing->>'year_start' is not null and new_timing->>'year_start' is not null
       and (previous_timing->>'year_start' is distinct from new_timing->>'year_start'
            or previous_timing->>'year_end' is distinct from new_timing->>'year_end');
     if current_event.kind='period' and new_timing->>'precision' not in ('age','unknown')
       and previous_timing->>'precision' not in ('age','unknown')
-      and not (coalesce(current_event.data->'user_overrides','{}') ? 'temporal')
+      and (corrects_timing or not (coalesce(current_event.data->'user_overrides','{}') ? 'temporal'))
       and (new_timing->>'year_start' is not null or new_timing->>'year_end' is not null) then
       -- Known endpoints from the same period can be supplemented by later testimony.
       start_year:=coalesce(new_timing->>'year_start',previous_timing->>'year_start')::integer;
@@ -3198,7 +3210,8 @@ begin
       timing_changed:=coalesce(previous_timing->>'year_start'<>new_timing->>'year_start',false)
         or coalesce(previous_timing->>'year_end'<>new_timing->>'year_end',false)
         or coalesce(start_year>end_year,false);
-      if not timing_changed and not coalesce((current_event.data->>'timing_conflict')::boolean,false)
+      if (corrects_timing and coalesce(start_year<=end_year,true)
+          or not timing_changed and not coalesce((current_event.data->>'timing_conflict')::boolean,false))
         and ((new_timing->>'year_start' is null and start_year is not null)
              or (new_timing->>'year_end' is null and end_year is not null)) then
         new_timing:=new_timing||jsonb_build_object('year_start',start_year,'year_end',end_year,'basis',(
@@ -3207,8 +3220,11 @@ begin
       end if;
     end if;
     event_data:=(coalesce(current_event.data,'{"temporal":{"expression":"unknown","precision":"unknown"},"visibility":"private","include_in_print":false}'::jsonb)-'reconciliation_source_ids') ||
-      (proposal - array['id','existing_id','expected_revision','source_refs','kind','life_stage']);
-    if proposal ? 'temporal' and not (coalesce(current_event.data->'user_overrides','{}') ? 'temporal') and
+      (proposal - array['id','existing_id','expected_revision','source_refs','kind','life_stage','correction']);
+    if corrects_timing then
+      event_data:=(event_data-array['temporal_estimate','timing_hint']) || jsonb_build_object('timing_conflict',false,
+        'yearConfidenceScore',case when new_timing->>'precision'='unknown' then 0 else 1 end);
+    elsif proposal ? 'temporal' and not (coalesce(current_event.data->'user_overrides','{}') ? 'temporal') and
        (coalesce((current_event.data->>'timing_conflict')::boolean,false) or timing_changed) then
       -- Replaying the unresolved summary or an existing attributed account
       -- does not add evidence. Keep the unresolved placement; new basis refs
@@ -3225,11 +3241,21 @@ begin
             'basis',coalesce(current_event.data->'temporal'->'basis','[]') || coalesce(proposal->'temporal'->'basis','[]')));
       end if;
     end if;
-    if current_event.data->'user_overrides' ? 'life_stage' then event_stage:=current_event.life_stage; end if;
-    if current_event.data->'user_overrides' ? 'temporal' then
+    if current_event.data->'user_overrides' ? 'life_stage' and not corrects_stage then event_stage:=current_event.life_stage; end if;
+    if current_event.data->'user_overrides' ? 'temporal' and not corrects_timing then
       event_data:=pg_catalog.jsonb_set(event_data,'{temporal}',current_event.data->'temporal');
       event_data:=event_data-array['temporal_estimate','timing_hint'];
       event_data:=jsonb_set(event_data,'{yearConfidenceScore}',coalesce(current_event.data->'yearConfidenceScore','1'::jsonb));
+    end if;
+    if corrects_stage or corrects_timing then
+      overrides:=coalesce(current_event.data->'user_overrides','{}');
+      foreach override_field in array array_remove(array[case when corrects_stage then 'life_stage' end,
+          case when corrects_timing then 'temporal' end],null) loop
+        overrides:=overrides||jsonb_build_object(override_field,jsonb_build_object('actor',owner_id,'origin','chat',
+          'statement',correction_ref->>'quote','expected_revision',current_event.revision,
+          'source_id',correction_ref->>'source_id','source_version',correction_ref->'version'));
+      end loop;
+      event_data:=jsonb_set(event_data,'{user_overrides}',overrides);
     end if;
     if coalesce(proposal->>'visibility','private')<>coalesce(current_event.data->>'visibility','private') or
        coalesce((proposal->>'include_in_print')::boolean,false)<>coalesce((current_event.data->>'include_in_print')::boolean,false) then
@@ -3297,7 +3323,8 @@ begin
            and s.event_id=current_event.id and s.evidence=primary_ref.value and s.stage_progress_role='primary')) then
       continue;
     end if;
-    update public.user_memoir_project set event_sequence=event_sequence+1
+    update public.user_memoir_project set event_sequence=event_sequence+1,
+      policy_epoch=policy_epoch+case when correction_ref is not null then 1 else 0 end
       where user_id=owner_id and project_id=p_project_id returning event_sequence into next_change;
     insert into public.user_memory_event(user_id,project_id,id,revision,kind,life_stage,status,data,change_sequence)
       values(owner_id,p_project_id,event_id,coalesce(current_event.revision,0)+1,proposal->>'kind',event_stage,
@@ -3315,7 +3342,12 @@ begin
     end loop;
     select * into current_event from public.user_memory_event where user_id=owner_id and project_id=p_project_id and id=event_id;
     insert into public.user_memory_event_revision(user_id,project_id,event_id,revision,record,actor,origin)
-      values(owner_id,p_project_id,event_id,current_event.revision,public.memory_event_record(current_event),'model','author_timeline');
+      values(owner_id,p_project_id,event_id,current_event.revision,public.memory_event_record(current_event),
+        case when correction_ref is null then 'model' else owner_id::text end,
+        case when correction_ref is null then 'author_timeline' else 'chat' end);
+    if correction_ref is not null then
+      insert into public.user_private_draft_outbox(user_id,project_id,change_kind) values(owner_id,p_project_id,'correction');
+    end if;
   end loop;
   update public.user_narrator_source set processing_status='succeeded'
     where user_id=owner_id and project_id=p_project_id and processing_status<>'succeeded'
@@ -4860,7 +4892,9 @@ begin
    end loop;
    previous_setting:=current_setting('memoir.lifetime_lane',true);previous_owner:=current_setting('request.jwt.claim.sub',true);
    perform set_config('memoir.lifetime_lane',lane.id::text,true);perform set_config('request.jwt.claim.sub',lane.user_id::text,true);
-   perform public.apply_user_memory_events(lane.project_id,jsonb_build_array(jsonb_build_object('id',source_id,'version',current_source_version)),p_result->'events');
+   perform public.apply_user_memory_events_before_photos(lane.project_id,
+     jsonb_build_array(jsonb_build_object('id',source_id,'version',current_source_version)),p_result->'events',reconciling);
+   perform public.reconcile_interview_photo_links(lane.user_id,lane.project_id);
    perform set_config('memoir.lifetime_lane',coalesce(previous_setting,''),true);perform set_config('request.jwt.claim.sub',coalesce(previous_owner,''),true);
    if (page->>'core_end')::integer<(page->'source'->>'original_length')::integer then
      update public.user_narrator_source set processing_status='pending' where user_id=lane.user_id and project_id=lane.project_id and id=source_id;
@@ -14673,7 +14707,7 @@ revoke all on function public.advance_lifetime_draft_publication() from public,a
 revoke all on function public.advance_lifetime_preferences() from public,anon,authenticated,service_role;
 revoke all on function public.advance_two_lane_checkpoint(uuid, uuid, integer, text) from public,anon,authenticated,service_role;
 revoke all on function public.apply_user_memory_events(text, jsonb, jsonb) from public,anon,authenticated,service_role;
-revoke all on function public.apply_user_memory_events_before_photos(text, jsonb, jsonb) from public,anon,authenticated,service_role;
+revoke all on function public.apply_user_memory_events_before_photos(text, jsonb, jsonb, boolean) from public,anon,authenticated,service_role;
 revoke all on function public.assert_lifetime_draft_receipt_scope(uuid) from public,anon,authenticated,service_role;
 revoke all on function public.attach_guest_conversation(text, boolean) from public,anon,authenticated,service_role;
 revoke all on function public.attach_guest_conversation_before_lifetime(text, boolean) from public,anon,authenticated,service_role;
@@ -15042,7 +15076,7 @@ grant EXECUTE on function public.advance_lifetime_preferences() to service_role;
 grant EXECUTE on function public.advance_two_lane_checkpoint(uuid, uuid, integer, text) to service_role;
 grant EXECUTE on function public.apply_user_memory_events(text, jsonb, jsonb) to authenticated;
 grant EXECUTE on function public.apply_user_memory_events(text, jsonb, jsonb) to service_role;
-grant EXECUTE on function public.apply_user_memory_events_before_photos(text, jsonb, jsonb) to service_role;
+grant EXECUTE on function public.apply_user_memory_events_before_photos(text, jsonb, jsonb, boolean) to service_role;
 grant EXECUTE on function public.attach_guest_conversation(text, boolean) to authenticated;
 grant EXECUTE on function public.attach_guest_conversation_before_lifetime(text, boolean) to service_role;
 grant EXECUTE on function public.attach_guest_conversation_before_memory_events(text, boolean) to service_role;
