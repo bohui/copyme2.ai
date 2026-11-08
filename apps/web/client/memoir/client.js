@@ -2211,11 +2211,16 @@ function normalizeHistoryOpening(messages) {
   if (!messages.length) return messages;
   const normalize = text => text.replace(/\s+/g, " ").trim();
   const openings = new Set(openingMessages.map(normalize));
-  const isOpening = message => message.role === "assistant" && openings.has(normalize(message.text));
+  // Older browser caches dropped productCopy but kept the opening's startup trace.
+  const isOpening = message => message.role === "assistant" && (
+    message.productCopy === "opening" || openings.has(normalize(message.text))
+    || (!message.clientTurnId && message.traceMode === "simulated"
+      && message.trace?.some(step => step?.kind === "tool_call" && step.label === "conversation.start"))
+  );
   const existing = messages.find(isOpening);
   const opening = { ...(existing || {
     id: "history-opening", role: "assistant",
-  }), text: conversationMessage("opening"), productCopy: "opening" };
+  }), text: conversationMessage("opening"), productCopy: "opening", streaming: false };
   return [opening, ...messages.filter(message => !isOpening(message))];
 }
 
