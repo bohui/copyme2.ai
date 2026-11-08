@@ -3,7 +3,7 @@ from copy import deepcopy
 from typing import Literal
 from pydantic import BaseModel, ConfigDict, Field
 
-from .interview_plan import PhotoAssociation, authorized_photos
+from .interview_plan import PhotoAssociation, authorized_photos, constrain_acknowledgement
 from .interview_questions import validate_question_evidence, recall_question, question_span
 from .interview_strategy import Strategy
 from .prompt_artifact import load_prompt_artifact, prompt_path
@@ -50,9 +50,10 @@ def reply_instructions():
 
 
 def reply_schema(context):
-    # Availability belongs in host validation; per-turn enums rewrite the cached prefix.
     schema = ReplyProposal.model_json_schema()
     schema['properties']['acknowledgement']['pattern'] = '^[^?？]*$'
+    if context.get('reviewed_acknowledgement') is not None:
+        constrain_acknowledgement(schema, [context['reviewed_acknowledgement']])
     def compact(value):
         if isinstance(value, dict):
             result = {key: compact(child) for key, child in value.items() if key not in {'title', 'default'}}

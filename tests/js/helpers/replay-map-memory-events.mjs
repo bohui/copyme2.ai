@@ -7,11 +7,8 @@ import {createMapMemoryEvents} from '../../../apps/web/client/memoir/map-memory-
 import {groupMapFrame,groupPlaces,mergePlaces} from '../../../apps/web/client/memoir/places.mjs';
 import {harness as mapImageryHarness} from './place-map-imagery.mjs';
 
-const {events,locations,places,grouping,snapshot,relative_current_home,estimated_current_home} = JSON.parse(readFileSync(0,'utf8'));
-const enriched = events.map(event => ({...event,canonical:true,map_places:locations[event.id].items.map(link => {
-  const record=grouping[link.place.place].places[0];
-  return {...link,place:{...link.place,map_city:record.city,map_city_key:record.city_key,map_pin:record.pin}};
-})}));
+const {events,places,snapshot,relative_current_home,estimated_current_home} = JSON.parse(readFileSync(0,'utf8'));
+const enriched = events.map(event => ({...event,canonical:true,map_places:event.places}));
 const groups=groupPlaces(mergePlaces([...places,...enriched.flatMap(event=>event.map_places.map(link=>link.place))]));
 const journey = buildMapMemoryJourney(enriched,groups);
 for (const provider of ['google','geoapify']) for (const group of groups) {
@@ -131,18 +128,9 @@ const history=JSON.stringify(places), requests=[];
 const dependencies={state,profile:()=>state.project.profile,render(){},
   captureProjectScope:()=>state.project.id,isCurrentProjectScope:id=>id===state.project.id,
   lifeStageText:stage=>stage,storyApi:async path=>{
-    if (path.startsWith('/v1/story/atlas-events?')) return snapshot;
-    assert.ok(path.startsWith('/v1/story/atlas-events/'),'The recall map must use its authorised read endpoint');
-    const event=events.find(event=>path.includes(`/${event.id}/places`));
-    assert.ok(event);return locations[event.id];
-  },supabaseApi:async(path,options)=>{
-    assert.equal(path,`/v1/agent/places/${projectId}/groups`);
-    const body=JSON.parse(options.body);
-    assert.equal(body.places.length,1);
-    assert.equal(body.language,'en-AU');
-    assert.ok(!('title' in body.places[0]) && !('source_refs' in body.places[0]));
-    requests.push(body.places[0].place);return grouping[body.places[0].place];
-  }};
+    assert.ok(path.startsWith('/v1/story/atlas-events?'),'Map locations must arrive inline');
+    return snapshot;
+  },supabaseApi:async path=>{requests.push(path);}};
 const family=createFamilyWorkspace(dependencies);
 await family.refreshFamilyContext();
 assert.equal(state.timeline.length,2,'Ordinary recall must load saved events before the map can render them');
@@ -152,7 +140,7 @@ const workspace=createPlaceWorkspace({...dependencies,photos:{bindPhotoMemoryAct
 workspace.mapPhotoAlbums.sync=()=>{};
 workspace.mapMemoryEvents.sync(null);
 await new Promise(resolve=>setImmediate(resolve));
-assert.deepEqual(requests.sort(),['Newtown','Pyrmont']);
+assert.deepEqual(requests,[]);
 assert.ok(workspace.placeWorkspaceSelection(),'Canonical event locations must activate a map without a separate journey hint');
 assert.equal(JSON.stringify(state.project.profile.memory_places),history,'Event map lookup must not rewrite place history');
 workspace.mapMemoryEvents.sync(scene);

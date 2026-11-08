@@ -25,8 +25,8 @@ export default async function RootLayout({ children }) {
         <meta name="theme-color" content="#f6f1e8" />
         <link rel="icon" type="image/png" href="/static/copyme2_icon_light.png" />
         <link rel="apple-touch-icon" href="/static/copyme2_icon_light.png" />
-        <link rel="preconnect" href="https://fonts.googleapis.com" />
-        <link rel="preconnect" href="https://fonts.gstatic.com" crossOrigin="anonymous" />
+        <link rel="preload" href="/static/fonts/dm-sans-latin.woff2" as="font" type="font/woff2" crossOrigin="anonymous" />
+        <link rel="preload" href="/static/fonts/fraunces-latin.woff2" as="font" type="font/woff2" crossOrigin="anonymous" />
         <link rel="stylesheet" href="/static/styles.css" />
         <link rel="stylesheet" href="/static/story-game.css" />
       </head>

@@ -410,3 +410,19 @@ def test_cosyvoice_retries_a_busy_request_once_using_retry_after():
     )
     assert len(requests) == 2
     assert result['content'] == wav_audio()
+
+
+def test_cosyvoice_bounds_the_connection_wait_without_cutting_synthesis_time(monkeypatch):
+    client = httpx.Client
+
+    def provider(request):
+        assert request.extensions['timeout']['connect'] == 5.0
+        assert request.extensions['timeout']['read'] == 120.0
+        raise httpx.ConnectTimeout('Speech server is unreachable')
+
+    monkeypatch.setattr(httpx, 'Client', lambda **options: client(
+        **options, transport=httpx.MockTransport(provider),
+    ))
+    service = speech.CosyVoiceSpeechService('cosyvoice-test')
+    with pytest.raises(speech.SpeechProviderError, match='CosyVoice speech synthesis failed'):
+        service.synthesize('What do you remember?')

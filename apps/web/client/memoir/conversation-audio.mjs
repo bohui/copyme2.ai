@@ -71,7 +71,7 @@ export function createConversationAudio({
     };
   }
 
-  function playGeneratedAudio(generated) {
+  function playGeneratedAudio(generated, onPlaying = null) {
     if (!generated?.audio_base64) return Promise.reject(new Error("Generated audio was empty."));
     return new Promise((resolve, reject) => {
       const url = URL.createObjectURL(base64ToBlob(generated.audio_base64, generated.mime_type || "audio/mpeg"));
@@ -83,6 +83,7 @@ export function createConversationAudio({
         settled = true;
         stopMonitor();
         URL.revokeObjectURL(url);
+        player.onplaying = null;
         player.onended = null;
         player.onerror = null;
         if (state.audioPlayer === player) state.audioPlayer = null;
@@ -92,6 +93,7 @@ export function createConversationAudio({
       };
       state.audioPlayer = player;
       state.voiceModePlaybackFinish = finish;
+      player.onplaying = onPlaying;
       player.onended = () => finish();
       player.onerror = () => finish(new Error("Generated audio could not be played."));
       player.play().catch(finish);
@@ -101,7 +103,8 @@ export function createConversationAudio({
   async function speakVoiceReply(text) {
     if (!state.voiceMode || !text) return;
     const turnId = state.voiceModeTurnId;
-    state.voiceModeStatus = "speaking";
+    const active = () => state.voiceMode && state.voiceModeTurnId === turnId;
+    state.voiceModeStatus = "preparing";
     render();
     try {
       const generated = await storyApi("/v1/story/question-audio", {
@@ -111,9 +114,14 @@ export function createConversationAudio({
           language: conversationLanguage(),
         }),
       });
-      if (state.voiceMode && state.voiceModeTurnId === turnId) await playGeneratedAudio(generated);
+      if (!active()) return;
+      await playGeneratedAudio(generated, () => {
+        if (!active()) return;
+        state.voiceModeStatus = "speaking";
+        render();
+      });
     } catch (error) {
-      if (!state.voiceMode || state.voiceModeTurnId !== turnId) return;
+      if (!active()) return;
       // Browser default voices can change Mira's identity between conversation turns.
       toast(conversationMessage("voicePlaybackUnavailable"));
     }
@@ -131,6 +139,7 @@ export function createConversationAudio({
     if (state.pendingAudioUpload && !preservePending) state.pendingAudioUpload.cancelled = true;
     const active = Boolean(state.voiceMode || state.voiceModeRecorder || state.voiceModeStream);
     state.voiceMode = false;
+    state.voiceCaptureMode = null;
     state.voiceModeStatus = "off";
     state.voiceMuted = false;
     state.voiceModeCancelTurn = true;
@@ -213,14 +222,17 @@ export function createConversationAudio({
   }
 
   async function startVoiceModeTurn() {
-    if (!state.voiceMode || state.voiceMuted || state.loading || state.voiceModeRecorder) return;
+    const mode = state.voiceCaptureMode;
+    if (!state.voiceMode || !mode || state.voiceMuted || state.loading || state.voiceModeRecorder) return;
     if (!navigator.mediaDevices?.getUserMedia || !window.MediaRecorder) {
       state.voiceMode = false;
+      state.voiceCaptureMode = null;
       state.voiceModeStatus = "off";
       render();
       return toast(translate("Memoir.storyFlow.voiceConversationUnavailable"));
     }
     const turnId = state.voiceModeTurnId += 1;
+    const active = () => state.voiceMode && state.voiceModeTurnId === turnId;
     state.voiceModeCancelTurn = false;
     try {
       const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
@@ -251,26 +263,25 @@ export function createConversationAudio({
         state.voiceModeStatus = "processing";
         render();
         try {
-          const saved = await transcribeRecordedAudio(blob, `voice-${Date.now()}`);
-          if (!state.voiceMode || state.voiceModeTurnId !== turnId) return;
-          if (!state.voiceMode || state.voiceModeTurnId !== turnId || !saved.text) {
-            if (state.voiceMode) {
-              state.voiceModeStatus = "listening";
-              render();
-              queueVoiceModeTurn();
-            }
+          const saved = await transcribeRecordedAudio(blob, `voice-${Date.now()}`, mode, active);
+          if (!active()) return;
+          if (!saved.text) {
+            state.voiceModeStatus = "listening";
+            render();
+            queueVoiceModeTurn();
             return;
           }
-          state.audioRecordings = [...(state.audioRecordings || []), saved.recording];
+          if (saved.recording) state.audioRecordings = [...(state.audioRecordings || []), saved.recording];
           state.audioUploadId = saved.uploadId;
           state.audioTranscript = saved.text;
           state.audioTranscriptKind = "narrator_transcript";
           state.photoTurns?.saveAudioDraft();
           await sendChatMessage({ voiceTurn: true });
         } catch (error) {
-          if (state.voiceMode) {
+          if (active()) {
             toast(error.message || conversationMessage("voiceAnswerFailed"));
             state.voiceMode = false;
+            state.voiceCaptureMode = null;
             state.voiceModeStatus = "off";
             render();
           }
@@ -280,7 +291,9 @@ export function createConversationAudio({
       render();
       monitorVoiceActivity(stream, recorder, turnId);
     } catch {
+      if (!active()) return;
       state.voiceMode = false;
+      state.voiceCaptureMode = null;
       state.voiceModeStatus = "off";
       state.voiceModeRecorder = null;
       state.voiceModeStream = null;
@@ -297,8 +310,10 @@ export function createConversationAudio({
     }
     if (state.loading || state.photoMemoryTask || state.dictationStatus !== "off") return;
     const scope = captureProjectScope();
-    if (!await ensureRecordingConsent() || !isCurrentProjectScope(scope)) return;
+    const mode = await ensureRecordingConsent();
+    if (!mode || !isCurrentProjectScope(scope)) return;
     if (state.loading || state.voiceMode || state.dictationStatus !== 'off') return;
+    state.voiceCaptureMode = mode;
     state.voiceMode = true;
     state.voiceModeStatus = "listening";
     state.voiceModeCancelTurn = false;
@@ -347,6 +362,7 @@ export function createConversationAudio({
     clearDictationMonitor();
     state.dictationId += 1;
     state.dictationStatus = "off";
+    state.dictationCaptureMode = null;
     state.recording = false;
     if (state.recorder?.state !== "inactive") state.recorder?.stop();
     state.recordingStream?.getTracks().forEach((track) => track.stop());
@@ -370,15 +386,15 @@ export function createConversationAudio({
   }
 
   async function transcribeDictation(id) {
+    const active = () => state.dictationId === id;
     render();
     let shouldSend = false;
     try {
       const blob = new Blob(state.recordedChunks, { type: state.recorder?.mimeType || "audio/webm" });
       if (!blob.size) return;
-      const saved = await transcribeRecordedAudio(blob, `dictation-${Date.now()}`);
-      if (state.dictationId !== id) return;
-      if (state.dictationId !== id) return;
-      state.audioRecordings = [...(state.audioRecordings || []), saved.recording];
+      const saved = await transcribeRecordedAudio(blob, `dictation-${Date.now()}`, state.dictationCaptureMode, active);
+      if (!active()) return;
+      if (saved.recording) state.audioRecordings = [...(state.audioRecordings || []), saved.recording];
       state.audioTranscript = [state.audioTranscript.trim(), saved.text].filter(Boolean).join(" ");
       state.audioTranscriptKind = "narrator_transcript";
       state.photoTurns?.saveAudioDraft();
@@ -387,6 +403,7 @@ export function createConversationAudio({
     finally {
       if (state.dictationId === id) {
         state.dictationStatus = "off";
+        state.dictationCaptureMode = null;
         state.recorder = null;
         state.recordedChunks = [];
         render();
@@ -400,13 +417,15 @@ export function createConversationAudio({
     if (state.loading || state.voiceMode || state.dictationStatus !== "off") return;
     if (!navigator.mediaDevices?.getUserMedia || !window.MediaRecorder) return toast(translate("Memoir.storyFlow.browserCannotRecord"));
     const scope = captureProjectScope();
-    if (!await ensureRecordingConsent() || !isCurrentProjectScope(scope)) return;
+    const mode = await ensureRecordingConsent();
+    if (!mode || !isCurrentProjectScope(scope)) return;
     if (state.loading || state.voiceMode || state.dictationStatus !== 'off') return;
     if (state.pendingAudioUpload) {
+      if (mode !== 'retained') return toast(translate('Errors.recordingAuthorityRequired'));
       const pending = state.pendingAudioUpload;
       state.dictationStatus = 'processing'; render();
       try {
-        const saved = await transcribeRecordedAudio(pending.blob, pending.filenamePrefix);
+        const saved = await transcribeRecordedAudio(pending.blob, pending.filenamePrefix, mode);
         state.audioRecordings = [...(state.audioRecordings || []), saved.recording];
         state.audioTranscript = [state.audioTranscript.trim(),saved.text].filter(Boolean).join(' ');
         state.audioTranscriptKind = 'narrator_transcript';
@@ -416,6 +435,7 @@ export function createConversationAudio({
       return;
     }
     const id = ++state.dictationId;
+    state.dictationCaptureMode = mode;
     state.dictationStatus = "starting";
     render();
     let stream;
@@ -446,6 +466,7 @@ export function createConversationAudio({
       stream?.getTracks().forEach((track) => track.stop());
       if (state.dictationId !== id) return;
       state.dictationStatus = "off";
+      state.dictationCaptureMode = null;
       state.recorder = null;
       state.recordingStream = null;
       render();
@@ -453,8 +474,20 @@ export function createConversationAudio({
     }
   }
 
-  async function transcribeRecordedAudio(blob, filenamePrefix) {
+  async function transcribeRecordedAudio(blob, filenamePrefix, mode, active) {
     const scope = captureProjectScope();
+    if (mode === 'temporary') {
+      const isCurrent = () => active() && isCurrentProjectScope(scope);
+      const encoded = await blobToBase64(blob);
+      if (!isCurrent()) throw new DOMException('Recording discarded', 'AbortError');
+      const transcript = await storyApi('/v1/story/transcriptions/temporary', {
+        method:'POST', isCurrent,
+        body:JSON.stringify({audio_base64:encoded, mime_type:blob.type.split(';')[0], language:conversationLanguage()}),
+      });
+      if (!isCurrent()) throw new DOMException('Recording discarded', 'AbortError');
+      return {uploadId:null, recording:null, text:String(transcript.text || '').trim()};
+    }
+    if (mode !== 'retained') throw new Error('Recording consent is required');
     const pending = state.pendingAudioUpload?.blob === blob ? state.pendingAudioUpload :
       {blob, filenamePrefix, scope, uploadKey:globalThis.crypto.randomUUID()};
     if (!isCurrentProjectScope(pending.scope)) throw new Error('Recording owner changed');

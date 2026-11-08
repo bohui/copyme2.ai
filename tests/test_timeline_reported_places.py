@@ -155,23 +155,16 @@ def test_chronological_active_city_and_explicit_redirect_replay_to_client(sql, t
         conversation.drain()
         later = snapshot()
         assert later['current_active_location']['place'] == '悉尼'
-        page = conversation.client.get('/v1/story/atlas-events', params=dict(view='map', project_id=conversation.project)).json()
-        links = {event['id']:conversation.client.get(
-            f'/v1/story/atlas-events/{conversation.project}/{event["id"]}/places').json()['items'] for event in page['events']}
-        grouping = {}
-        for items in links.values():
-            linked, = items
-            response = conversation.client.post(f'/v1/agent/places/{conversation.project}/groups',
-                json={'places':[linked['place']], 'language':'zh-CN'})
-            assert response.status_code == 200, response.text
-            groups = response.json()
-            if linked['place']['granularity'] == 'landmark':
-                assert groups['places'][0]['pin'] is None
-            grouping[linked['place']['place']] = groups
+        page = conversation.client.get('/v1/story/atlas-events',
+            params=dict(view='map', project_id=conversation.project, language='zh-CN')).json()
+        for event in page['events']:
+            for linked in event['places']:
+                if linked['place']['granularity'] == 'landmark':
+                    assert linked['place']['map_pin'] is None
         replay = Path(__file__).parent / 'js/helpers/replay-question-place-focus.mjs'
         checked = subprocess.run(['node', str(replay)], input=json.dumps(dict(project_id=conversation.project,
-            result=result, snapshot=initial, redirect_snapshot=later, event_page=page, links=links,
-            places=raw['place_journeys'], grouping=grouping)), text=True, capture_output=True, timeout=10)
+            result=result, snapshot=initial, redirect_snapshot=later, event_page=page,
+            places=raw['place_journeys'], grouped=True)), text=True, capture_output=True, timeout=10)
         assert checked.returncode == 0, checked.stdout + checked.stderr
 
 
@@ -230,12 +223,9 @@ def test_topic_pause_keeps_saved_shanghai_and_sydney_on_the_map(sql, tmp_path, m
         page = conversation.client.get('/v1/story/atlas-events', params=dict(view='map', project_id=conversation.project)).json()
         pins = rpc(sql, 'read_lifetime_pinned', f"'{page['conversation_id']}'")
         assert pins['paused_topics'] == ['先不说上海'], 'The collection pause must stay active'
-        links = {event['id']: conversation.client.get(
-            f'/v1/story/atlas-events/{conversation.project}/{event["id"]}/places').json()['items']
-            for event in page['events']}
         replay = Path(__file__).parent / 'js/helpers/replay-paused-place-map.mjs'
         checked = subprocess.run(['node', str(replay)], input=json.dumps(dict(project_id=conversation.project,
-            events=page['events'], links=links, snapshot=snapshot)), text=True, capture_output=True, timeout=10)
+            events=page['events'], snapshot=snapshot)), text=True, capture_output=True, timeout=10)
         assert checked.returncode == 0, checked.stdout + checked.stderr
         foreign = conversation.client.get('/v1/story/atlas-events', params=dict(view='map', project_id=conversation.project),
             headers={'authorization': 'Bearer another-owner'})
@@ -297,11 +287,9 @@ def test_followup_city_replays_to_map_photos_and_events(sql,tmp_path,monkeypatch
         assert snapshot['workspace_focus']==result['workspace_focus']
         page=conversation.client.get('/v1/story/atlas-events',params=dict(view='map', project_id=conversation.project)).json()
         assert len(page['events'])==2
-        links={event['id']:conversation.client.get(f'/v1/story/atlas-events/{conversation.project}/{event["id"]}/places').json()['items']
-            for event in page['events']}
         replay=Path(__file__).parent/'js/helpers/replay-question-place-focus.mjs'
         checked=subprocess.run(['node',str(replay)],input=json.dumps(dict(project_id=conversation.project,
-            result=result,snapshot=snapshot,event_page=page,links=links,places=locations)),text=True,capture_output=True,timeout=10)
+            result=result,snapshot=snapshot,event_page=page,places=locations)),text=True,capture_output=True,timeout=10)
         assert checked.returncode==0,checked.stdout+checked.stderr
         foreign=conversation.client.get('/v1/story/atlas-events',params=dict(project_id=conversation.project),headers={'authorization':'Bearer another-owner'})
         assert foreign.status_code != 200 and focus_city not in foreign.text
@@ -630,7 +618,7 @@ def test_map_city_chronology_preserves_skill_relations_across_paginated_api(sql,
             conversation.say(followup)
             conversation.drain()
             assert sql(f"select jsonb_array_length(data->'relations') from public.user_memory_event where id={literal(study_id)};").stdout.strip() == '1', 'An unrelated follow-up must preserve sourced chronology'
-        pages, locations = {}, {}
+        pages = {}
         cursor = None
         while True:
             response=conversation.client.get('/v1/story/atlas-events',params=dict(project_id=conversation.project,limit=2,
@@ -638,10 +626,6 @@ def test_map_city_chronology_preserves_skill_relations_across_paginated_api(sql,
             assert response.status_code==200,response.text
             page=response.json() if cursor else response.json()['map_events']
             pages[cursor or 'first']=page
-            for event in page['events']:
-                response=conversation.client.get(f'/v1/story/atlas-events/{conversation.project}/{event["id"]}/places')
-                assert response.status_code==200,response.text
-                locations[event['id']]=response.json()
             cursor=page.get('next_cursor')
             if not cursor:break
         assert len(pages)==2
@@ -651,7 +635,7 @@ def test_map_city_chronology_preserves_skill_relations_across_paginated_api(sql,
             [('Chengde',40.95,117.96),('Shanghai',31.23,121.47),('Sydney',-33.87,151.21)]]
         replay=Path(__file__).parent/'js/helpers/replay-map-city-chronology.mjs'
         result=subprocess.run(['node',str(replay)],input=json.dumps(dict(project_id=conversation.project,
-            pages=pages,locations=locations,places=places,with_estimates=with_estimates)),text=True,capture_output=True,timeout=10)
+            pages=pages,places=places,with_estimates=with_estimates)),text=True,capture_output=True,timeout=10)
         assert result.returncode==0,result.stdout+result.stderr
 
 
@@ -725,28 +709,17 @@ def test_map_cards_replay_canonical_places_at_city_and_event_scale(sql, tmp_path
         conversation.say(' '.join(quotes))
         conversation.drain()
         assert conversation.client.get('/v1/story/events', params={'project_id':conversation.project}).status_code == 403
-        response = conversation.client.get('/v1/story/atlas-events', params={'view':'map','project_id':conversation.project})
+        response = conversation.client.get('/v1/story/atlas-events', params={'view':'map','project_id':conversation.project,'language':'en-AU'})
         assert response.status_code == 200, response.text
         snapshot = response.json()
         events = snapshot['events']
         assert len(events) == 2, 'The controlled Lane B extraction must persist both events'
-        locations = {}
-        grouping = {}
-        for event in events:
-            response = conversation.client.get(f'/v1/story/atlas-events/{conversation.project}/{event["id"]}/places')
-            assert response.status_code == 200, response.text
-            locations[event['id']] = response.json()
-            linked = response.json()['items'][0]['place']
-            response = conversation.client.post(f'/v1/agent/places/{conversation.project}/groups',
-                json={'places':[linked], 'language':'en-AU'})
-            assert response.status_code == 200, response.text
-            grouping[linked['place']] = response.json()
         city = dict(place='Sydney', hierarchy=['Earth', 'Australia', 'Sydney'], granularity='city',
             latitude=-33.8688, longitude=151.2093)
         # These locations are deliberately absent from saved place history.
         places = [city] if with_city_history else []
         replay = Path(__file__).parent/'js/helpers/replay-map-memory-events.mjs'
         result = subprocess.run(['node', str(replay)], input=json.dumps(dict(events=events,
-            locations=locations, places=places, grouping=grouping, snapshot=snapshot,
+            places=places, snapshot=snapshot,
             relative_current_home=relative_current_home, estimated_current_home=estimated_current_home)), text=True, capture_output=True, timeout=10)
         assert result.returncode == 0, result.stdout + result.stderr

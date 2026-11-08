@@ -6,7 +6,7 @@ import {buildMapMemoryJourney,cityEventCards,memoryEventCardMarkup} from '../../
 import {groupPlaces} from '../../../apps/web/client/memoir/places.mjs';
 import {translateWith} from '../../../apps/web/client/i18n.js';
 
-const {project_id,pages,locations,places,with_estimates}=JSON.parse(readFileSync(0,'utf8'));
+const {project_id,pages,places,with_estimates}=JSON.parse(readFileSync(0,'utf8'));
 const state={project:{id:project_id,profile:{birth_year:1983}},supabase:{accessToken:'fixture'},
   familyFeaturesEnabled:false,timeline:[]};
 const requests=[];
@@ -22,7 +22,7 @@ await family.refreshFamilyContext({mapSnapshot:structuredClone(pages.first)});
 assert.equal(requests.length,1,'Only read the continuation after Atlas supplies the first page');
 assert.equal(state.timeline.length,4);
 assert.deepEqual(state.timeline.map(event=>event.title),['Birth','Catching insects','Shanghai study and work','Sydney residence']);
-const enriched=state.timeline.map(event=>({...event,places:locations[event.id].items.map(link=>({...link,
+const enriched=state.timeline.map(event=>({...event,places:event.places.map(link=>({...link,
   place:places.find(place=>place.place===link.place.place)}))}));
 const journey=buildMapMemoryJourney(enriched,groupPlaces(places),state.project.profile);
 assert.deepEqual(journey.nodes.map(node=>node.event.title),state.timeline.map(event=>event.title));

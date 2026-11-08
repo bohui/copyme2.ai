@@ -10,10 +10,11 @@ export function createAtlasUpdates({scope, current, token, url, onUpdate, onUnav
   function start() {
     const captured = scope(), accessToken = token();
     if (!captured?.projectId || !accessToken) return false;
-    if (active && current(active.scope) && active.accessToken === accessToken) return false;
+    const path = url(captured.projectId);
+    if (active && current(active.scope) && active.accessToken === accessToken && active.path === path) return false;
     stop();
     enabled = true;
-    const job = {scope:captured, accessToken, controller:new AbortController()};
+    const job = {scope:captured, accessToken, path, controller:new AbortController()};
     active = job;
     const {signal} = job.controller;
     const watching = () => active === job && current(captured) && !signal.aborted;
@@ -32,7 +33,7 @@ export function createAtlasUpdates({scope, current, token, url, onUpdate, onUnav
         while (watching()) {
           let opened;
           try {
-            const response = await request(url(captured.projectId), {signal, headers:{
+            const response = await request(path, {signal, headers:{
               Accept:'text/event-stream', Authorization:`Bearer ${accessToken}`}});
             if (!watching()) return;
             if ([400,401,403,404,422].includes(response.status)) return;

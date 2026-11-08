@@ -2,6 +2,7 @@ import assert from 'node:assert/strict';
 import {readFileSync} from 'node:fs';
 import test from 'node:test';
 import vm from 'node:vm';
+import {createConversationHistory} from '../../apps/web/client/memoir/conversation-history.mjs';
 import {readMemoirClientSource} from './helpers/memoir-source.mjs';
 
 const source = readMemoirClientSource();
@@ -29,6 +30,34 @@ function harness(chat = []) {
   }
   vm.runInContext(source.match(/window.addEventListener\("copyme2:ui-locale-change", \(\) => \{[^]*?\n\}\);/)[0], context);
   return {state, context, saved:() => saved, switchLocale:value => {locale = value; listener();}};
+}
+
+function historyHarness(t) {
+  const stores = {localStorage:new Map(), sessionStorage:new Map()};
+  for (const [name, cache] of Object.entries(stores)) {
+    const previous = Object.getOwnPropertyDescriptor(globalThis, name);
+    Object.defineProperty(globalThis, name, {configurable:true, value:{
+      getItem: key => cache.get(key) ?? null,
+      setItem: (key, value) => cache.set(key, value),
+    }});
+    t.after(() => {
+      if (previous) Object.defineProperty(globalThis, name, previous);
+      else delete globalThis[name];
+    });
+  }
+  const visit = () => {
+    const h = harness();
+    Object.assign(h.state, {project:{id:'project'}, supabase:{user:{id:'guest', is_anonymous:true}}});
+    Object.assign(h.context, createConversationHistory({state:h.state, cleanAssistantText:h.context.cleanAssistantText}), {
+      translate: key => key, translateWith: key => key,
+      storyApi: async () => ({project_id:'project', policy_epoch:'1', items:[]}),
+    });
+    for (const name of ['simulatedLoopTrace', 'startCodexConversation', 'hydrateAccountHistory', 'originalConversationText']) {
+      vm.runInContext(extract(name), h.context);
+    }
+    return h;
+  };
+  return {cache:stores.localStorage, visit};
 }
 
 test('switching languages updates and saves only the fixed opening greeting', () => {
@@ -75,4 +104,53 @@ test('switching language during the opening animation cannot restore English tex
   assert.equal(h.state.chat.length, 1);
   assert.equal(h.state.chat[0].text, openings['zh-CN']);
   assert.equal(h.state.chat[0].streaming, false);
+});
+
+test('reloading during the opening restores one complete greeting', async t => {
+  const {visit} = historyHarness(t);
+  const first = visit();
+  let resume;
+  const paused = new Promise(resolve => {resume = resolve;});
+  first.context.simulatedLoopTrace = () => [];
+  first.context.waitForAssistantStream = () => paused;
+  const streaming = first.context.startCodexConversation();
+  assert.equal(first.state.chat[0].streaming, true);
+  assert.notEqual(first.state.chat[0].text, openings['en-AU']);
+  first.context.persistChatHistory(); // The pagehide handler saves this partial message.
+  first.context.isCurrentProjectScope = () => false;
+  resume();
+  await streaming;
+
+  const reloaded = visit();
+  reloaded.switchLocale('zh-CN');
+  reloaded.state.chat = reloaded.context.restoreChatHistory('project');
+  const cachedOpening = reloaded.state.chat[0];
+  await reloaded.context.hydrateAccountHistory();
+  await reloaded.context.startCodexConversation({resume:true});
+
+  assert.equal(reloaded.state.chat.length, 1);
+  assert.equal(cachedOpening.productCopy, 'opening');
+  assert.equal(reloaded.state.chat[0].id, cachedOpening.id);
+  assert.equal(reloaded.state.chat[0].text, openings['zh-CN']);
+  assert.ok(!reloaded.state.chat[0].streaming);
+});
+
+test('restoring a legacy duplicate removes the partial opening and preserves real turns', async t => {
+  const {cache, visit} = historyHarness(t);
+  const h = visit();
+  const opening = openings['en-AU'];
+  const reply = 'Hi,';
+  cache.set('memory-spark-chat-history:guest:project', JSON.stringify([
+    {id:'assistant-message-1', role:'assistant', text:opening.slice(0, 60),
+      traceMode:'simulated', trace:h.context.simulatedLoopTrace(['conversation.start', 'memory.search'])},
+    {id:'history-opening', role:'assistant', text:opening},
+    {role:'user', text:'Can you say hi?', clientTurnId:'turn'},
+    {role:'assistant', text:reply, clientTurnId:'turn'},
+  ]));
+  h.state.chat = h.context.restoreChatHistory('project');
+  await h.context.hydrateAccountHistory();
+
+  assert.deepEqual(Array.from(h.state.chat, message => [message.role, message.text]), [
+    ['assistant', opening], ['user', 'Can you say hi?'], ['assistant', reply],
+  ]);
 });

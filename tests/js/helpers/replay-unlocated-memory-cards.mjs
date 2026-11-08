@@ -27,7 +27,6 @@ const scene={isConnected:true,clientWidth:600,clientHeight:700,classList:{toggle
 Object.assign(globalThis,{document:{createElement:()=>layer},window:{devicePixelRatio:1,matchMedia:()=>({matches:false})}});
 const map=createMapMemoryEvents({getEvents:()=>state.timeline,getGroups:()=>groupPlaces([city,other]),
   getProfile:()=>state.project.profile,getScope:()=>project_id,getStage:()=> 'all',
-  readPlaces:async id=>structuredClone(feeds[current].locations[id]),
   t:(key,values)=>translateWith(`Memoir.workspace.${key}`,values),lifeStageText:stage=>stage,onExplore:id=>{selected=id;}});
 map.attach({isDestroyed:()=>false,scene:{mode:2,postRender:{addEventListener(){}}},
   camera:{frustum:{left:-100000,right:100000},flyTo(){},setView(){}}},

@@ -34,7 +34,8 @@ from .preview_jobs import PreviewJobs
 from .stage_readiness import stage_readiness
 from .background_profile import PROFILE_FIELDS
 from .lifetime_memory_read_api import (read_mapped, draft_head, draft_page, retry_draft, collection_page,
-    canonical_only, mapped_identity, map_event_page, map_event_places)
+    canonical_only, mapped_identity, map_event_page)
+from .original_recordings import MAX_ENCODED_AUDIO
 from .story_payments import (
     StripeAPIError,
     StripeCheckoutClient,
@@ -92,7 +93,7 @@ class StoryRoundInput(BaseModel):
 
 
 class StoryTranscriptionInput(BaseModel):
-    audio_base64: str | None = Field(default=None, min_length=1, max_length=13981016)
+    audio_base64: str | None = Field(default=None, min_length=1, max_length=MAX_ENCODED_AUDIO)
     recording_id: UUID | None = None
     upload_idempotency_key: UUID | None = None
     project_id: str | None = Field(default=None, pattern=r'^[A-Za-z0-9][A-Za-z0-9_-]{0,127}$')
@@ -109,6 +110,13 @@ class StoryTranscriptionInput(BaseModel):
         if self.recording_id is not None and self.upload_idempotency_key is not None:
             raise ValueError('Upload key applies only to new audio')
         return self
+
+
+class TemporaryTranscriptionInput(BaseModel):
+    model_config = {'extra': 'forbid'}
+    audio_base64: str = Field(min_length=1, max_length=MAX_ENCODED_AUDIO)
+    mime_type: str = Field(default="audio/webm", max_length=100)
+    language: str | None = Field(default=None, max_length=32)
 
 
 class StorySpeechInput(BaseModel):
@@ -345,13 +353,17 @@ def build_router(
     @router.get('/atlas-events')
     async def atlas_events(project_id: str, request: Request, view: Literal['workspace', 'map'] = 'workspace',
                            cursor: UUID | None = None, limit: int = Query(default=8, ge=1, le=8),
+                           language: Literal['en-AU', 'zh-CN'] | None = None,
+                           include_map: bool = True,
                            authorization: str | None = Header(default=None)):
         storage = await asyncio.to_thread(storage_for, authorization)
         stream = None
+        streaming = 'text/event-stream' in request.headers.get('accept', '')
+        map_revisions = ('policy_epoch', 'source_revision', 'event_revision', 'preference_revision')
         try:
             if view == 'map':
                 return await asyncio.to_thread(read_mapped, storage, project_id,
-                    lambda fence: map_event_page(storage, project_id, cursor=cursor, limit=limit), canonical_only)
+                    lambda fence: map_event_page(storage, project_id, cursor=cursor, limit=limit, language=language), canonical_only)
 
             def legacy():
                 if callable(getattr(storage, 'lifetime_rpc', None)):
@@ -361,11 +373,14 @@ def build_router(
                         'heuristic': 'narrator_context_volume_v1', 'maximum_percent': 50}
             def canonical(fence, previous=None):
                 result=storage.lifetime_rpc('read_lifetime_stage_readiness',p_project_id=project_id)
-                revisions = {key: getattr(fence, key) for key in
-                             ('policy_epoch', 'source_revision', 'event_revision', 'preference_revision')}
+                revisions = {key: getattr(fence, key) for key in map_revisions}
                 result.update(revisions)
-                if previous is None or any(getattr(previous, key) != value for key, value in revisions.items()):
-                    result['map_events'] = map_event_page(storage, project_id, limit=limit)
+                if include_map and (previous is None or any(getattr(previous, key) != value for key, value in revisions.items())):
+                    if streaming:
+                        result['map_refresh'] = True
+                    else:
+                        result['map_events'] = map_event_page(storage, project_id, limit=limit, language=language)
+                result['map_photos'] = storage.lifetime_rpc('read_lifetime_map_photos', p_project_id=project_id).get('photos', [])
                 from .two_lane_memory import two_lanes_enabled
                 if two_lanes_enabled():
                     from .background_skills import execution_map
@@ -394,8 +409,17 @@ def build_router(
                             item['status'] in {'queued','running'} or item['status']=='completed' and item['execution']=='model'
                             for item in result['skill_progress']['items']))
                 return result
-            if 'text/event-stream' not in request.headers.get('accept', ''):
+            if not streaming:
                 return await asyncio.to_thread(read_mapped, storage, project_id, canonical, legacy)
+
+            def read_more(initial, after):
+                def page(fence):
+                    if any(getattr(fence, key) != getattr(initial, key) for key in map_revisions):
+                        raise HTTPException(409, 'This map changed. Restart the feed.')
+                    return {'project_id': project_id, 'map_page': {
+                        **map_event_page(storage, project_id, cursor=after, limit=limit, language=language),
+                        'after_cursor': after, 'preference_revision': fence.preference_revision, 'streaming_pages': True}}
+                return read_mapped(storage, project_id, page, canonical_only)
 
             identity = await asyncio.to_thread(mapped_identity, storage, project_id)
             if identity is None:
@@ -411,7 +435,7 @@ def build_router(
             stream = AtlasWorkspaceStream(
                 atlas_updates.events(dsn, identity.owner_id, identity.project_id, expires_in=min(3600, expires - now)),
                 lambda previous: read_mapped(storage, project_id, lambda fence: canonical(fence, previous), canonical_only),
-                lambda: _close(storage))
+                read_more, lambda: _close(storage))
             return stream
         except httpx.HTTPError:
             raise HTTPException(503, 'Atlas updates are unavailable') from None
@@ -611,41 +635,22 @@ def build_router(
         finally:
             await asyncio.to_thread(_close, storage)
 
-    @router.get('/map-photos')
-    async def memory_map_photos(project_id: str, authorization: str | None = Header(default=None)):
-        storage = await asyncio.to_thread(storage_for, authorization)
-        try:
-            return await asyncio.to_thread(read_mapped, storage, project_id,
-                lambda fence: storage.lifetime_rpc('read_lifetime_map_photos', p_project_id=project_id), canonical_only)
-        finally:
-            await asyncio.to_thread(_close, storage)
-
-    @router.get('/atlas-events/{project_id}/{event_id}/places')
-    async def memory_map_places(project_id: str, event_id: str, cursor: UUID | None = None,
-                                limit: int = Query(default=8, ge=1, le=8),
-                                authorization: str | None = Header(default=None)):
-        storage = await asyncio.to_thread(storage_for, authorization)
-        try:
-            return await asyncio.to_thread(read_mapped, storage, project_id,
-                lambda fence: map_event_places(storage, project_id, event_id, cursor=cursor, limit=limit), canonical_only)
-        finally:
-            await asyncio.to_thread(_close, storage)
-
     @router.get('/events')
     async def memory_events(project_id: str, request: Request, cursor: UUID | None = None,
                             limit: int = Query(default=8, ge=1, le=8),
+                            language: Literal['en-AU', 'zh-CN'] | None = None,
                             authorization: str | None = Header(default=None)):
         storage = await asyncio.to_thread(storage_for, authorization)
         try:
             from .local_debug import debug_early_generation
             if debug_early_generation(request):
                 return await asyncio.to_thread(read_mapped, storage, project_id,
-                    lambda fence: collection_page(storage, project_id, kind='events', cursor=cursor, limit=limit),
+                    lambda fence: collection_page(storage, project_id, kind='events', cursor=cursor, limit=limit, language=language),
                     canonical_only)
             if not family_features_enabled(await asyncio.to_thread(storage.story_entitlement)):
                 raise HTTPException(403, 'Timeline display requires Family legacy access')
             return await asyncio.to_thread(read_mapped, storage, project_id,
-                lambda fence: collection_page(storage, project_id, kind='events', cursor=cursor, limit=limit),
+                lambda fence: collection_page(storage, project_id, kind='events', cursor=cursor, limit=limit, language=language),
                 lambda: storage.memory_events(project_id))
         finally:
             await asyncio.to_thread(_close, storage)
@@ -753,6 +758,13 @@ def build_router(
             return JSONResponse(status, headers={'Cache-Control':'private, no-store', 'Vary':'Authorization'})
         finally: _close(storage)
 
+    def transcription_language(storage, language):
+        if language:
+            return language
+        profile = storage.profile()
+        saved_language = profile.get('conversation_language') or {}
+        return profile.get('preferred_language') or (saved_language.get('locale') if isinstance(saved_language, dict) else None)
+
     @router.post("/transcriptions")
     def story_transcription(payload: StoryTranscriptionInput, authorization: str | None = Header(default=None)):
         storage = storage_for(authorization)
@@ -760,14 +772,23 @@ def build_router(
             from .original_recordings import RecordingStore, RecordingJSONResponse
             try:
                 if not payload.language:
-                    profile = storage.profile()
-                    saved_language = profile.get('conversation_language') or {}
-                    payload = payload.model_copy(update={'language': profile.get('preferred_language')
-                        or (saved_language.get('locale') if isinstance(saved_language, dict) else None)})
+                    payload = payload.model_copy(update={'language': transcription_language(storage, payload.language)})
                 result = RecordingStore(storage).transcribe(payload, speech_service)
                 return RecordingJSONResponse(result, result['recording']['id'], storage.user_id)
             except httpx.HTTPError:
                 raise HTTPException(503, 'Recording storage is unavailable', headers={'X-Error-Code':'RECORDING_STORAGE_UNAVAILABLE'}) from None
+        finally:
+            _close(storage)
+
+    @router.post('/transcriptions/temporary')
+    def temporary_transcription(payload: TemporaryTranscriptionInput, authorization: str | None = Header(default=None)):
+        from .original_recordings import require_recording_capture, transcribe_temporary
+        storage = storage_for(authorization)
+        try:
+            require_recording_capture()
+            result = transcribe_temporary(speech_service, payload.audio_base64, payload.mime_type,
+                language=transcription_language(storage, payload.language))
+            return JSONResponse(result, headers={'Cache-Control':'private, no-store', 'Vary':'Authorization'})
         finally:
             _close(storage)
 

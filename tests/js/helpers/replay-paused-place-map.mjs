@@ -3,8 +3,9 @@ import {readFileSync} from 'node:fs';
 import {createPlaceWorkspace} from '../../../apps/web/client/memoir/place-workspace.mjs';
 import {cityEventCards} from '../../../apps/web/client/memoir/map-memory-journey.mjs';
 
-const {project_id,events,links,snapshot} = JSON.parse(readFileSync(0,'utf8'));
+const {project_id,events,snapshot} = JSON.parse(readFileSync(0,'utf8'));
 const state = {project:{id:project_id,profile:{memory_places:snapshot.places}},
+  memoryEventPage:{project_id,policy_epoch:snapshot.policy_epoch,map_source:'published_events'},
   timeline:events.map(event=>({...event,canonical:true})),lifeStage:'all',chat:[],supabase:{accessToken:'fixture'}};
 const cards={innerHTML:'',scrollTop:0,querySelectorAll:()=>[],getBoundingClientRect:()=>({top:0,bottom:700})};
 const toolbar={innerHTML:''},overflow={replaceChildren(){}};
@@ -19,7 +20,6 @@ Object.assign(globalThis,{document:{documentElement:{lang:'zh-CN'}},
 const workspace=createPlaceWorkspace({state,profile:()=>state.project.profile,render(){},
   captureProjectScope:()=>project_id,isCurrentProjectScope:()=>true,lifeStageText:stage=>stage,
   photos:{bindPhotoMemoryActions(){},photoRequestKey:()=>'',pictureWall:()=>'',workspacePictureItems:()=>[]},
-  storyApi:async path=>({items:links[events.find(event=>path.includes(event.id)).id]}),
   supabaseApi:async()=>{assert.fail('Supported saved coordinates must not require another geocoding request');}});
 workspace.mapPhotoAlbums.sync=()=>{};
 const map=workspace.mapMemoryEvents;

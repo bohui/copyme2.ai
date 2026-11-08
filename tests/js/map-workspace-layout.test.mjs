@@ -53,19 +53,17 @@ async function setup(t,privatePhotos=[{photo_id:personalId,kind:'private_upload'
   const state={project:{id:'project',profile:{memory_places:entries}},supabase:{user:{id:'owner'},accessToken:'fixture'},
     placeJourney:entries[1],lifeStage:'all',chat:[],timeline:[event('return',40,city),event('school',6,school),event('birth',0,north)],
     workspaceFocus:{place:'Sydney',source_sequence:1},
-    photoTurns:{cards:responsePhotoCards},memoryEventPage:{policy_epoch:1,event_revision:1,source_revision:1}};
-  const calls=[];
+    photoTurns:{cards:responsePhotoCards},memoryEventPage:{project_id:'project',policy_epoch:1,event_revision:1,source_revision:1}};
   const dependencies={state,profile:()=>state.project.profile,render(){},lifeStageText:()=>'',
-    captureProjectScope:()=>JSON.stringify([state.project.id,state.supabase.user.id]),
-    isCurrentProjectScope:scope=>scope===JSON.stringify([state.project.id,state.supabase.user.id]),
-    api:async path=>{calls.push(path);return {photos:typeof privatePhotos==='function' ? await privatePhotos() : privatePhotos};}};
+    captureProjectScope:()=>JSON.stringify([state.project.id,state.supabase.user.id,state.navigationGeneration]),
+    isCurrentProjectScope:scope=>scope===JSON.stringify([state.project.id,state.supabase.user.id,state.navigationGeneration])};
   let places;
   const photos=createPhotoWorkspace({...dependencies,placeMapTarget:entry=>places.placeMapTarget(entry)});
   places=createPlaceWorkspace({...dependencies,photos});
   places.mapMemoryEvents.sync(null);
   await new Promise(resolve=>setImmediate(resolve));
-  await photos.refreshMapPhotos();
-  return {places,photos,state,calls};
+  photos.applyMapPhotos({...state.memoryEventPage,map_photos:privatePhotos},dependencies.captureProjectScope());
+  return {places,photos,state,captureProjectScope:dependencies.captureProjectScope};
 }
 
 test('desktop fills the map, with chronological events and north-to-south albums that split on zoom',async t=>{
@@ -119,18 +117,17 @@ test('city zoom filters reference and personal photos to that city',async t=>{
   assert.deepEqual(places.mapPhotoAlbumsForScene(null,{allPlaces:true,detailed:true,cityKey:null}),[]);
 });
 
-test('personal photo reads are bounded by the current owner and event revision',async t=>{
-  const {photos,state,calls}=await setup(t);
-  assert.equal(photos.mapPhotos().length,1);
-  await photos.refreshMapPhotos();
-  assert.equal(calls.length,1);
+test('streamed personal photos are bounded by the current owner, visit, and event revision',async t=>{
+  const {photos,state,captureProjectScope}=await setup(t);
+  const initial=photos.mapPhotos();
+  assert.equal(initial.length,1);
   state.memoryEventPage.event_revision++;
-  assert.equal(photos.mapPhotos().length,0,'Do not reuse an old location association after canonical events change');
-  await photos.refreshMapPhotos();
-  assert.equal(calls.length,2);
+  assert.deepEqual(photos.mapPhotos(),[],'An older photo snapshot cannot supply the current association');
+  photos.applyMapPhotos({...state.memoryEventPage,map_photos:initial},captureProjectScope());
+  assert.equal(photos.mapPhotos().length,1);
   state.navigationGeneration=1;
-  assert.equal(photos.mapPhotos().length,0,'A new navigation cannot reuse the previous read');
-  await photos.refreshMapPhotos();
+  assert.deepEqual(photos.mapPhotos(),[]);
+  photos.applyMapPhotos({...state.memoryEventPage,map_photos:initial},captureProjectScope());
   state.supabase.user.id='other';
   assert.deepEqual(photos.mapPhotos(),[]);
 });
@@ -142,16 +139,9 @@ test('a photo associated with multiple locations stays unpinned',async t=>{
   assert.ok(albums.filter(album=>album.pinned).every(album=>!album.pictures.some(photo=>photo.photo_id===personalId)));
 });
 
-test('an unavailable personal photo read exposes retry and recovers without stale locations',async t=>{
-  let fail=true;
-  const {photos,places}=await setup(t,()=>{
-    if(fail) throw new Error('Temporary read failure');
-    return [{photo_id:personalId,kind:'private_upload',title:'Recovered',event_ids:['school']}];
-  });
-  assert.equal(photos.mapPhotosUnavailable(),true);
-  assert.equal(places.mapPhotoAlbum('personal:unlocated').status,'error');
-  fail=false;
-  await photos.refreshMapPhotos({force:true});
-  assert.equal(photos.mapPhotosUnavailable(),false);
+test('a photo withdrawal on Atlas clears the existing album association',async t=>{
+  const {photos,places,state,captureProjectScope}=await setup(t);
   assert.equal(places.mapPhotoAlbum(placeHistoryKey(school)).pictures[0].photo_id,personalId);
+  photos.applyMapPhotos({...state.memoryEventPage,map_photos:[]},captureProjectScope());
+  assert.ok(!places.mapPhotoAlbum(placeHistoryKey(school)).pictures.some(photo=>photo.photo_id===personalId));
 });

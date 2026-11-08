@@ -53,16 +53,53 @@ def test_anonymous_authentication_and_microphone_permission_do_not_authorize_ret
     assert speech.transcription_calls == []
 
 
-def test_rollout_defaults_off_without_provider_or_storage_work(media):
+@pytest.mark.parametrize('path', ['/v1/story/transcriptions', '/v1/story/transcriptions/temporary'])
+def test_rollout_defaults_off_without_provider_or_storage_work(path, media, monkeypatch):
+    monkeypatch.delenv('MEMOIR_ORIGINAL_RECORDINGS', raising=False)
     storage, speech = FakeStoryStorage(), FakeSpeechService()
     client = TestClient(create_app(MemoryStore(), speech_service=speech,
         story_storage_factory=lambda _: storage))
     content, mime = media
-    result = client.post('/v1/story/transcriptions', json={
+    result = client.post(path, json={
         'audio_base64':base64.b64encode(content).decode(), 'mime_type':mime})
     assert result.status_code == 503
     assert result.headers['X-Error-Code'] == 'ORIGINAL_RECORDINGS_DISABLED'
     assert speech.transcription_calls == []
+
+
+def test_guest_transcription_uses_original_bytes_without_recording_storage(media, monkeypatch):
+    from fastapi import HTTPException
+    from apps.api.original_recordings import RecordingStore
+
+    monkeypatch.setenv('MEMOIR_ORIGINAL_RECORDINGS', '1')
+    monkeypatch.delenv('MEMOIR_PUBLICATION_DATABASE_URL', raising=False)
+    storage, speech = FakeStoryStorage(), FakeSpeechService()
+    storage._profile = {'conversation_language': {'locale': 'zh-CN'}}
+
+    def no_recording_store(*args, **kwargs):
+        pytest.fail('Temporary transcription accessed the recording store')
+
+    def authenticate(authorization):
+        if authorization != 'Bearer guest':
+            raise HTTPException(401, 'Guest session required')
+        return storage
+
+    monkeypatch.setattr(RecordingStore, '__init__', no_recording_store)
+    client = TestClient(create_app(MemoryStore(), speech_service=speech, story_storage_factory=authenticate))
+    content, mime = media
+    path = '/api/v1/memoir/story/transcriptions/temporary'
+    clip = {'audio_base64':base64.b64encode(content).decode(), 'mime_type':mime}
+    assert client.post(path, json=clip).status_code == 401
+    response = client.post(path, headers={'Authorization':'Bearer guest'}, json=clip)
+    assert response.status_code == 200, response.text
+    assert response.json()['text'] == '我小时候和二舅一起走去学校。'
+    assert response.json()['source']['transcription_method'] == 'groq'
+    assert 'recording' not in response.json()
+    assert response.headers['Cache-Control'] == 'private, no-store'
+    assert len(speech.transcription_calls) == 1
+    assert speech.transcription_calls[0]['audio'] == content
+    assert speech.transcription_calls[0]['language'] == 'zh-CN'
+    assert storage.memories() == []
 
 
 def test_reference_and_new_payload_are_mutually_exclusive():
@@ -86,12 +123,14 @@ def test_mislabeled_media_and_decoded_byte_duration_limits(media,monkeypatch):
     assert failure.value.status_code==413
 
 
-def test_encoded_request_is_bounded_and_validation_never_echoes_audio():
+@pytest.mark.parametrize('suffix', ['', '/temporary'])
+def test_encoded_request_is_bounded_and_validation_never_echoes_audio(suffix):
     from apps.api.original_recordings import MAX_REQUEST_BYTES
     client=TestClient(create_app(MemoryStore()))
     secret='PRIVATE_AUDIO_PAYLOAD_DO_NOT_ECHO'
-    invalid=client.post('/api/v1/memoir/story/transcriptions',json={'audio_base64':secret,'recording_id':'bad'})
+    path = '/api/v1/memoir/story/transcriptions' + suffix
+    invalid=client.post(path,json={'audio_base64':secret,'recording_id':'bad'})
     assert invalid.status_code==422
     assert secret not in invalid.text
-    oversized=client.post('/api/v1/memoir/story/transcriptions',content=b'A'*(MAX_REQUEST_BYTES+1))
+    oversized=client.post(path,content=b'A'*(MAX_REQUEST_BYTES+1))
     assert oversized.status_code==413
