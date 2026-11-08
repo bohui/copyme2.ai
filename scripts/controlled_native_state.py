@@ -28,8 +28,8 @@ def _test_adapter():
 
 
 @contextmanager
-def controlled_database(*, directory_root=None):
-    """Owned Unix-socket database with reconciliation after a failed closer.
+def controlled_database(*, directory_root=None, allow_apple_fixture=False):
+    """Owned PostgreSQL fixture with reconciliation after a failed closer.
 
     A supplied root delegates deletion to its supervising caller. Otherwise this
     context owns a private root and reconciles it before removal, even when the
@@ -37,11 +37,13 @@ def controlled_database(*, directory_root=None):
     """
     _test_adapter()
     from test_shared_memory_events_postgres import database, attachment_database, private_database, event_database
-    if os.getenv('MEMOIR_TEST_POSTGRES_BACKEND', 'native') != 'native':
+    backend = os.getenv('MEMOIR_TEST_POSTGRES_BACKEND', 'native')
+    container = allow_apple_fixture and backend == 'apple-container'
+    if backend != 'native' and not container:
         raise ValueError('Controlled cloud tooling requires the local native PostgreSQL backend')
     owns_root = directory_root is None
     directory_root = directory_root or new_native_root('memoir-controlled-pg-')
-    generator = database.__wrapped__(directory_root=directory_root)
+    generator = database.__wrapped__(directory_root=directory_root, publication_tcp=container)
     try:
         sql = next(generator)
         sql = event_database.__wrapped__(private_database.__wrapped__(attachment_database.__wrapped__(sql)))
