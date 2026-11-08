@@ -2374,6 +2374,7 @@ function renderStory() {
     && state.workspaceSkillProgress?.owner_id === state.supabase?.user?.id
     ? renderAgentTrace(state.workspaceSkillProgress.items,"live") : "";
   activeWorkspaceTab();
+  const voiceReplyInProgress = state.voiceMode && ["preparing", "speaking"].includes(state.voiceModeStatus);
   const parts = {
     topbar: `<header class="story-topbar">
         <div class="brand"><a href="/" data-action="story-home" aria-label="${escapeHtml(translate("Platform.homeAria"))}"><img class="brand-mark" src="/static/copyme2_icon_light.png" alt="" aria-hidden="true" /></a><a class="brand brand-name" href="${MEMOIR_ROUTES.home}">${t("brand")}</a></div>
@@ -2381,7 +2382,7 @@ function renderStory() {
       </header>`,
     heading: `<div class="chat-heading"><div>${unlocked ? `<div class="eyebrow">${t("workspaceEyebrow")}</div>` : ""}<h1>${t(unlocked ? "workspaceTitle" : "conversationTitle")}</h1><p>${t(unlocked ? "workspaceDescription" : "conversationDescription")}</p></div>${headerActions}</div>`,
     history: `<div id="chat-history" class="chat-history"${state.chatHistoryCollapsed ? " hidden" : ""}>${state.chat.map(renderMessage).join("")}${serviceProgress ? `<div class="message-trace" aria-live="polite">${serviceProgress}</div>` : ""}</div>`,
-    notices: `<div class="chat-notices">${state.loading && !state.chat.at(-1)?.streaming ? `<div class="thinking" role="status"><em>${state.supabase?.accessToken ? t("thinkingCodex") : t("thinkingSimulated")}</em></div>` : ""}${placeJourneySurface()}${recallPackagePrompt()}</div>`,
+    notices: `<div class="chat-notices">${state.loading && !voiceReplyInProgress && !state.chat.at(-1)?.streaming ? `<div class="thinking" role="status"><em>${state.supabase?.accessToken ? t("thinkingCodex") : t("thinkingSimulated")}</em></div>` : ""}${placeJourneySurface()}${recallPackagePrompt()}</div>`,
     composer: chatComposer(),
     workspace: workspaceAvailable ? workspaceDetail() : "",
   };
@@ -3070,7 +3071,11 @@ function chatComposer() {
     return `<div class="composer-wrap">${focusControls}<div class="chat-composer dictation-composer">${button("cancel-dictation", "cancelDictation", "close")}<div class="dictation-visual"><div class="dictation-wave ${state.recording ? "is-recording" : ""}" aria-hidden="true">${"<i></i>".repeat(40)}</div><span role="status">${t(processing ? (state.dictationStatus === "starting" ? "connectingMic" : "transcribing") : state.recording ? "dictating" : "dictationStopped")}</span></div>${!processing ? `${state.recording ? button("stop-dictation", "stopDictation", "stop") : ""}${button("accept-dictation", "send", "send", "voice-mode-button", atLimit)}` : ""}</div>${waitNote || `<div class="composer-note">${note}</div>`}</div>`;
   }
   const status = state.voiceMuted ? "muted" : state.voiceModeStatus;
-  const voiceStatus = state.voiceMode ? `<div class="voice-session"><div class="voice-orb ${status}" aria-hidden="true"><div class="voice-orb-water"><i></i><i></i><i></i></div></div><div class="voice-mode-status" role="status"><strong class="voice-mode-title">${t("voiceConversation")}</strong><span>${t(state.voiceMuted ? "micMuted" : status === "speaking" ? "miraSpeaking" : status === "processing" ? "listeningBack" : "listening")}</span></div></div>` : "";
+  const statusLabel = {
+    muted: "micMuted", preparing: "preparingVoice", speaking: "miraSpeaking", processing: "listeningBack",
+  }[status] || "listening";
+  const orbStatus = status === "preparing" ? "processing" : status;
+  const voiceStatus = state.voiceMode ? `<div class="voice-session"><div class="voice-orb ${orbStatus}" aria-hidden="true"><div class="voice-orb-water"><i></i><i></i><i></i></div></div><div class="voice-mode-status" role="status"><strong class="voice-mode-title">${t("voiceConversation")}</strong><span>${t(statusLabel)}</span></div></div>` : "";
   const controls = state.voiceMode
     ? `${button("mute-voice", state.voiceMuted ? "unmuteMic" : "muteMic", state.voiceMuted ? "muted" : "mic")}${button("voice-input", "endVoice", "close", "voice-mode-end")}`
     : `${button("dictate", "dictate", "mic", "dictation-button")}${button("voice-input", "startVoice", "wave", "voice-mode-button voice-mode-launcher")}`;

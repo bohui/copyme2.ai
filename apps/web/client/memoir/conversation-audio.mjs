@@ -71,7 +71,7 @@ export function createConversationAudio({
     };
   }
 
-  function playGeneratedAudio(generated) {
+  function playGeneratedAudio(generated, onPlaying = null) {
     if (!generated?.audio_base64) return Promise.reject(new Error("Generated audio was empty."));
     return new Promise((resolve, reject) => {
       const url = URL.createObjectURL(base64ToBlob(generated.audio_base64, generated.mime_type || "audio/mpeg"));
@@ -83,6 +83,7 @@ export function createConversationAudio({
         settled = true;
         stopMonitor();
         URL.revokeObjectURL(url);
+        player.onplaying = null;
         player.onended = null;
         player.onerror = null;
         if (state.audioPlayer === player) state.audioPlayer = null;
@@ -92,6 +93,7 @@ export function createConversationAudio({
       };
       state.audioPlayer = player;
       state.voiceModePlaybackFinish = finish;
+      player.onplaying = onPlaying;
       player.onended = () => finish();
       player.onerror = () => finish(new Error("Generated audio could not be played."));
       player.play().catch(finish);
@@ -101,7 +103,8 @@ export function createConversationAudio({
   async function speakVoiceReply(text) {
     if (!state.voiceMode || !text) return;
     const turnId = state.voiceModeTurnId;
-    state.voiceModeStatus = "speaking";
+    const active = () => state.voiceMode && state.voiceModeTurnId === turnId;
+    state.voiceModeStatus = "preparing";
     render();
     try {
       const generated = await storyApi("/v1/story/question-audio", {
@@ -111,9 +114,14 @@ export function createConversationAudio({
           language: conversationLanguage(),
         }),
       });
-      if (state.voiceMode && state.voiceModeTurnId === turnId) await playGeneratedAudio(generated);
+      if (!active()) return;
+      await playGeneratedAudio(generated, () => {
+        if (!active()) return;
+        state.voiceModeStatus = "speaking";
+        render();
+      });
     } catch (error) {
-      if (!state.voiceMode || state.voiceModeTurnId !== turnId) return;
+      if (!active()) return;
       // Browser default voices can change Mira's identity between conversation turns.
       toast(conversationMessage("voicePlaybackUnavailable"));
     }

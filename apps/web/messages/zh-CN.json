@@ -353,6 +353,7 @@
       "expand": "展开",
       "minimize": "最小化",
       "voiceConversation": "语音对话",
+      "preparingVoice": "正在生成 Mira 的语音",
       "miraSpeaking": "Mira 正在说话",
       "listeningBack": "正在处理您的回答",
       "listening": "正在倾听",

@@ -271,6 +271,31 @@ test('audio factory stops capture and playback when leaving voice mode', t => {
   assert.equal(state.voiceModeTurnId, 1);
 });
 
+test('Mira is speaking only once the generated audio starts playing', async t => {
+  const {state, dependencies} = setup(t);
+  state.voiceMode = true;
+  let player;
+  globalThis.Audio = class {
+    constructor() { player = this; }
+    async play() {}
+  };
+  t.after(() => { delete globalThis.Audio; });
+  let finishSynthesis;
+  const synthesis = new Promise(resolve => { finishSynthesis = resolve; });
+  const audio = createConversationAudio({...dependencies, storyApi: () => synthesis});
+
+  const reply = audio.speakVoiceReply('What do you remember?');
+  assert.equal(state.voiceModeStatus, 'preparing');
+  finishSynthesis({audio_base64: 'YXVkaW8=', mime_type: 'audio/wav'});
+  await Promise.resolve();
+  assert.equal(state.voiceModeStatus, 'preparing');
+  player.onplaying();
+  assert.equal(state.voiceModeStatus, 'speaking');
+  player.onended();
+  await reply;
+  assert.equal(player.onplaying, null);
+});
+
 test('withdrawing voice consent stops listening without discarding an uploaded original', t => {
   const {state, dependencies} = setup(t);
   state.voiceMode = true;
