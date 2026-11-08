@@ -6,6 +6,19 @@ The sidecar can call `memoir_read_context` through the private worker. Memoir ch
 
 `MEMOIR_MIRA_AAS_URL` enables the AAS text path. Photo and transcription turns and revisable replies use Codex. Atlas’s normal path uses its existing Temporal and Codex workflow. The benchmark injects AAS at Atlas’s activity runner for comparison.
 
+## Local stack
+
+Build the benchmarked core with Node 22 or later. From the Memoir checkout, run the following commands.
+
+```sh
+git clone https://github.com/seed2ai/advanced_aas.git var/advanced-aas
+git -C var/advanced-aas checkout --detach d3bfc91aa846b9588906e0ab223d68d1fef334b2
+(cd var/advanced-aas && pnpm install --frozen-lockfile --ignore-scripts && pnpm --filter @aas/core build)
+MEMOIR_MIRA_AAS_BUILD_DIR="$PWD/var/advanced-aas" make up
+```
+
+Set `MEMOIR_MIRA_AAS_BUILD_DIR` in the local `.env` to keep this opt-in across restarts. The worker mounts the built workspace read-only and starts the sidecar as a separate unprivileged process. The sidecar binds to loopback with a fresh secret and receives the configured model gateway credential. It exits when the worker stops. The worker health response reports `mira_runtime: advanced_aas` when the sidecar is active. Use a typed Mira turn with parallel policy review disabled to exercise the pilot.
+
 ## Follow-up and resumed recall
 
 The controlled benchmark measures four matched cases through the real HTTP turn and disposable PostgreSQL commit. Each reply used two provider requests with matched `gpt-6.1-sol`, requested low reasoning, Mira system prompt and strict output schema. A scripted tool request drove the real recall lookup, and the continuation received the exact earlier source from the correct owner. Replays returned the same committed reply without calling the provider. The resumed case recreated the worker and restarted the AAS process. Codex resumed its committed native thread.

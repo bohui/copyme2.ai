@@ -50,7 +50,7 @@ SERVICE_RUNTIME_INPUTS = {
     'api': _BACKEND_RUNTIME_INPUTS + ('scripts', 'infra'),
     'worker': _BACKEND_RUNTIME_INPUTS + ('scripts', 'infra'),
     'photo-worker': _BACKEND_RUNTIME_INPUTS + ('infra',),
-    'codex-worker': ('apps/__init__.py', 'apps/api', 'README.md', 'skills'),
+    'codex-worker': ('apps/__init__.py', 'apps/api', 'README.md', 'skills', 'mira-aas'),
     'web': ('apps/web',),
 }
 

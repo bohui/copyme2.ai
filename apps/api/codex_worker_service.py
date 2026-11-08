@@ -2,7 +2,7 @@
 from __future__ import annotations
 
 import asyncio
-from contextlib import asynccontextmanager
+from contextlib import AsyncExitStack, asynccontextmanager, suppress
 from contextvars import Context, ContextVar
 import fcntl
 import hashlib
@@ -13,6 +13,7 @@ import os
 import threading
 import time
 from pathlib import Path
+from secrets import token_hex
 from typing import Any, Literal
 from urllib.parse import urlsplit
 from uuid import UUID
@@ -54,6 +55,7 @@ from .lifetime_memory_engine import (
 
 diagnostic_logger = logging.getLogger("memoir.worker.diagnostics")
 configure_diagnostic_logger(diagnostic_logger)
+MIRA_AAS_CORE_MOUNT = Path('/opt/memoir/advanced-aas/packages/core')
 
 
 class ComposerProviderUnavailable(RuntimeError):
@@ -307,20 +309,21 @@ class CodexWorker:
             return candidate
 
 
-    def _run_command(self, uid: int):
+    def _run_command(self, uid: int, command=None):
+        command = self.command if command is None else command
         # macOS development/CI hosts do not provide Linux's setpriv. The
         # isolated evaluation worker runs under its own process and workspace
         # boundary, so it can opt out explicitly without weakening the
         # production default or changing normal worker deployments.
         if os.getenv("MEMORY_SPARK_DISABLE_PRIVDROP") == "1":
-            return list(self.command)
+            return list(command)
         return [
             self.privdrop,
             f"--reuid={uid}",
             f"--regid={uid}",
             "--clear-groups",
             "--no-new-privs",
-            *self.command,
+            *command,
         ]
 
     async def turn(self, payload: WorkerTurnInput, on_delta=None, on_event=None):
@@ -505,12 +508,52 @@ class CodexWorker:
 
 
 @asynccontextmanager
-async def worker_lifespan(_app):
+async def local_mira_aas(worker):
+    if worker.mira_aas is not None:
+        raise ValueError('Configure one Mira AAS sidecar')
+    secret = token_hex(32)
+    script = Path(__file__).resolve().parents[2] / 'mira-aas' / 'server.mjs'
+    # Keep the managed sidecar outside the per-narrator UID range and give
+    # it only the gateway credential. SQL and tool authorization stay here.
+    command = worker._run_command(65534, ['node', str(script), str(MIRA_AAS_CORE_MOUNT)])
+    process = await asyncio.create_subprocess_exec(*command, stdout=asyncio.subprocess.PIPE, env={
+        'PATH': os.environ.get('PATH', os.defpath),
+        'MEMORY_SPARK_LLM_BASE_URL': worker.base_url,
+        'MEMORY_SPARK_LLM_API_KEY': worker.api_key,
+        'MEMOIR_MIRA_AAS_SECRET': secret,
+        'MEMOIR_MIRA_AAS_PORT': '0',
+    })
     try:
-        yield
+        ready = (await asyncio.wait_for(process.stdout.readline(), 15)).strip()
+        if not ready.isdigit() or not 1 <= int(ready) <= 65535:
+            raise RuntimeError('Local Mira AAS failed to start. Check the mounted AAS core build.')
+        worker.mira_aas = (f'http://127.0.0.1:{int(ready)}/v1', secret)
+        yield process
     finally:
-        if isinstance(worker, CodexWorker):
-            await worker.settle_checkpoints()
+        worker.mira_aas = None
+        if process.returncode is None:
+            with suppress(ProcessLookupError):
+                process.terminate()
+            try:
+                await asyncio.wait_for(process.wait(), 5)
+            except TimeoutError:
+                with suppress(ProcessLookupError):
+                    process.kill()
+                await process.wait()
+
+
+@asynccontextmanager
+async def worker_lifespan(app):
+    async with AsyncExitStack() as stack:
+        app.state.mira_aas_process = None
+        if os.getenv('MEMOIR_MIRA_AAS_BUILD_DIR'):
+            app.state.mira_aas_process = await stack.enter_async_context(local_mira_aas(worker))
+        try:
+            yield
+        finally:
+            app.state.mira_aas_process = None
+            if isinstance(worker, CodexWorker):
+                await worker.settle_checkpoints()
 
 
 app = FastAPI(title="Memory Spark Codex Worker", lifespan=worker_lifespan)
@@ -525,7 +568,13 @@ def _require_worker_secret(provided: str | None):
 
 @app.get("/health")
 def health():
-    return {"status": "ok", "service": "memory-spark-codex-worker"}
+    process = getattr(app.state, 'mira_aas_process', None)
+    if process is not None and process.returncode is not None:
+        raise HTTPException(503, 'Local Mira AAS exited')
+    status = {"status": "ok", "service": "memory-spark-codex-worker"}
+    if getattr(worker, 'mira_aas', None) is not None:
+        status['mira_runtime'] = 'advanced_aas'
+    return status
 
 
 @app.post('/internal/story-game/build')

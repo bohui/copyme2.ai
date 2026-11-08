@@ -188,6 +188,33 @@ def wire_contract(body):
 
 
 @pytest.mark.skipif(not os.getenv('MEMOIR_TEST_AAS_CORE'), reason='A built advanced_aas core is required')
+def test_local_mira_aas_starts_with_worker_and_reaps_on_shutdown(tmp_path, monkeypatch):
+    from fastapi.testclient import TestClient
+    from apps.api import codex_worker_service as service
+
+    core = Path(os.environ['MEMOIR_TEST_AAS_CORE']).resolve()
+    node = shutil.which(os.getenv('MEMOIR_TEST_NODE', 'node'))
+    assert node
+    monkeypatch.setenv('PATH', str(Path(node).parent) + os.pathsep + os.environ['PATH'])
+    monkeypatch.setenv('MEMOIR_MIRA_AAS_BUILD_DIR', str(core.parent.parent))
+    monkeypatch.setenv('MEMORY_SPARK_DISABLE_PRIVDROP', '1')
+    monkeypatch.delenv('MEMOIR_MIRA_AAS_URL', raising=False)
+    monkeypatch.setattr(service, 'MIRA_AAS_CORE_MOUNT', core)
+    worker = service.CodexWorker(home_root=tmp_path, base_url='http://127.0.0.1:1/v1', api_key='fixture')
+    monkeypatch.setattr(service, 'worker', worker)
+    with TestClient(service.app) as client:
+        assert client.get('/health').json()['mira_runtime'] == 'advanced_aas'
+        process = service.app.state.mira_aas_process
+        assert process.returncode is None
+        url, _ = worker.mira_aas
+        with httpx.Client(timeout=4, trust_env=False) as sidecar:
+            assert sidecar.post(url + '/responses').status_code == 401
+    assert process.returncode is not None
+    assert worker.mira_aas is None
+    assert service.app.state.mira_aas_process is None
+
+
+@pytest.mark.skipif(not os.getenv('MEMOIR_TEST_AAS_CORE'), reason='A built advanced_aas core is required')
 def test_mira_aas_disconnect_aborts_provider():
     disconnected = threading.Event()
     secret = uuid4().hex
