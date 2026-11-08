@@ -964,10 +964,15 @@
     {
       "name": "memoir/skills/author-timeline/reconcile",
       "variables": {},
-      "sha256": "469fd86900933eb0ef50f5dad45de931d8419bb94775034528f827c35e82198f"
+      "sha256": "46c462bf901f51afa205395f597116977a540bb2e24f496f0c284ae6585767ab"
     }
   ],
   "intentional_prompt_updates": [
+    {
+      "name": "memoir/skills/author-timeline/reconcile",
+      "sha256": "46c462bf901f51afa205395f597116977a540bb2e24f496f0c284ae6585767ab",
+      "reason": "Use authorized dialogue to recognize corrections of saved event details and distinguish them from compatible additions."
+    },
     {
       "name": "memoir/skills/author-timeline/instructions",
       "sha256": "a8282d4df15fef16c9b2ffa1b6b9f29d3a35850106c071f58ded05d29ff3ad49",

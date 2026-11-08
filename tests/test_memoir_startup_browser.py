@@ -5,8 +5,6 @@ from urllib.parse import urlsplit
 import pytest
 from playwright.sync_api import expect, sync_playwright
 
-from browser_optional_fonts import control_optional_fonts
-
 
 @pytest.mark.skipif(not os.getenv('MEMOIR_BROWSER_URL'), reason='Requires an isolated frontend')
 def test_saved_interview_loads_on_begin_and_keeps_chat_stable():
@@ -36,7 +34,7 @@ def test_saved_interview_loads_on_begin_and_keeps_chat_stable():
     def api(route):
         path = urlsplit(route.request.url).path.removeprefix(prefix)
         requests.append(path)
-        if path in ('/story/atlas-events', '/story/map-photos') and path not in delayed:
+        if path == '/story/atlas-events' and path not in delayed:
             delayed[path] = route
         else:
             route.fulfill(json=responses.get(path, {}))
@@ -44,7 +42,6 @@ def test_saved_interview_loads_on_begin_and_keeps_chat_stable():
     with sync_playwright() as playwright:
         browser = playwright.chromium.launch()
         page = browser.new_page(viewport={'width': 1440, 'height': 900}, locale='en-AU')
-        control_optional_fonts(page)
         page.route('https://**', lambda route: route.abort())
         page.on('request', lambda request: provider_requests.append(request.url)
                 if urlsplit(request.url).path.endswith('/Cesium.js') else None)
@@ -54,7 +51,7 @@ def test_saved_interview_loads_on_begin_and_keeps_chat_stable():
         assert set(requests) <= {'/agent/config', '/agent/profile'}
         assert not provider_requests
 
-        with page.expect_request('**/story/atlas-events?**'), page.expect_request('**/story/map-photos?**'):
+        with page.expect_request('**/story/atlas-events?**'):
             page.locator('[data-action="open-memoir"]').click()
         expect(page.locator('#chat-history')).to_contain_text('I remember Chengde.')
         assert requests.count(history_path) == 1
@@ -67,10 +64,9 @@ def test_saved_interview_loads_on_begin_and_keeps_chat_stable():
         page.evaluate("""() => {
           window.startupNodes = ['.story-shell', '#chat-scroll', '#chat-input'].map(selector => document.querySelector(selector));
         }""")
-        # Both replies can arrive after the user has started typing.
-        delayed['/story/map-photos'].fulfill(json={'photos': []})
+        # The Atlas snapshot can arrive after the user has started typing.
         delayed['/story/atlas-events'].fulfill(json={
-            'project_id': project_id, 'profile': {**profile, 'name': 'Updated narrator'},
+            'project_id': project_id, 'profile': {**profile, 'name': 'Updated narrator'}, 'map_photos': [],
         })
         expect(page.locator('.profile-trigger-name')).to_have_text('Updated narrator')
         expect(composer).to_be_focused()

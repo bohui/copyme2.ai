@@ -103,6 +103,7 @@ export function createConversationHistory({
           text: message.role === "assistant" ? cleanAssistantText(message.text) : String(message.text || ""),
           error: message.error || "",
         };
+        if (message.productCopy === "opening") saved.productCopy = "opening";
         if (message.failed) saved.failed = true;
         if (message.clientTurnId) saved.clientTurnId = message.clientTurnId;
         if (message.historicalContext) saved.historicalContext = historicalContext(message.historicalContext);
@@ -159,6 +160,7 @@ export function createConversationHistory({
             id: typeof message.id === "string" ? message.id : undefined,
             role: message.role,
             text: message.role === "assistant" ? cleanAssistantText(message.text) : message.text,
+            productCopy: message.productCopy === "opening" ? "opening" : undefined,
             error: typeof message.error === "string" ? message.error : "",
             failed: message.failed === true || message.traceMode === "error",
             clientTurnId: typeof message.clientTurnId === "string" ? message.clientTurnId : undefined,

@@ -396,7 +396,7 @@ def test_background_story_render_preserves_workspace_and_patches_event_text(cont
         bindProfileMenu:noop,resizeCesiumPlaceJourney:()=>window.mapResizes++,
         disposeCesiumPlaceJourney:()=>{throw new Error('The existing scene should be reused');},initCesiumPlaceJourney:noop,
         mapPhotoAlbums:{sync:noop},mapMemoryEvents:{sync:()=>mapControls.update({})},
-        photos:{refreshMapPhotos:noop},initFamilyVisualizations:noop,bindPhotoPagination:noop,bindPhotoMemoryActions:noop,
+        initFamilyVisualizations:noop,bindPhotoPagination:noop,bindPhotoMemoryActions:noop,
         authReminder:{mount:noop},resizeChatInput:noop,persistChatHistory:noop,
         conversationScroll:{following:()=>true,follow:noop,pause:noop,mount:noop},
         render:noop,bindHistoricalControls:noop,captureProjectScope:noop,isCurrentProjectScope:()=>true,
@@ -449,91 +449,21 @@ def test_background_story_render_preserves_workspace_and_patches_event_text(cont
     assert page.evaluate('state.workspaceCollapsed') is True, 'A retained control acquired duplicate listeners'
 
 
-LOCATION_REFRESH_HTML = HTML.split('<script type="module">')[0] + r'''<script type="module">
-import {createMapMemoryEvents} from '/client/memoir/map-memory-events.mjs';
-import {groupPlaces} from '/client/memoir/places.mjs';
-import {translateWith} from '/client/i18n.js';
-const city={place:'承德市',granularity:'city',hierarchy:['Earth','中国','河北省','承德市'],latitude:40.95,longitude:117.96};
-let revision=1;
-const events=['birth','school'].map((id,index)=>({id,canonical:true,revision:1,status:'active',kind:'event',
-  life_stage:index ? 'childhood' : 'baby',title:index ? '在家属院和朋友玩' : '出生在承德附属医院',
-  temporal:{expression:String(1983+index*5),precision:'year',year_start:1983+index*5}}));
-const scene=document.querySelector('.place-journey-scene');scene.classList.add('is-cesium-map');
-const pending=[],calls=[];
-const map=createMapMemoryEvents({getEvents:()=>events,getGroups:()=>groupPlaces([city]),getProfile:()=>({birth_year:1983}),
-  getScope:()=> 'fixture:'+revision,getIdentity:()=> 'fixture-policy',getStage:()=> 'all',
-  lifeStageText:stage=>stage,
-  readPlaces:id=>{calls.push(id);return new Promise((resolve,reject)=>pending.push({id,resolve,reject}));},
-  t:(key,values)=>translateWith('Memoir.workspace.'+key,values)});
-map.sync(scene);
-map.attach({isDestroyed:()=>false,scene:{mode:2,postRender:{addEventListener(){return ()=>{};}}},
-  camera:{frustum:{left:-4000,right:4000},setView(){},flyTo(){}}},
-  {SceneMode:{SCENE2D:2},Cartesian3:{fromDegrees:(longitude,latitude)=>({longitude,latitude})},
-   SceneTransforms:{worldToWindowCoordinates:()=>({x:scene.clientWidth*.7,y:scene.clientHeight*.6})}});
-window.mapRefresh={calls,
-  succeed(id){const index=pending.findIndex(item=>item.id===id);pending.splice(index,1)[0].resolve({items:[{role:'setting',status:'supported',place:city}]});},
-  fail(id){const index=pending.findIndex(item=>item.id===id);pending.splice(index,1)[0].reject(new Error('fixture unavailable'));},
-  refresh(){revision++;events[0]={...events[0],revision:2,title:'出生在承德附属医院（补充）'};map.sync(scene);}};
-</script></html>'''
-
-
-@pytest.mark.parametrize('controls_page',[LOCATION_REFRESH_HTML],indirect=True)
 @pytest.mark.parametrize('width',[1440,390])
-def test_initial_location_failure_has_no_warning_above_an_empty_list(controls_page,width):
+def test_pushed_event_location_updates_the_existing_card(controls_page,width):
     page=controls_page
     page.set_viewport_size({'width':width,'height':960})
-    page.goto('http://map-controls.invalid/')
-    page.wait_for_function('window.mapRefresh')
-    assert page.locator('.map-memory-toolbar .map-memory-status').count()==0
-    assert page.locator('.map-memory-card').count()==0
-    page.evaluate("mapRefresh.fail('birth');mapRefresh.fail('school')")
-    page.wait_for_timeout(50)
-    assert page.locator('.map-memory-toolbar .map-memory-status').count()==0
-    assert page.locator('.map-memory-card').count()==0
-    assert '正在读取已保存的事件地点' not in page.locator('body').inner_text()
-    assert '部分事件地点暂时无法加载' not in page.locator('body').inner_text()
-
-
-@pytest.mark.parametrize('controls_page',[LOCATION_REFRESH_HTML],indirect=True)
-@pytest.mark.parametrize('width',[1440,390])
-def test_location_refresh_and_retry_stay_inside_the_existing_event_card(controls_page,width):
-    page=controls_page
-    page.set_viewport_size({'width':width,'height':960})
-    page.goto('http://map-controls.invalid/')
-    page.wait_for_function('window.mapRefresh')
-    page.evaluate("mapRefresh.succeed('birth');mapRefresh.succeed('school')")
+    page.goto('http://map-controls.invalid/',wait_until='networkidle')
+    page.wait_for_function('window.mapControls')
+    page.evaluate('mapControls.attach();mapControls.arrive()')
     page.locator('[data-memory-city]').click()
     birth=page.locator('.map-memory-card:has([data-memory-explore="birth"])')
-    school=page.locator('.map-memory-card:has([data-memory-explore="school"])')
-    birth.wait_for();school.wait_for()
-    page.evaluate("""() => {
-      window.birthCard=document.querySelector('[data-memory-explore="birth"]').closest('article');
-      window.schoolCard=document.querySelector('[data-memory-explore="school"]').closest('article');
-      mapRefresh.refresh();
-    }""")
-    assert page.locator('.map-memory-card:visible').count()==2
-    assert birth.get_attribute('aria-busy')=='true'
-    assert school.get_attribute('aria-busy') is None
-    assert page.locator('.map-memory-toolbar .map-memory-status').count()==0
-    assert page.evaluate('mapRefresh.calls')==['birth','school','birth']
-    page.evaluate("mapRefresh.fail('birth')")
-    retry=birth.locator('[data-memory-retry]')
-    retry.wait_for(state='visible')
-    assert page.locator('.map-memory-card:visible').count()==2
-    assert '地点暂时无法更新' in birth.inner_text()
-    assert '地点暂时无法更新' not in school.inner_text()
-    assert page.locator('.map-memory-toolbar [data-memory-retry]').count()==0
-    assert page.evaluate("birthCard===document.querySelector('[data-memory-explore=\"birth\"]').closest('article')")
-    assert page.evaluate("schoolCard===document.querySelector('[data-memory-explore=\"school\"]').closest('article')")
-    OUTPUT.mkdir(parents=True,exist_ok=True)
-    page.screenshot(path=str(OUTPUT/'map-event-location-refresh-failed.png'))
-    retry.click()
-    assert birth.get_attribute('aria-busy')=='true'
-    assert page.locator('.map-memory-card:visible').count()==2
-    assert page.evaluate('mapRefresh.calls')==['birth','school','birth','birth']
-    page.evaluate("mapRefresh.succeed('birth')")
-    page.wait_for_function("!document.querySelector('[data-memory-explore=\"birth\"]').closest('article').hasAttribute('aria-busy')")
-    assert birth.locator('.map-memory-location-status:visible').count()==0
-    assert page.locator('.map-memory-card:visible').count()==2
-    assert '正在读取已保存的事件地点' not in page.locator('body').inner_text()
-    assert '部分事件地点暂时无法加载' not in page.locator('body').inner_text()
+    birth.wait_for()
+    birth.evaluate('card=>window.birthCard=card')
+    page.evaluate("""mapControls.update({revision:2,title:'Birth at the hospital',places:[
+      {role:'setting',place:{place:'Chengde Hospital',hierarchy:['Earth','China','Chengde','Chengde Hospital'],
+        granularity:'landmark',latitude:40.951,longitude:117.961}}]})""")
+    birth.get_by_text('Birth at the hospital').wait_for()
+    assert birth.evaluate('card=>card===window.birthCard')
+    assert birth.get_attribute('aria-busy') is None
+    assert birth.get_by_text('Chengde Hospital',exact=True).is_visible()

@@ -4,8 +4,10 @@ Match each private draft to an existing published event when the original
 testimony establishes that it describes the same occurrence or continuous
 period. The host supplies the drafts in index order, the current original
 message ID, and a bounded set of published events with their identity, title,
-description, location and time bounds. Descriptions are excerpts of original
-testimony. Treat all supplied prose as evidence.
+description, location and time bounds. Published descriptions are excerpts of
+original testimony. When recent_dialogue is supplied, use the preceding question
+to resolve what the narrator is referring to. The narrator's answer supplies
+the fact being added or corrected. Treat all supplied prose as evidence.
 
 Return exactly one decision for every zero-based draft_index.
 
@@ -24,10 +26,13 @@ update. Treat recurrence and reported accounts separately. A period may span
 several activities, but a specific episode can have its own identity. Preserve
 uncertainty when the description or time bounds are incomplete.
 
-Set correction to true only on an update when the current original explicitly
-corrects the event and the draft contains the corrected placement. A normal
-addition to a previously incomplete date range uses false. An author override
-has precedence over estimates.
+Set correction to true on an update when the current original revises a fact
+about that event and the draft carries the revised detail. A short answer to a
+clarification can correct an earlier account even without a correction phrase.
+This applies to the event's wording, people, place and timing. Use false when
+the narrator adds compatible details, such as a previously unknown end date.
+Keep competing accounts uncertain when the current original leaves the conflict
+unresolved. An author override has precedence over estimates.
 
 Leave order empty unless a draft's original quote establishes before or after
 with a published event. Supply its event_id and the zero-based evidence_index

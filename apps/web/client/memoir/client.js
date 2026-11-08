@@ -125,6 +125,7 @@ const state = {
   audioTranscriptKind: "narrator_chat",
   audioPlayer: null,
   voiceMode: false,
+  voiceCaptureMode: null,
   voiceModeStatus: "off",
   voiceModeRecorder: null,
   voiceModeStream: null,
@@ -136,6 +137,7 @@ const state = {
   voiceModePlaybackFinish: null,
   voiceMuted: false,
   dictationStatus: "off",
+  dictationCaptureMode: null,
   dictationId: 0,
   dictationSend: false,
   dictationMonitor: null,
@@ -166,7 +168,8 @@ state.atlasUpdates = createAtlasUpdates({
     ? captureProjectScope() : null,
   current: isCurrentProjectScope,
   token: () => state.supabase?.accessToken,
-  url: projectId => memoirApiPath(`/v1/story/atlas-events?project_id=${encodeURIComponent(projectId)}`),
+  url: projectId => memoirApiPath(`/v1/story/atlas-events?project_id=${encodeURIComponent(projectId)}&language=${currentUiLocale()}`
+    + (state.familyFeaturesEnabled ? "&include_map=false" : "")),
   onUpdate: refreshStageReadiness,
   onUnavailable: () => void refreshStageReadiness(),
 });
@@ -206,6 +209,7 @@ const authReminder = createAuthReminder({
   getAuth: () => state.supabase,
   getConversation: () => ({ id: state.project?.id, messages: state.chat }),
   busy: () => state.loading || state.recording || state.storyRecording || state.voiceMode || state.dictationStatus !== "off",
+  deferPrompt: () => recordingConsent.isPending(),
   signInExisting: provider => guestTransfer.signIn(provider),
   cancelTransfer: () => guestTransfer.cancel(),
   onUserChanged: () => refreshProfileMenu(),
@@ -262,7 +266,7 @@ const {
 } = createPlaceWorkspace({
   api, captureProjectScope, isCurrentProjectScope, lifeStageText, loadPlacePictures, persistChatHistory,
   profile, recordWorkspaceSkillProgress, render, saveProfileUpdates, state, supabaseApi, workspaceHasContent,
-  photos, storyApi, onExploreMapMemory: eventId => focusWorkspaceMemory(eventId),
+  photos, onExploreMapMemory: eventId => focusWorkspaceMemory(eventId),
   onAddMapMemory: () => focusWorkspaceMemory(),
   onLoadMoreMapEvents: () => state.memoryEventPage?.page_error ? refreshFamilyContext() : loadMoreMemoryEvents(),
 });
@@ -280,7 +284,7 @@ const storyGameDialog = createStoryGameDialog({state,storyApi,captureProjectScop
   onWorkspaceClose: closeDebugWorkspace});
 
 const {
-  addPerson, applyPersistedFamilyContext, closeFamilyPerson, familyWorkspace, initFamilyVisualizations,
+  addPerson, applyMapEventPage, applyPersistedFamilyContext, closeFamilyPerson, familyWorkspace, initFamilyVisualizations,
   loadMoreEventDetails, loadMoreEventEvidence, loadMoreMemoryEvents, openMemoryEventEdit, refreshFamilyContext,
   saveFamilyPersonPhoto, saveMemoryEventEdit, selectFamilyPerson, timelineWorkspace, zoomFamilyChart
 } = createFamilyWorkspace({
@@ -295,7 +299,7 @@ const {
 });
 
 const recordingConsent = createRecordingConsent({
-  storyApi, captureProjectScope, isCurrentProjectScope, toast, openIdentity:() => authReminder.open(),
+  storyApi, captureProjectScope, isCurrentProjectScope, toast, openIdentity:options => authReminder.open(options),
   onRevoke:() => { stopVoiceMode({silent:true,preservePending:true}); if (state.recording || state.dictationStatus === 'starting') cancelDictation(); },
 });
 
@@ -363,6 +367,7 @@ const ERROR_MESSAGE_KEYS = {
   RECORDING_PRESERVATION_FAILED:'recordingNotSavedRetry',
   RECORDING_TRANSCRIPTION_FAILED:'recordingSavedRetry',
   RECORDING_TRANSCRIPTION_UNCERTAIN:'recordingSavedRetry',
+  VOICE_TRANSCRIPTION_FAILED:'voiceTranscriptionFailed',
   INVALID_AUDIO_MEDIA:'invalidAudio',
   UNSUPPORTED_AUDIO:'invalidAudio',
   AUDIO_DURATION_EXCEEDED:'recordingLimit',
@@ -637,13 +642,15 @@ async function storySession() {
 }
 
 async function storyApi(path, options = {}) {
+  const {isCurrent, ...request} = options;
   const session = await storySession();
+  if (isCurrent && !isCurrent()) throw new DOMException('Request cancelled', 'AbortError');
   const headers = {
     "Content-Type": "application/json",
     Authorization: `Bearer ${session.access_token}`,
-    ...(options.headers || {}),
+    ...(request.headers || {}),
   };
-  const response = await fetch(memoirApiPath(path), { ...options, headers });
+  const response = await fetch(memoirApiPath(path), { ...request, headers });
   const body = await response.json().catch(() => ({}));
   if (!response.ok) {
     const error = new Error(localizedErrorMessage(response.headers.get("X-Error-Code") || body?.error?.code));
@@ -1474,6 +1481,7 @@ async function refreshFamilyEntitlement() {
     state.familyFeaturesEnabled = false;
     state.familyContext = null;
   }
+  state.atlasUpdates?.renew?.();
   return state.familyFeaturesEnabled;
 }
 
@@ -2203,11 +2211,16 @@ function normalizeHistoryOpening(messages) {
   if (!messages.length) return messages;
   const normalize = text => text.replace(/\s+/g, " ").trim();
   const openings = new Set(openingMessages.map(normalize));
-  const isOpening = message => message.role === "assistant" && openings.has(normalize(message.text));
+  // Older browser caches dropped productCopy but kept the opening's startup trace.
+  const isOpening = message => message.role === "assistant" && (
+    message.productCopy === "opening" || openings.has(normalize(message.text))
+    || (!message.clientTurnId && message.traceMode === "simulated"
+      && message.trace?.some(step => step?.kind === "tool_call" && step.label === "conversation.start"))
+  );
   const existing = messages.find(isOpening);
   const opening = { ...(existing || {
     id: "history-opening", role: "assistant",
-  }), text: conversationMessage("opening"), productCopy: "opening" };
+  }), text: conversationMessage("opening"), productCopy: "opening", streaming: false };
   return [opening, ...messages.filter(message => !isOpening(message))];
 }
 
@@ -2361,6 +2374,7 @@ function renderStory() {
     && state.workspaceSkillProgress?.owner_id === state.supabase?.user?.id
     ? renderAgentTrace(state.workspaceSkillProgress.items,"live") : "";
   activeWorkspaceTab();
+  const voiceReplyInProgress = state.voiceMode && ["preparing", "speaking"].includes(state.voiceModeStatus);
   const parts = {
     topbar: `<header class="story-topbar">
         <div class="brand"><a href="/" data-action="story-home" aria-label="${escapeHtml(translate("Platform.homeAria"))}"><img class="brand-mark" src="/static/copyme2_icon_light.png" alt="" aria-hidden="true" /></a><a class="brand brand-name" href="${MEMOIR_ROUTES.home}">${t("brand")}</a></div>
@@ -2368,7 +2382,7 @@ function renderStory() {
       </header>`,
     heading: `<div class="chat-heading"><div>${unlocked ? `<div class="eyebrow">${t("workspaceEyebrow")}</div>` : ""}<h1>${t(unlocked ? "workspaceTitle" : "conversationTitle")}</h1><p>${t(unlocked ? "workspaceDescription" : "conversationDescription")}</p></div>${headerActions}</div>`,
     history: `<div id="chat-history" class="chat-history"${state.chatHistoryCollapsed ? " hidden" : ""}>${state.chat.map(renderMessage).join("")}${serviceProgress ? `<div class="message-trace" aria-live="polite">${serviceProgress}</div>` : ""}</div>`,
-    notices: `<div class="chat-notices">${state.loading && !state.chat.at(-1)?.streaming ? `<div class="thinking" role="status"><em>${state.supabase?.accessToken ? t("thinkingCodex") : t("thinkingSimulated")}</em></div>` : ""}${placeJourneySurface()}${recallPackagePrompt()}</div>`,
+    notices: `<div class="chat-notices">${state.loading && !voiceReplyInProgress && !state.chat.at(-1)?.streaming ? `<div class="thinking" role="status"><em>${state.supabase?.accessToken ? t("thinkingCodex") : t("thinkingSimulated")}</em></div>` : ""}${placeJourneySurface()}${recallPackagePrompt()}</div>`,
     composer: chatComposer(),
     workspace: workspaceAvailable ? workspaceDetail() : "",
   };
@@ -2468,7 +2482,6 @@ function renderStory() {
   }
   mapPhotoAlbums.sync($(".place-journey-scene"), albumFocus);
   mapMemoryEvents.sync($(".place-journey-scene"), mapMemoryFocus);
-  if ($(".place-journey-scene")) void photos.refreshMapPhotos();
   if (!retainedWorkspace) initFamilyVisualizations();
   const nextGallery = $(".place-pictures[data-photo-place]");
   if (nextGallery && nextGallery.dataset.photoPlace === galleryPlace) nextGallery.scrollTop = galleryTop;
@@ -2660,6 +2673,13 @@ function lifeStageNavigator(showStages = true) {
 async function refreshStageReadiness(snapshot = null, scope = captureProjectScope()) {
   const projectId = scope.projectId;
   if (!projectId || !state.supabase?.accessToken || !isCurrentProjectScope(scope)) return;
+  if (snapshot?.map_page) {
+    if (!state.familyFeaturesEnabled && !(state.debugEarlyGeneration && state.debugWorkspace === "memoir")) {
+      if (snapshot.map_page.after_cursor) applyMapEventPage(snapshot.map_page);
+      else await refreshFamilyContext({mapSnapshot:snapshot.map_page});
+    }
+    return;
+  }
   const active = state.stageReadinessRefresh;
   if (active && !active.controller.signal.aborted && isCurrentProjectScope(active.scope)) {
     active.requested = true;
@@ -2671,7 +2691,7 @@ async function refreshStageReadiness(snapshot = null, scope = captureProjectScop
   state.stageReadinessRefresh = job;
   const current = () => state.stageReadinessRefresh === job && isCurrentProjectScope(scope)
     && Boolean(state.supabase?.accessToken) && !job.controller.signal.aborted;
-  const read = async (path = `/v1/story/atlas-events?project_id=${encodeURIComponent(projectId)}`) => {
+  const read = async (path = `/v1/story/atlas-events?project_id=${encodeURIComponent(projectId)}&language=${currentUiLocale()}`) => {
     const request = new AbortController();
     const cancel = () => request.abort();
     job.controller.signal.addEventListener('abort', cancel, {once:true});
@@ -2718,6 +2738,7 @@ async function refreshStageReadiness(snapshot = null, scope = captureProjectScop
           if (job.requested) continue;
           state.currentInterviewMode = result.current_mode || null;
           state.stageReadiness = result.stages || {};
+          if (Array.isArray(result.map_photos)) photos.applyMapPhotos(result, scope);
           if (result.profile) state.project = {...state.project, profile:mergePrivateProfile(result.profile, profile())};
           if (result.derived_workspace && applyDerivedWorkspace(state, result.derived_workspace, pushed ? scope : null)) {
             if (state.placeJourney) {
@@ -2732,7 +2753,8 @@ async function refreshStageReadiness(snapshot = null, scope = captureProjectScop
           const mapChanged = page?.project_id !== projectId || page.policy_epoch !== result.policy_epoch
             || page.source_revision !== result.source_revision || page.event_revision !== result.event_revision;
           if (state.familyFeaturesEnabled && mapChanged) void refreshFamilyContext();
-          else if (result.map_events && (mapChanged || page.preference_revision !== result.preference_revision || page.page_error)) {
+          else if (result.map_events && (mapChanged || result.map_events.streaming_pages
+              || page.preference_revision !== result.preference_revision || page.page_error)) {
             void refreshFamilyContext({mapSnapshot: {...result.map_events, preference_revision: result.preference_revision}});
           }
         } catch { /* Keep the last snapshot until another update or explicit refresh. */ }
@@ -3041,19 +3063,26 @@ function chatComposer() {
   const t = (key) => escapeHtml(translate(`Memoir.story.${key}`));
   const atLimit = chatInputLimitReached();
   const waitNote = atLimit ? `<div class="composer-note" role="status">${t("sendWait")}</div>` : "";
+  const guestNote = escapeHtml(translate("RecordingConsent.guestNote"));
   const button = (action, label, icon, extra = "", disabled = false) => `<button type="button" class="voice-button ${extra}" data-action="${action}" aria-label="${t(label)}" title="${t(label)}"${disabled ? " disabled" : ""}>${composerIcon(icon)}</button>`;
   if (state.dictationStatus !== "off") {
     const processing = ["starting", "processing"].includes(state.dictationStatus);
-    return `<div class="composer-wrap">${focusControls}<div class="chat-composer dictation-composer">${button("cancel-dictation", "cancelDictation", "close")}<div class="dictation-visual"><div class="dictation-wave ${state.recording ? "is-recording" : ""}" aria-hidden="true">${"<i></i>".repeat(40)}</div><span role="status">${t(processing ? (state.dictationStatus === "starting" ? "connectingMic" : "transcribing") : state.recording ? "dictating" : "dictationStopped")}</span></div>${!processing ? `${state.recording ? button("stop-dictation", "stopDictation", "stop") : ""}${button("accept-dictation", "send", "send", "voice-mode-button", atLimit)}` : ""}</div>${waitNote || `<div class="composer-note">${t("dictationNote")}</div>`}</div>`;
+    const note = state.dictationCaptureMode === 'temporary' ? guestNote : t("dictationNote");
+    return `<div class="composer-wrap">${focusControls}<div class="chat-composer dictation-composer">${button("cancel-dictation", "cancelDictation", "close")}<div class="dictation-visual"><div class="dictation-wave ${state.recording ? "is-recording" : ""}" aria-hidden="true">${"<i></i>".repeat(40)}</div><span role="status">${t(processing ? (state.dictationStatus === "starting" ? "connectingMic" : "transcribing") : state.recording ? "dictating" : "dictationStopped")}</span></div>${!processing ? `${state.recording ? button("stop-dictation", "stopDictation", "stop") : ""}${button("accept-dictation", "send", "send", "voice-mode-button", atLimit)}` : ""}</div>${waitNote || `<div class="composer-note">${note}</div>`}</div>`;
   }
   const status = state.voiceMuted ? "muted" : state.voiceModeStatus;
-  const voiceStatus = state.voiceMode ? `<div class="voice-session"><div class="voice-orb ${status}" aria-hidden="true"><div class="voice-orb-water"><i></i><i></i><i></i></div></div><div class="voice-mode-status" role="status"><strong class="voice-mode-title">${t("voiceConversation")}</strong><span>${t(state.voiceMuted ? "micMuted" : status === "speaking" ? "miraSpeaking" : status === "processing" ? "listeningBack" : "listening")}</span></div></div>` : "";
+  const statusLabel = {
+    muted: "micMuted", preparing: "preparingVoice", speaking: "miraSpeaking", processing: "listeningBack",
+  }[status] || "listening";
+  const orbStatus = status === "preparing" ? "processing" : status;
+  const voiceStatus = state.voiceMode ? `<div class="voice-session"><div class="voice-orb ${orbStatus}" aria-hidden="true"><div class="voice-orb-water"><i></i><i></i><i></i></div></div><div class="voice-mode-status" role="status"><strong class="voice-mode-title">${t("voiceConversation")}</strong><span>${t(statusLabel)}</span></div></div>` : "";
   const controls = state.voiceMode
     ? `${button("mute-voice", state.voiceMuted ? "unmuteMic" : "muteMic", state.voiceMuted ? "muted" : "mic")}${button("voice-input", "endVoice", "close", "voice-mode-end")}`
     : `${button("dictate", "dictate", "mic", "dictation-button")}${button("voice-input", "startVoice", "wave", "voice-mode-button voice-mode-launcher")}`;
   const sendDisabled = atLimit || (state.loading && !state.conversationInputs?.pending()) || state.photoMemoryTask;
   const canRetry = !state.loading && (state.photoTurns?.pending() || (atLimit && state.conversationInputs?.pending()));
-  const note = waitNote || `<div class="composer-note"><span>${t(state.voiceMode ? "voiceNote" : "sourceNote")}</span><span>${t("shortcutNote")}</span></div>`;
+  const voiceNote = `${t("voiceNote")} ${state.voiceCaptureMode === 'temporary' ? guestNote : t("originalVoiceNote")}`;
+  const note = waitNote || `<div class="composer-note"><span>${state.voiceMode ? voiceNote : t("sourceNote")}</span><span>${t("shortcutNote")}</span></div>`;
   return `<div class="composer-wrap ${state.voiceMode ? "has-voice-orb" : ""}">${focusControls}${voiceStatus}${selectedPhotoCue()}${composerAttachments()}${!state.loading && !state.photoTurns?.pending() && (state.audioRecordings?.length || state.pendingAudioUpload) ? `<button type="button" class="text-button" data-action="discard-audio-draft">${t("discardAudio")}</button>` : ""}${canRetry ? `<button type="button" class="text-button retry-interview-turn" data-action="retry-interview-turn">${t("retryTurn")}</button>` : ""}<form id="chat-form" class="chat-composer" data-voice-mode="${state.voiceMode ? "on" : "off"}"><button type="button" class="voice-button" data-action="attach-media" aria-label="${t("attachMedia")}" title="${t("attachMedia")}" ${state.loading ? "disabled" : ""}>${composerIcon("plus")}</button><input id="chat-attachments" type="file" accept="${Object.keys(ATTACHMENT_TYPES).join(",")}" multiple hidden /><textarea id="chat-input" rows="1" placeholder="${t(state.voiceMode ? "voicePlaceholder" : "textPlaceholder")}" aria-label="${t("yourMessage")}"></textarea>${controls}<button type="submit" class="send-button" aria-label="${t("send")}" ${sendDisabled ? "disabled" : ""}>${composerIcon("send")}</button></form>${note}</div>`;
 }
 
@@ -3645,7 +3674,7 @@ async function boot({openProjectId = null} = {}) {
         if (openProjectId && state.projectRecoveryBlocked) return;
         await syncProfileUiLocale();
         if (!current()) return;
-        await hydratePlaceJourney();
+        if (state.supabase?.auth_mode !== 'supabase') await hydratePlaceJourney();
         if (!current()) return;
         await refreshFamilyEntitlement();
         if (!current()) return;
@@ -3714,6 +3743,7 @@ window.addEventListener("pagehide", () => {
 window.addEventListener("pageshow", event => { if (event.persisted) state.atlasUpdates.start(); });
 window.addEventListener("copyme2:ui-locale-change", () => {
   closeProfileMenu();
+  state.atlasUpdates?.renew();
   if (!refreshOpeningMessageLocale()) render();
   if (currentPath() === "/" || currentPath() === MEMOIR_ROUTES.home) return;
   const place = typeof placeWorkspaceSelection === "function"

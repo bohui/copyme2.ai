@@ -244,6 +244,33 @@ def timeline_reconciliation_case(locale):
         scope='Select a published residence for new placement evidence and create a separate recollection')
 
 
+def timeline_correction_case(locale):
+    from apps.api.lifetime_memory_lane_engine import lane_contract, lane_prompt_name
+    from apps.api.model_request import instruction_manifest
+
+    prior, question, answer, revised = (
+        ('我在墨尔本开始做护士。', '你是在墨尔本还是悉尼开始做护士的？', '悉尼。', '在悉尼开始做护士')
+        if locale == 'zh-CN' else
+        ('I repaired the bicycle with Leo.', 'Was the person who helped repair the bicycle Leo or Maya?', 'My sister Maya.',
+         'Repaired the bicycle with Maya'))
+    original = dict(id='synthetic-correction-answer', version=1, status='active', text=answer)
+    ref = dict(source_id=original['id'], version=1, quote=answer)
+    saved = dict(id='saved-memory', revision=1, kind='event', title=prior, description=prior)
+    draft = dict(kind='event', title=revised, description=revised, source_refs=[ref])
+    if locale == 'zh-CN':
+        saved['location'] = dict(place='墨尔本', hierarchy=['Earth', '澳大利亚', '墨尔本'], granularity='city')
+        draft.update(location=dict(place='悉尼', hierarchy=['Earth', '澳大利亚', '悉尼'], granularity='city'),
+                     location_basis=[ref], locationConfidenceScore=1)
+    dialogue = dict(status='responded', question=dict(text=question, role='assistant', personal_testimony=False),
+                    response={**original, 'role':'user'})
+    instructions, schema = lane_contract('reconcile', locale)
+    return dict(id='timeline-correction-'+locale, skill='memoir-author-timeline', instructions=instructions, schema=schema,
+        input=dict(drafts=[draft], published_events=[saved], recent_dialogue=[dialogue], message_id='synthetic-correction-turn'),
+        original=original, validator='reconciliation', expected=[saved['id']], expected_corrections=[True],
+        prompt_manifest=instruction_manifest(instructions, schema, primary_name=lane_prompt_name('reconcile')),
+        scope='Revise a saved event from the narrator’s short answer to a preceding clarification')
+
+
 def cases():
     rows = profile_cases()
     for locale in ('en-AU', 'zh-CN'):
@@ -255,7 +282,7 @@ def cases():
                  original=original, validator='extraction'),
         ])
         rows.extend(timeline_chronology_case(locale, variant) for variant in ('study','work'))
-        rows.append(timeline_reconciliation_case(locale))
+        rows.extend([timeline_reconciliation_case(locale), timeline_correction_case(locale)])
     rows.append(dict(id='family-explicit-mother', skill='memoir-family-tree', schema=None,
         instructions=skill_prompt('memoir-family-tree'),
         input={'fixture_scope': 'isolated contract test; no entitlement or persistence claim',
@@ -331,9 +358,10 @@ def validate_case(case, value):
     elif kind == 'reconciliation':
         from apps.api.timeline_reconciliation import assign_event_identities
         data = case['input']
-        assigned = assign_event_identities(value,data['drafts'],data['published_events'],case['original'])
+        assigned = assign_event_identities(value,data['drafts'],data['published_events'])
         if ([event.get('existing_id') for event in assigned] != case['expected']
-                or any(event.get('candidate_ids') or event.get('correction') for event in assigned)):
+                or any(event.get('candidate_ids') for event in assigned)
+                or [bool(event.get('correction')) for event in assigned] != case.get('expected_corrections', [False]*len(assigned))):
             raise ValueError('incorrect_timeline_identity')
     elif kind == 'family':
         _, tree = extract_family_tree_context(value)

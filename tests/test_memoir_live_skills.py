@@ -7,7 +7,7 @@ import time
 import httpx
 import pytest
 
-from scripts.memoir_live_skill_cases import cases, timeline_chronology_case, validate_case
+from scripts.memoir_live_skill_cases import cases, timeline_chronology_case, timeline_correction_case, validate_case
 from scripts.run_memoir_live_skills import LiveProvider, manifest, provider_rejection, json_framing_kind
 
 
@@ -66,6 +66,16 @@ def test_overlapping_chronology_case_rejects_the_reported_missing_or_reversed_re
         item['temporal_estimate'].update(year_start=case['expected']['birth_year']+start,
             year_end=case['expected']['birth_year']+end,age_start=start,age_end=end)
     validate_case(case, {'events':[event,home]})
+
+
+@pytest.mark.parametrize('locale', ['en-AU', 'zh-CN'])
+def test_correction_case_requires_a_correction_on_the_same_event(locale):
+    case = timeline_correction_case(locale)
+    decision = dict(draft_index=0, action='update', event_id='saved-memory', correction=False,
+                    order=[], candidate_ids=[])
+    with pytest.raises(ValueError, match='incorrect_timeline_identity'):
+        validate_case(case, {'decisions':[decision]})
+    validate_case(case, {'decisions':[{**decision, 'correction': True}]})
 
 
 def test_cancelled_provider_dispatch_is_recorded_and_consumes_allowance(monkeypatch, tmp_path):

@@ -7,6 +7,8 @@ import httpx
 from fastapi import HTTPException
 
 from .lifetime_memory_reads import snapshot_lifetime_read, find_lifetime_read_identity
+from .place_groups import resolve_place_groups
+from .place_journey import validate_event_location
 
 
 def mapped_identity(storage, project_id):
@@ -79,14 +81,16 @@ def draft_page(storage, project_id, snapshot_id, cursor=None, limit=8):
     return storage.lifetime_rpc('read_lifetime_private_draft_page', **parameters)
 
 
-def collection_page(storage, project_id, *, kind, cursor=None, limit=8, event_id=None):
+def collection_page(storage, project_id, *, kind, cursor=None, limit=8, event_id=None, language=None):
     page = storage.lifetime_rpc('read_lifetime_collection_page', p_project_id=project_id,
-        p_kind=kind, p_after=str(cursor) if cursor else None, p_limit=limit, p_event_id=event_id)
+        p_kind='map_events' if kind == 'events' else kind, p_after=str(cursor) if cursor else None,
+        p_limit=limit, p_event_id=event_id)
     if kind == 'events':
         page = {**page, 'map_source': 'published_events', 'events': [{**{key:value for key,value in event.items()
             if key not in {'primary_source_refs','primary_evidence_complete'}},
             **({'temporal_anchor':'present'} if _present_residence(event) else {})}
                                  for event in page.get('events', [])]}
+        _resolve_event_map_places(page['events'], language)
     return page
 
 
@@ -118,11 +122,39 @@ def _present_residence(event):
         and not _NON_CURRENT.search(ref.get('quote') or '') for ref in refs)
 
 
-def map_event_page(storage, project_id, *, cursor=None, limit=8):
-    page = collection_page(storage, project_id, kind='events', cursor=cursor, limit=limit)
+def _resolve_event_map_places(events, language):
+    pending = {}
+    for event in events:
+        if event.get('status') != 'active':
+            continue
+        links = event.get('places') or []
+        if not links and not event.get('place_conflicts') and event.get('location') and (event.get('locationConfidenceScore') or 0) > 0:
+            links = [{'role': 'setting', 'status': 'candidate', 'place': event['location']}]
+        event['places'] = []
+        for link in links:
+            place = validate_event_location(link.get('place'))
+            if place is None:
+                continue
+            place = {key: place[key] for key in ('place', 'hierarchy', 'granularity', 'latitude', 'longitude') if key in place}
+            item = {key: link[key] for key in ('role', 'status') if key in link}
+            item['place'] = dict(place)
+            event['places'].append(item)
+            if 'latitude' not in place:
+                key = (place['place'], tuple(place['hierarchy']), place['granularity'])
+                pending.setdefault(key, (place, []))[1].append(item['place'])
+    if pending:
+        places, outputs = zip(*pending.values())
+        groups = resolve_place_groups(places, language=language, max_lookups=2 * len(places))['places']
+        for group, targets in zip(groups, outputs):
+            for target in targets:
+                target.update(map_city=group['city'], map_city_key=group['city_key'], map_pin=group['pin'])
+
+
+def map_event_page(storage, project_id, *, cursor=None, limit=8, language=None):
+    page = collection_page(storage, project_id, kind='events', cursor=cursor, limit=limit, language=language)
     fields = {'id', 'revision', 'kind', 'life_stage', 'status', 'change_sequence', 'title',
               'temporal', 'temporal_estimate', 'timing_hint', 'temporal_anchor', 'uncertainty', 'assertion', 'timing_conflict',
-              'location', 'locationConfidenceScore', 'yearConfidenceScore', 'relations'}
+              'location', 'locationConfidenceScore', 'yearConfidenceScore', 'relations', 'places', 'place_conflicts'}
     events = []
     for event in page.get('events', []):
         if event.get('status') != 'active':
@@ -135,15 +167,7 @@ def map_event_page(storage, project_id, *, cursor=None, limit=8):
             if isinstance(item.get(field), dict):
                 item[field] = {key: value for key, value in item[field].items() if key not in {'basis', 'rationale'}}
         events.append(item)
-    return {**page, 'events': events}
-
-
-def map_event_places(storage, project_id, event_id, *, cursor=None, limit=8):
-    page = storage.lifetime_rpc('read_lifetime_event_places', p_project_id=project_id,
-        p_event_id=event_id, p_after=str(cursor) if cursor else None, p_limit=limit)
-    fields = {'key', 'role', 'status', 'place'}
-    return {**page, 'items': [{key: value for key, value in item.items() if key in fields}
-                            for item in page.get('items', [])]}
+    return {**page, 'events': events, 'language': language}
 
 
 def canonical_collection(storage, project_id, *, cursor=None, task_cursor=None, limit=8):

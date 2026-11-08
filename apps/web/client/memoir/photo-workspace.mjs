@@ -8,40 +8,19 @@ export function createPhotoWorkspace({
   bindPrivatePhotos = () => {}
 }) {
   let photoPaginationObserver = null;
-  let mapPhotoScope, mapPhotoRevision, privateMapPhotos = [];
-  let mapPhotoError = false, mapPhotoLoading = false;
-  const mapPhotoReadRevision = () => JSON.stringify([state.project?.id,state.supabase?.user?.id,state.navigationGeneration,
-    state.memoryEventPage?.policy_epoch,state.memoryEventPage?.source_revision,state.memoryEventPage?.event_revision]);
+  let atlasMapPhotos;
 
-  function mapPhotos() {
-    return mapPhotoRevision === mapPhotoReadRevision() ? privateMapPhotos : [];
+  function applyMapPhotos({map_photos, policy_epoch, source_revision, event_revision}, scope) {
+    const pictures = map_photos.filter(photo => photo?.kind === "private_upload" && /^upload:[0-9a-f-]{36}$/i.test(photo.photo_id))
+      .map(photo => ({...photo, allowed_actions:{embed:true}}));
+    atlasMapPhotos = {scope, policy_epoch, source_revision, event_revision, pictures};
   }
 
-  async function refreshMapPhotos({force = false} = {}) {
-    const owner = JSON.stringify([state.project?.id, state.supabase?.user?.id]);
-    if (owner !== mapPhotoScope) { mapPhotoScope = owner; mapPhotoRevision = null; privateMapPhotos = []; }
-    if (!state.project?.id || !state.supabase?.accessToken) return;
-    const revision = mapPhotoReadRevision();
-    if (revision === mapPhotoRevision && mapPhotoLoading) return;
-    if (!force && revision === mapPhotoRevision) return;
-    mapPhotoRevision = revision;
-    privateMapPhotos = [];
-    mapPhotoError = false; mapPhotoLoading = true;
-    const scope = captureProjectScope();
-    try {
-      const result = await api(`/v1/story/map-photos?project_id=${encodeURIComponent(state.project.id)}`);
-      if (!isCurrentProjectScope(scope) || mapPhotoRevision !== revision || mapPhotoReadRevision() !== revision) return;
-      const pictures = (result.photos || []).filter(photo => photo.kind === "private_upload"
-        && /^upload:[0-9a-f-]{36}$/i.test(photo.photo_id)).map(photo => ({...photo, allowed_actions:{embed:true}}));
-      privateMapPhotos = pictures;
-      render();
-    } catch {
-      if (isCurrentProjectScope(scope) && mapPhotoRevision === revision && mapPhotoReadRevision() === revision) {
-        mapPhotoError = true; render();
-      }
-    } finally {
-      if (mapPhotoRevision === revision) mapPhotoLoading = false;
-    }
+  function mapPhotos() {
+    if (!atlasMapPhotos || !isCurrentProjectScope(atlasMapPhotos.scope)) return [];
+    const stale = [state.derivedWorkspace, state.memoryEventPage].some(page => page?.project_id === state.project?.id
+      && ["policy_epoch", "source_revision", "event_revision"].some(key => atlasMapPhotos[key] < page[key]));
+    return stale ? [] : atlasMapPhotos.pictures;
   }
 
   function mergePlacePictures(existing, incoming) {
@@ -405,8 +384,7 @@ export function createPhotoWorkspace({
   }
 
   return {
-    bindPhotoMemoryActions, bindPhotoPagination, bindPrivatePhotos, favoritePhotoWall, mapPhotos, refreshMapPhotos,
-    mapPhotosUnavailable:() => mapPhotoRevision === mapPhotoReadRevision() && mapPhotoError,
+    applyMapPhotos, bindPhotoMemoryActions, bindPhotoPagination, bindPrivatePhotos, favoritePhotoWall, mapPhotos,
     mergePlacePictures, photoMatchesScope,
     photoPaginationMarkup, photoRequestKey, photoSearchPeriod, pictureWall, placePhotoCenter, renderablePictureItems,
     responsePhotoMarkup, searchedPictures, selectedPhotoCue, workspacePictureItems

@@ -2,7 +2,7 @@ import { translate } from '../i18n.js';
 import { createGuestUsage } from './auth-reminder.mjs';
 import { linkSocialIdentity } from './social-auth.mjs';
 
-export function createAuthReminder({ getAuth, getConversation = () => ({}), busy, signInExisting, cancelTransfer, onUserChanged }) {
+export function createAuthReminder({ getAuth, getConversation = () => ({}), busy, deferPrompt, signInExisting, cancelTransfer, onUserChanged }) {
   let usage, userId, due = false, prompted = false;
   const positions = new Map();
   let last = performance.now();
@@ -27,9 +27,12 @@ export function createAuthReminder({ getAuth, getConversation = () => ({}), busy
 
     const dialog = targetDialog;
     if (!dialog) return;
-    dialog.querySelector('h2').textContent = t('title');
+    const voice = dialog.dataset.authVoice === 'true';
+    dialog.querySelector('h2').textContent = voice ? translate('RecordingConsent.guestTitle') : t('title');
     dialog.querySelector('[data-close]').setAttribute('aria-label', t('later'));
-    dialog.querySelector('[data-intro]').textContent = t(dialog.dataset.authSignIn === 'true' ? 'loginMessage' : 'message');
+    dialog.querySelector('[data-intro]').textContent = voice ? translate('RecordingConsent.guestDescription')
+      : t(dialog.dataset.authSignIn === 'true' ? 'loginMessage' : 'message');
+    dialog.querySelector('[data-continue-guest]').textContent = translate('RecordingConsent.continueGuest');
     dialog.querySelector('[data-email-label]').textContent = t('email');
     dialog.querySelector('[data-email]').textContent = t('continueEmail');
     for (const button of dialog.querySelectorAll('[data-provider]')) button.textContent = t(button.dataset.provider);
@@ -38,27 +41,39 @@ export function createAuthReminder({ getAuth, getConversation = () => ({}), busy
     dialog.querySelector('[data-new]').textContent = t('chooseNew');
   }
 
-  function open({ signIn = false } = {}) {
+  function open({ signIn = false, voice = false } = {}) {
     if (!getAuth()?.user?.is_anonymous || document.querySelector('[data-auth-reminder-dialog]')) return;
     const dialog = document.createElement('dialog');
     dialog.className = 'profile-settings';
     dialog.dataset.authReminderDialog = '';
     dialog.dataset.authSignIn = String(signIn);
+    dialog.dataset.authVoice = String(voice);
     dialog.setAttribute('aria-labelledby', 'auth-reminder-title');
+    dialog.setAttribute('aria-describedby', 'auth-reminder-intro');
     // All translated copy is assigned as text, never interpolated into HTML.
-    dialog.innerHTML = `<form><header><h2 id="auth-reminder-title"></h2><button type="button" data-close>×</button></header><p data-intro></p><fieldset><label><span data-email-label></span><input type="email" name="email" autocomplete="email" required></label><button class="button button-primary" type="submit" data-email></button><div class="story-auth-actions"><button class="button button-secondary" type="button" data-provider="google"></button><button class="button button-secondary" type="button" data-provider="facebook"></button></div><div data-conflict hidden><p data-choice-copy></p><div class="story-auth-actions"><button class="button button-primary" type="button" data-existing></button><button class="button button-secondary" type="button" data-new></button></div></div></fieldset><p role="status" aria-live="polite"></p></form>`;
+    dialog.innerHTML = `<form><header><h2 id="auth-reminder-title"></h2><button type="button" data-close>×</button></header><p id="auth-reminder-intro" data-intro></p><fieldset><label><span data-email-label></span><input type="email" name="email" autocomplete="email" required></label><button class="button button-primary" type="submit" data-email></button><div class="story-auth-actions"><button class="button button-secondary" type="button" data-provider="google"></button><button class="button button-secondary" type="button" data-provider="facebook"></button></div><div data-conflict hidden><p data-choice-copy></p><div class="story-auth-actions"><button class="button button-primary" type="button" data-existing></button><button class="button button-secondary" type="button" data-new></button></div></div><div class="story-auth-actions" data-guest-option hidden><button class="button button-secondary" type="button" data-continue-guest></button></div></fieldset><p role="status" aria-live="polite"></p></form>`;
     refreshCopy(dialog);
     if (callbackError) dialog.querySelector('[role=status]').textContent = errorMessage(callbackError);
     function showChoices() {
       const fieldset = dialog.querySelector('fieldset');
       for (const child of fieldset.children) {
+        if (child.hasAttribute('data-guest-option')) { child.hidden = !voice; continue; }
         child.hidden = child.hasAttribute('data-conflict') ? !conflict
           : conflict || (signIn && (child.tagName === 'LABEL' || child.hasAttribute('data-email')));
       }
     }
     showChoices();
     dialog.querySelector('[data-close]').onclick = () => dialog.close();
-    dialog.addEventListener('close', () => dialog.remove(), { once: true });
+    let resolveChoice;
+    const choice = voice ? new Promise(resolve => { resolveChoice = resolve; }) : undefined;
+    dialog.querySelector('[data-continue-guest]').onclick = () => {
+      if (due) prompted = true;
+      dialog.close('guest-voice');
+    };
+    dialog.addEventListener('close', () => {
+      dialog.remove();
+      resolveChoice?.(dialog.returnValue === 'guest-voice');
+    }, { once: true });
     const run = async (provider, merge = false) => {
       const fieldset = dialog.querySelector('fieldset');
       const status = dialog.querySelector('[role=status]');
@@ -103,6 +118,7 @@ export function createAuthReminder({ getAuth, getConversation = () => ({}), busy
     dialog.querySelector('[data-new]').onclick = () => run(conflictProvider);
     document.body.append(dialog);
     dialog.showModal();
+    return choice;
   }
 
   function mount() {
@@ -157,7 +173,8 @@ export function createAuthReminder({ getAuth, getConversation = () => ({}), busy
       }
       due = usage.add(visible ? now - last : 0);
       mount();
-      if (due && !prompted && document.visibilityState === 'visible' && !busy() && !document.querySelector('dialog[open]')) {
+      if (due && !prompted && document.visibilityState === 'visible' && !busy()
+          && !deferPrompt?.() && !document.querySelector('dialog[open]')) {
         prompted = true;
         open();
       }
