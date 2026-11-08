@@ -192,7 +192,10 @@ def album_page(request):
             elif path == '/story/atlas-events' and 'view=map' not in route.request.url:
                 data = {'stages':{'baby':{'percent':30,'color':'amber','word_equivalents':300},
                                   'childhood':{'percent':10,'color':'red','word_equivalents':100},
-                                  'midlife':{'percent':50,'color':'green','word_equivalents':1000}}}
+                                  'midlife':{'percent':50,'color':'green','word_equivalents':1000}},
+                        'map_photos':[dict(photo_id='upload:aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa',
+                            kind='private_upload',title='My school photo',event_ids=['school'])]
+                            if mode in ('events','estimated-events','overlap-events') else []}
                 if with_events:
                     data.update(project_id='album-project', policy_epoch=1,
                         source_revision=max(1,conversation_state['sequence']), event_revision=1,
@@ -216,9 +219,6 @@ def album_page(request):
                 return route.fulfill(content_type='application/x-ndjson',body=json.dumps(dict(type='result',data=data))+'\n')
             elif path == '/story/atlas-events' and with_events:
                 data = map_snapshot()
-            elif path == '/story/map-photos':
-                data={'project_id':'album-project','photos':[dict(photo_id='upload:aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa',
-                    kind='private_upload',title='My school photo',event_ids=['school'])] if mode in ('events','estimated-events','overlap-events') else []}
             elif path == '/agent/projects/album-project/photos/aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa/content':
                 assert route.request.headers.get('authorization','').startswith('Bearer ')
                 return route.fulfill(content_type='image/png',body=base64.b64decode(

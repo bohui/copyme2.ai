@@ -279,7 +279,7 @@ def _source_ref_is_vetoed(ref: EvidenceRef, original: dict) -> bool:
     return False
 
 
-def validate_extraction(raw, sources, saved_events, *, allow_draft_relations=False):
+def validate_extraction(raw, sources, saved_events, *, allow_draft_relations=False, reconciled=False):
     result = ExtractionResult.model_validate(raw)
     originals = {}
     for source in sources:
@@ -323,16 +323,18 @@ def validate_extraction(raw, sources, saved_events, *, allow_draft_relations=Fal
                 *(event.timing_hint.basis if event.timing_hint else []),
                 *(ref for relation in event.relations or [] for ref in relation.source_refs),
                 *([event.correction] if event.correction else [])]
-        if event.correction and (not event.existing_id or event.correction.source_id != sources[0]['id']
-                or sources[0].get('text') != event.correction.quote):
-            raise ValueError('Explicit correction must cite the current original statement')
-        # Match the canonical SQL writer before returning a proposal, so the
-        # bounded retry can repair intent instead of repeating a failed commit.
-        if event.correction and not re.search(r'(correct|actually|year was|i meant|should be|更正|纠正|应该|其实|不是)', event.correction.quote, re.I):
-            raise ValueError('Correction requires explicit correction wording')
-        location_correction = bool(event.correction and event.life_stage is None and event.temporal is None
+        if event.correction:
+            current = sources[0]
+            if (not event.existing_id or event.correction.source_id != current['id']
+                    or event.correction.version != current['version']
+                    or (event.correction not in event.source_refs if reconciled else event.correction.quote != current['text'])):
+                raise ValueError('Explicit correction must cite the current original statement')
+            if not reconciled and not re.search(r'(correct|actually|year was|i meant|should be|更正|纠正|应该|其实|不是)',
+                    event.correction.quote, re.I):
+                raise ValueError('Correction requires explicit correction wording')
+        location_correction = bool(not reconciled and event.correction and event.life_stage is None and event.temporal is None
             and 'location' in event.model_fields_set and event.locationConfidenceScore is not None)
-        if event.correction and event.life_stage is None and event.temporal is None and not location_correction:
+        if not reconciled and event.correction and event.life_stage is None and event.temporal is None and not location_correction:
             raise ValueError('Correction requires timeline placement fields')
         admitted = {}
         for ref in refs:

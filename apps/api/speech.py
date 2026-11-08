@@ -729,7 +729,8 @@ class CosyVoiceSpeechService:
         self.timeout = timeout
         headers = {'Authorization': f'Bearer {api_key}'} if api_key else {}
         self._client = client or httpx.Client(
-            base_url=base_url.rstrip('/'), headers=headers, timeout=timeout,
+            base_url=base_url.rstrip('/'), headers=headers,
+            timeout=httpx.Timeout(timeout, connect=min(timeout, 5.0)),
         )
         if client is not None and api_key:
             self._client.headers.update(headers)

@@ -57,7 +57,7 @@ def placement_hints(drafts, birth_year):
     return hints
 
 
-def assign_event_identities(raw, drafts, candidates, original):
+def assign_event_identities(raw, drafts, candidates):
     """Apply a complete decision set without accepting model-written evidence."""
     result = ReconciliationResult.model_validate(raw)
     by_index = {item.draft_index:item for item in result.decisions}
@@ -72,10 +72,11 @@ def assign_event_identities(raw, drafts, candidates, original):
         if decision.action == 'update':
             if not saved or draft['kind'] != saved['kind'] or possible:
                 raise ValueError('Update requires a compatible published event')
-            draft.update(existing_id=saved['id'], expected_revision=saved['revision'], title=saved['title'] or draft['title'])
+            draft.update(existing_id=saved['id'], expected_revision=saved['revision'])
             if decision.correction:
-                draft['correction'] = dict(source_id=original['id'], version=original['version'],
-                    quote=original['text'], char_start=0, char_end=len(original['text']))
+                draft['correction'] = draft['source_refs'][0]
+            else:
+                draft['title'] = saved['title'] or draft['title']
         elif (decision.event_id or decision.correction or
               bool(possible) != (decision.action == 'unresolved') or
               any(event_id not in published or published[event_id]['kind'] != draft['kind'] for event_id in possible)):
@@ -98,6 +99,10 @@ def _append_distinct(target, values):
 
 
 def _merge_update(current, draft):
+    if draft.get('correction') and not current.get('correction'):
+        current['title'] = draft['title']
+        if 'description' in draft:
+            current['description'] = draft['description']
     for key, value in draft.items():
         if key in EVIDENCE_LISTS:
             _append_distinct(current.setdefault(key, []), value)
@@ -111,7 +116,7 @@ def _merge_update(current, draft):
             if any(previous.get(field) != value.get(field) for field in (previous.keys() | value.keys()) - {'basis'}):
                 raise ValueError(DRAFT_CONFLICT)
             _append_distinct(previous.setdefault('basis', []), value.get('basis', []))
-        elif key not in {'id', 'title', 'description'} and current[key] != value:
+        elif key not in {'id', 'title', 'description', 'correction'} and current[key] != value:
             raise ValueError(DRAFT_CONFLICT)
 
 
@@ -128,16 +133,23 @@ def group_event_drafts(drafts, links, published, profile):
             if (not current or current['revision'] != draft.get('expected_revision')
                     or current['kind'] != draft['kind']):
                 raise ValueError('Canonical event revision conflict')
-            if not draft.get('correction'):
-                timing = draft.get('temporal') or {}
-                stated_range = timing.get('year_start') is not None and timing.get('year_end') is not None
-                if not draft.get('temporal_estimate') and not stated_range:
-                    draft.pop('temporal_estimate', None)
-                    if not timing.get('basis'):
-                        draft.pop('yearConfidenceScore', None)
-                if not draft.get('location') and not draft.get('location_basis'):
-                    for key in ('location', 'location_basis', 'locationConfidenceScore'):
-                        draft.pop(key, None)
+            timing = draft.get('temporal') or {}
+            stated_range = timing.get('year_start') is not None and timing.get('year_end') is not None
+            if not draft.get('temporal_estimate') and not stated_range:
+                draft.pop('temporal_estimate', None)
+                if not timing.get('basis'):
+                    draft.pop('yearConfidenceScore', None)
+                    if draft.get('correction'):
+                        draft.pop('temporal', None)
+                        if not draft.get('stage_evidence'):
+                            draft.pop('timing_hint', None)
+            if not draft.get('location') and not draft.get('location_basis'):
+                for key in ('location', 'location_basis', 'locationConfidenceScore'):
+                    draft.pop(key, None)
+            if draft.get('correction') and not draft.get('stage_evidence'):
+                draft.pop('stage_evidence', None)
+                if draft.get('life_stage') == 'unplaced':
+                    draft.pop('life_stage')
             if identity in by_identity:
                 index = by_identity[identity]
                 _merge_update(events[index], draft)

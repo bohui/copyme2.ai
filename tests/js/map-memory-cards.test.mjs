@@ -153,7 +153,8 @@ test('repainting an active-location flight does not trigger another zoom',t=>{
 
 test('provisional locations join city summaries and low-confidence dates use a small question mark', t=>{
   const birth={...event('Birth',chengde,1983,'baby'),locationConfidenceScore:1,yearConfidenceScore:1};
-  const childhood={...event('School compound',chengde,null,'childhood'),canonical:true,revision:1,places:[],
+  const childhood={...event('School compound',chengde,null,'childhood'),canonical:true,revision:1,
+    places:[{role:'setting',status:'candidate',place:chengde}],
     location:chengde,locationConfidenceScore:.3,yearConfidenceScore:.3,
     temporal_estimate:{year_start:1986,year_end:1995,age_start:3,age_end:12,confidence:.3,rationale:'A broad childhood estimate.'}};
   const {map,cards,refresh,zoom}=mapFixture(t,false,[],[birth,childhood,event('Sydney arrival',sydney,2012,'young_adulthood')]);

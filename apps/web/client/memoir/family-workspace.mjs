@@ -49,22 +49,19 @@ export function createFamilyWorkspace({
       if (body?.family_features_enabled === true && body.family_context) applyPersistedFamilyContext(body.family_context);
       const collection = state.familyFeaturesEnabled || state.debugEarlyGeneration && state.debugWorkspace === "memoir"
         ? "events" : "atlas-events";
+      const query = new URLSearchParams({project_id:projectId, language:currentUiLocale()});
       const snapshot = collection === "events"
-        ? await storyApi(`/v1/story/events?project_id=${encodeURIComponent(projectId)}`)
-        : mapSnapshot ?? await storyApi(`/v1/story/atlas-events?project_id=${encodeURIComponent(projectId)}&view=map`);
+        ? await storyApi(`/v1/story/events?${query}`)
+        : mapSnapshot ?? await storyApi(`/v1/story/atlas-events?${query}&view=map`);
       if (!isCurrentProjectScope(scope) || request !== memoryEventRequest) return null;
       if (Array.isArray(snapshot?.events)) {
         state.memoryEventProject = projectId;
         snapshot.collection = collection;
         state.memoryEventPage = snapshot;
-        state.timeline = chronologicalEvents(snapshot.events.map(event => ({ ...event,
-          date_expression: event.temporal?.expression || "unknown",
-          start_expression: event.temporal?.legacy_start_expression || event.temporal?.expression || "unknown",
-          end_expression: event.temporal?.legacy_end_expression || event.temporal?.year_end?.toString() || "unknown",
-          precision: event.temporal?.precision || "unknown", canonical: true })), state.project.profile);
+        state.timeline = chronologicalEvents(snapshot.events.map(canonicalEvent), state.project.profile);
         render();
         const cursors = new Set();
-        while (snapshot.next_cursor && !snapshot.page_error && !snapshot.loading_page && isCurrentProjectScope(scope)
+        while (!snapshot.streaming_pages && snapshot.next_cursor && !snapshot.page_error && !snapshot.loading_page && isCurrentProjectScope(scope)
             && request === memoryEventRequest && state.memoryEventPage === snapshot) {
           if (cursors.has(snapshot.next_cursor)) { snapshot.page_error = true;render();break; }
           cursors.add(snapshot.next_cursor);
@@ -89,6 +86,30 @@ export function createFamilyWorkspace({
       }
       return null;
     }
+  }
+
+  function canonicalEvent(event) {
+    return {...event, date_expression:event.temporal?.expression || "unknown",
+      start_expression:event.temporal?.legacy_start_expression || event.temporal?.expression || "unknown",
+      end_expression:event.temporal?.legacy_end_expression || event.temporal?.year_end?.toString() || "unknown",
+      precision:event.temporal?.precision || "unknown", canonical:true};
+  }
+
+  function appendMemoryEvents(saved, page) {
+    const known = new Set(state.timeline.map(event => event.id));
+    const events = (page.events || []).filter(event => !known.has(event.id)).map(canonicalEvent);
+    state.timeline = chronologicalEvents([...state.timeline, ...events], state.project.profile);
+    saved.next_cursor = page.next_cursor || null;
+    saved.complete = page.complete === true;
+    saved.page_error = false;
+  }
+
+  function applyMapEventPage(page) {
+    const saved = state.memoryEventPage;
+    if (!saved?.streaming_pages || page.project_id !== state.project?.id || page.after_cursor !== saved.next_cursor
+        || ["policy_epoch", "source_revision", "event_revision", "preference_revision", "language"].some(key => page[key] !== saved[key])) return;
+    appendMemoryEvents(saved, page);
+    render();
   }
 
   function loadVisualizationStylesheet(href) {
@@ -287,25 +308,19 @@ export function createFamilyWorkspace({
     const scope = captureProjectScope();
     const saved = state.memoryEventPage;
     if (!saved?.next_cursor || saved.loading_page) return;
+    const after = saved.next_cursor;
     saved.loading_page = true;
     saved.page_error = false;
     render();
     try {
-      const query = new URLSearchParams({project_id: state.project.id, cursor: saved.next_cursor});
+      const query = new URLSearchParams({project_id:state.project.id, cursor:after, language:currentUiLocale()});
       const collection = saved.collection || (state.familyFeaturesEnabled ? 'events' : 'atlas-events');
       if (!state.familyFeaturesEnabled) query.set('view', 'map');
       const page = await storyApi(`/v1/story/${collection}?${query}`);
-      if (!isCurrentProjectScope(scope) || state.memoryEventPage !== saved) return;
-      const known = new Set(state.timeline.map(event => event.id));
-      state.timeline = chronologicalEvents([...state.timeline,...(page.events || []).filter(event => !known.has(event.id)).map(event => ({...event,
-        date_expression: event.temporal?.expression || "unknown",
-        start_expression: event.temporal?.legacy_start_expression || event.temporal?.expression || "unknown",
-        end_expression: event.temporal?.legacy_end_expression || event.temporal?.year_end?.toString() || "unknown",
-        precision: event.temporal?.precision || "unknown", canonical: true}))],state.project.profile);
-      saved.next_cursor = page.next_cursor || null;
-      saved.complete = page.complete === true;
+      if (!isCurrentProjectScope(scope) || state.memoryEventPage !== saved || saved.next_cursor !== after) return;
+      appendMemoryEvents(saved, page);
     } catch (_) {
-      if (isCurrentProjectScope(scope) && state.memoryEventPage === saved) saved.page_error = true;
+      if (isCurrentProjectScope(scope) && state.memoryEventPage === saved && saved.next_cursor === after) saved.page_error = true;
     } finally {
       saved.loading_page = false;
       if (isCurrentProjectScope(scope) && state.memoryEventPage === saved) render();
@@ -589,7 +604,7 @@ export function createFamilyWorkspace({
   return {
     addPerson, applyPersistedFamilyContext, closeFamilyPerson, familyWorkspace, initFamilyVisualizations,
     loadMoreEventDetails, loadMoreEventEvidence, loadMoreMemoryEvents, openMemoryEventEdit,
-    refreshFamilyContext, saveFamilyPersonPhoto, saveMemoryEventEdit, selectFamilyPerson, timelineWorkspace,
+    applyMapEventPage, refreshFamilyContext, saveFamilyPersonPhoto, saveMemoryEventEdit, selectFamilyPerson, timelineWorkspace,
     zoomFamilyChart
   };
 }

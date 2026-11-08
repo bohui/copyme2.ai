@@ -82,25 +82,18 @@ def test_detailed_places_and_later_town_clarification_replay_to_event_map(sql,tm
     with conversation.client:
         for text in [birth,childhood,clarification]:
             conversation.say(text,language='zh-CN');drain(conversation)
-        response=conversation.client.get('/v1/story/atlas-events',params=dict(view='map', project_id=conversation.project))
+        response=conversation.client.get('/v1/story/atlas-events',params=dict(view='map', project_id=conversation.project, language='zh-CN'))
         assert response.status_code==200,response.text
         page=response.json()
         assert len(page['events'])==3, 'The town detail must revise the childhood event, not duplicate it'
-        locations={event['id']:conversation.client.get(f'/v1/story/atlas-events/{conversation.project}/{event["id"]}/places').json()
-                   for event in page['events']}
         child=next(event for event in page['events'] if '家属院' in event['title'])
         assert child['location']==TOWN
-        assert [link['place']['place'] for link in locations[child['id']]['items']]==['大石庙镇']
-        grouping={}
-        for location in [HOSPITAL,TOWN,sydney]:
-            grouped=conversation.client.post(f'/v1/agent/places/{conversation.project}/groups',json=dict(places=[location],language='zh-CN'))
-            assert grouped.status_code==200,grouped.text
-            grouping[location['place']]=grouped.json()
+        assert [link['place']['place'] for link in child['places']]==['大石庙镇']
         conversation.say('后来我们还在大石庙镇的河边捉昆虫。',language='zh-CN');drain(conversation)
-        updated=conversation.client.get('/v1/story/atlas-events',params=dict(view='map', project_id=conversation.project)).json()
+        updated=conversation.client.get('/v1/story/atlas-events',params=dict(view='map', project_id=conversation.project, language='zh-CN')).json()
         revised=next(event for event in updated['events'] if event['id']==child['id'])
         assert revised['revision']>child['revision']
         replay=Path(__file__).parent/'js/helpers/replay-detailed-event-locations.mjs'
-        result=subprocess.run(['node',str(replay)],input=json.dumps(dict(page=page,locations=locations,grouping=grouping,updated_page=updated,refresh_event_id=child['id'])),
+        result=subprocess.run(['node',str(replay)],input=json.dumps(dict(page=page,updated_page=updated,refresh_event_id=child['id'])),
                               text=True,capture_output=True,timeout=10)
         assert result.returncode==0,result.stdout+result.stderr

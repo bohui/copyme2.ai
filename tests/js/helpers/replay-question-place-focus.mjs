@@ -5,7 +5,7 @@ import {createPhotoWorkspace} from '../../../apps/web/client/memoir/photo-worksp
 import {applyDerivedWorkspace} from '../../../apps/web/client/memoir/derived-workspace.mjs';
 import {matchesEventPlace} from '../../../apps/web/client/memoir/map-memory-journey.mjs';
 
-const {project_id,snapshot,redirect_snapshot,event_page,links,places,grouping}=JSON.parse(readFileSync(0,'utf8'));
+const {project_id,snapshot,redirect_snapshot,event_page,places,grouped}=JSON.parse(readFileSync(0,'utf8'));
 const expected=places.find(place=>matchesEventPlace(place,snapshot.current_active_location));
 const other=places.find(place=>place!==expected);
 assert.ok(expected,'The server must supply the story-owned active location');
@@ -13,7 +13,7 @@ Object.assign(globalThis,{window:{devicePixelRatio:1,location:{origin:'https://m
   matchMedia:()=>({matches:false})},localStorage:{getItem:()=>null,setItem(){throw new Error('Map navigation must not persist story authority');}}});
 
 for (const restore of ['live','refresh','reopen']) {
-  const state={project:{id:project_id,profile:{}},supabase:{user:{id:'owner'},accessToken:grouping && 'fixture'},lifeStage:'all',timeline:[],chat:[],
+  const state={project:{id:project_id,profile:{}},supabase:{user:{id:'owner'},accessToken:grouped && 'fixture'},lifeStage:'all',timeline:[],chat:[],
     currentActiveLocation:restore==='live' ? null : undefined};
   const cards={innerHTML:'',scrollTop:0,querySelectorAll:()=>[],getBoundingClientRect:()=>({top:0,bottom:700})};
   const toolbar={innerHTML:''},overflow={replaceChildren(){}};
@@ -27,18 +27,8 @@ for (const restore of ['live','refresh','reopen']) {
   const scene={isConnected:true,clientWidth:600,clientHeight:700,classList:{toggle(){},contains:()=>true},
     querySelector:selector=>selector==='.map-memory-layer' ? layer : selector==='.map-photo-album-layer' ? photoLayer : null};
   globalThis.document={documentElement:{lang:'zh-CN'},querySelector:()=>null};
-  let finishLandmark;
-  const pendingLandmark = grouping && restore==='live' ? new Promise(resolve=>{finishLandmark=resolve;}) : null;
   const dependencies={state,profile:()=>state.project.profile,render(){},lifeStageText:stage=>stage,
-    captureProjectScope:()=>project_id,isCurrentProjectScope:()=>true,
-    supabaseApi:async(path,{body})=>{
-      assert.equal(path,`/v1/agent/places/${project_id}/groups`);
-      const {places:[place],language}=JSON.parse(body);
-      assert.equal(language,'zh-CN');
-      assert.ok(grouping[place.place]);
-      if (place.granularity==='landmark') await pendingLandmark;
-      return grouping[place.place];
-    }};
+    captureProjectScope:()=>project_id,isCurrentProjectScope:()=>true};
   let workspace;
   const photos=createPhotoWorkspace({...dependencies,placeMapTarget:place=>workspace.placeMapTarget(place)});
   workspace=createPlaceWorkspace({...dependencies,photos});
@@ -46,7 +36,7 @@ for (const restore of ['live','refresh','reopen']) {
   map.sync(null);
   applyDerivedWorkspace(state,snapshot);
   state.project.profile.memory_places=state.project.profile.memory_places.map(place=>({...place,
-    ...(!grouping && places.find(candidate=>matchesEventPlace(candidate,place))),pictures:[{
+    ...(!grouped && places.find(candidate=>matchesEventPlace(candidate,place))),pictures:[{
       asset_id:place.place,image_url:`https://photos.example/${encodeURIComponent(place.place)}.jpg`,
       allowed_actions:{embed:true},date_expression:new Date().toLocaleDateString('en-CA',{timeZone:'Australia/Sydney'}),title:place.place,
       latitude:places.find(candidate=>matchesEventPlace(candidate,place)).latitude,
@@ -54,8 +44,9 @@ for (const restore of ['live','refresh','reopen']) {
   state.placeJourney=state.project.profile.memory_places.find(place=>matchesEventPlace(place,other));
   state.selectedPlace=null;
   state.memoryEventPage=event_page;
-  state.timeline=event_page.events.map(event=>({...event,canonical:true,places:grouping ? links[event.id]
-    : links[event.id].map(link=>({...link,place:{...link.place,...places.find(candidate=>matchesEventPlace(candidate,link.place))}}))}));
+  state.timeline=event_page.events.map(event=>({...event,canonical:true,
+    places:grouped ? event.places : event.places.map(link=>({...link,place:{...link.place,
+      ...places.find(candidate=>matchesEventPlace(candidate,link.place))}}))}));
   map.sync(null);await new Promise(resolve=>setImmediate(resolve));
   const markup=workspace.workspaceMediaOverview();
   assert.match(markup,/workspace-media-map/);
@@ -76,16 +67,11 @@ for (const restore of ['live','refresh','reopen']) {
       y:350+(point.latitude-center.latitude)*500} : {x:300,y:350}}};
   map.attach(viewer,cesium);
   if (restore==='live') {
-    if (pendingLandmark) {
-      assert.equal(flights.length,0,'An earlier lookup for another city must not take over the active flight');
-      finishLandmark();
-      await new Promise(resolve=>setImmediate(resolve));
-    }
     assert.equal(flights.length,1,'null → chronological city needs one flight');
     assert.equal(flights[0].destination.latitude,expected.latitude);
     center=expected;viewer.camera.frustum={left:-6000,right:6000};flights[0].complete();
     assert.ok(cards.innerHTML.includes(expected.place),'The city flight must display its events');
-    if (grouping) assert.equal(map.nodes().find(node=>node.place==='承德市附属医院')?.cityOnly,true,
+    if (grouped) assert.equal(map.nodes().find(node=>node.place==='承德市附属医院')?.cityOnly,true,
       'An unresolved landmark can use its city without getting a landmark pin');
     assert.ok(!cards.innerHTML.includes(other.place==='承德市' ? '承德出生' : '悉尼生活'));
   } else {

@@ -40,12 +40,14 @@ returned by authenticated `GET /voices`; this server currently exposes `英文�
 and `中文女`, rather than `longwan_v3`. The server serializes synthesis requests
 and may return a busy response; the client treats that as retryable.
 
-Browser microphone transcription uses the same backend route that preserves the
-original audio. Provide `MEMOIR_PUBLICATION_DATABASE_URL` (the Makefile derives it from
-`SUPABASE_DB_URL` when unset), and link the browser session to a recoverable
-identity: a confirmed email or phone on a non-anonymous Supabase account.
-Select the microphone to review two separate choices: private original-audio
-retention and AI transcription through Groq. Both must be accepted. Consent is
+Guests can choose **Continue without signing in** when opening browser voice
+conversation or dictation. Memoir sends those clips to Groq and keeps only the
+text submitted in the guest conversation.
+
+To save original audio, provide `MEMOIR_PUBLICATION_DATABASE_URL` (the Makefile
+derives it from `SUPABASE_DB_URL` when unset) and connect a confirmed email or
+phone to the Supabase account. Select the microphone and approve both private
+recording storage and AI transcription through Groq. Consent is
 stored by the backend with its notice version, locale and revision; editing the
 profile or granting browser microphone permission cannot substitute for it.
 

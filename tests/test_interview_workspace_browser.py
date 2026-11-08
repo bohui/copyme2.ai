@@ -12,7 +12,6 @@ import re
 
 import pytest
 from playwright.sync_api import expect, sync_playwright
-from browser_optional_fonts import control_optional_fonts
 from browser_workspace_history import WorkspaceHistory, mock_workspace_turn
 
 pytestmark = pytest.mark.skipif(not os.environ.get("MEMOIR_BROWSER_URL"), reason="Requires an explicitly selected running browser test server")
@@ -23,7 +22,6 @@ def interview():
     with sync_playwright() as pw:
         browser = pw.chromium.launch()
         page = browser.new_page(viewport={"width": 1440, "height": 900})
-        control_optional_fonts(page)
         page.set_default_timeout(8000)
         # Product routes use the isolated API's demo principal; the synthetic
         # browser token belongs only to the mocked authentication boundary.

@@ -11,7 +11,7 @@ export const PLACE_JOURNEY_PROJECT_STORAGE_KEY = "memory-spark-place-journey-pro
 export function createPlaceWorkspace({
   api, captureProjectScope, isCurrentProjectScope, lifeStageText, loadPlacePictures, persistChatHistory,
   profile, recordWorkspaceSkillProgress, render, saveProfileUpdates, state, supabaseApi, workspaceHasContent,
-  photos, storyApi, onExploreMapMemory, onAddMapMemory, onLoadMoreMapEvents
+  photos, onExploreMapMemory, onAddMapMemory, onLoadMoreMapEvents
 }) {
   const { bindPhotoMemoryActions, photoRequestKey, pictureWall, workspacePictureItems } = photos;
 
@@ -24,13 +24,11 @@ export function createPlaceWorkspace({
     renderAlbum: album => {
       const pictures = pictureWall(album.pictures);
       if (pictures) return pictures + album.entries.map(entry => photos.photoPaginationMarkup(entry)).join("");
-      return album.entries.map(mapPhotoAlbumStatus).join("") || (album.status === "error"
-        ? `<p role="status">${escapeHtml(translate("Memoir.workspace.picturesUnavailable"))}</p><button type="button" class="button button-secondary" data-map-photos-retry>${escapeHtml(translate("Memoir.workspace.picturesSearchRetry"))}</button>` : "");
+      return album.entries.map(mapPhotoAlbumStatus).join("");
     },
     bindAlbum: (content, album) => {
       bindPhotoMemoryActions(content);
       photos.bindPrivatePhotos(content);
-      content.querySelector("[data-map-photos-retry]")?.addEventListener("click",() => void photos.refreshMapPhotos({force:true}));
       for (const button of content.querySelectorAll("[data-photo-more], [data-photo-retry]")) button.addEventListener("click", () => {
         const key = button.dataset.photoMore || button.dataset.photoRetry;
         const entry = album.entries.find(entry => placeHistoryKey(entry) === key);
@@ -63,8 +61,6 @@ export function createPlaceWorkspace({
     getPage: () => state.memoryEventPage,
     getReadiness: () => state.stageReadiness || {},
     getCanAddMemory: () => !state.loading && !state.recallStatus?.payment_required,
-    readPlaces: (eventId, cursor) => storyApi(`/v1/story/atlas-events/${encodeURIComponent(state.project.id)}/${encodeURIComponent(eventId)}/places${cursor ? `?cursor=${encodeURIComponent(cursor)}` : ""}`),
-    resolvePlaces: resolveMapMemoryPlaces,
     t: (key, values) => translateWith(`Memoir.workspace.${key}`, values),
     lifeStageText, onExplore: onExploreMapMemory, onAdd: onAddMapMemory, onLoadMore: onLoadMoreMapEvents,
     onOverview: () => { state.lifeStage = "all"; state.selectedPlace = null; render(); },
@@ -293,8 +289,8 @@ export function createPlaceWorkspace({
         pictures:photos.mergePlacePictures([],members.flatMap(album => album.pictures)),
         latitude:city.latitude,longitude:city.longitude,pinned:Number.isFinite(city.latitude) && Number.isFinite(city.longitude)};
     });
-    if (cityKey === undefined && cityKeys === undefined && (unlocated.length || photos.mapPhotosUnavailable())) visible.push({key:"personal:unlocated",place:translate("Memoir.story.privatePhoto"),
-      pictures:unlocated,entries:[],pinned:false,...(photos.mapPhotosUnavailable() ? {status:"error"} : {})});
+    if (cityKey === undefined && cityKeys === undefined && unlocated.length) visible.push({key:"personal:unlocated",place:translate("Memoir.story.privatePhoto"),
+      pictures:unlocated,entries:[],pinned:false});
     const rendered = visible.map(album => {
       const pictures = photos.mergePlacePictures([],album.pictures)
         .sort((a,b) => Number(b.kind === "private_upload") - Number(a.kind === "private_upload"));
@@ -490,8 +486,12 @@ export function createPlaceWorkspace({
       const cached = new Map(saved.map(place => [placeHistoryKey(place), place]));
       const cities = saved.filter(place => place.granularity === "city");
       eventPlaces = eventPlaces.map(place => {
-        const entry = {...cached.get(placeHistoryKey(place)), ...place};
-        if (!entry.map_city && ["suburb","landmark"].includes(entry.granularity)) {
+        const savedPlace = cached.get(placeHistoryKey(place));
+        const entry = {...savedPlace, ...place};
+        if (entry.map_pin === null && Number.isFinite(savedPlace?.latitude) && Number.isFinite(savedPlace?.longitude)) {
+          entry.map_pin = Object.hasOwn(savedPlace,"map_pin") ? savedPlace.map_pin : publicPlaceFields(savedPlace);
+        }
+        if (!Number.isFinite(entry.map_city?.latitude) && ["suburb","landmark"].includes(entry.granularity)) {
           // A published child can use the coordinates of its named city.
           const city = mapTarget({...place,latitude:null,longitude:null}, cities);
           if (city) entry.map_city = publicPlaceFields(city);
@@ -506,34 +506,6 @@ export function createPlaceWorkspace({
       return record && record.language === currentUiLocale() && record.input === JSON.stringify(publicPlaceFields(place))
         ? {...place, map_city: record.city, map_city_key: record.city_key, map_pin: record.pin} : place;
     }));
-  }
-
-  async function resolveMapMemoryPlaces(entries) {
-    const scope = captureProjectScope();
-    const known = workspacePlaceGroups(profile().memory_places || [])
-      .flatMap(group => group.members.map(member => ({group,member})));
-    const resolved = entries.map(place => {
-      const exact = known.filter(({member}) => placeHistoryKey(place) === placeHistoryKey(member));
-      const matches = exact.length ? exact : known.filter(({member}) => matchesEventPlace(place,member));
-      if (matches.length !== 1) return place;
-      const {group,member} = matches[0];
-      return {...publicPlaceFields(member),map_city:group.city,map_city_key:group.key,
-        map_pin:Object.hasOwn(member,"map_pin") ? member.map_pin : publicPlaceFields(member)};
-    });
-    const pending = resolved.map((place,index) => ({place,index})).filter(({place}) => {
-      const pin = Object.hasOwn(place,"map_pin") ? place.map_pin : place;
-      return !Number.isFinite(pin?.latitude) || !Number.isFinite(pin?.longitude);
-    });
-    if (!pending.length) return resolved;
-    const path = state.supabase?.accessToken ? `/v1/agent/places/${state.project.id}/groups` : `/v1/projects/${state.project.id}/place-groups`;
-    const result = await (state.supabase?.accessToken ? supabaseApi : api)(path, {method:"POST",
-      body:JSON.stringify({places:pending.map(({place}) => publicPlaceFields(place)),language:currentUiLocale()})});
-    if (!isCurrentProjectScope(scope)) return [];
-    for (const record of result.places || []) {
-      const item = pending[record.index];
-      if (item) resolved[item.index] = {...item.place,map_city:record.city,map_city_key:record.city_key,map_pin:record.pin};
-    }
-    return resolved;
   }
 
   function mapMemoryPlaceGroups(eventPlaces) {

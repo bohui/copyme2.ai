@@ -158,6 +158,8 @@ async def _reconcile_timeline(page, worker, result, original, links):
     candidates = await worker.broker.rpc('read_lifetime_timeline_candidates', **fence,
         p_hints=placement_hints(drafts, page['preferences'].get('birth_year')))
     packet = dict(drafts=drafts, published_events=candidates, message_id=original['client_turn_id'])
+    if dialogue := (page.get('attribution_context') or {}).get('recent_dialogue'):
+        packet['recent_dialogue'] = dialogue
     await worker.broker.rpc('record_lifetime_lane_output', **fence, p_page_number=page['page_number'],
         p_phase='extract', p_digest=lane_artifact_digest('extract', packet),
         p_event_scope=[{'id':event['id'],'revision':event['revision']} for event in candidates])
@@ -170,8 +172,9 @@ async def _reconcile_timeline(page, worker, result, original, links):
                 bounded_lane=bounded, worker_transport=worker.worker_transport,
                 publisher=getattr(worker,'lane_publisher',None), timeout=240)
             try:
-                proposed = assign_event_identities(json.loads(response['reply']), drafts, candidates, original)
-                validated = validate_extraction({'events':proposed}, originals, candidates, allow_draft_relations=True)
+                proposed = assign_event_identities(json.loads(response['reply']), drafts, candidates)
+                validated = validate_extraction({'events':proposed}, originals, candidates, allow_draft_relations=True,
+                    reconciled=True)
                 if len(validated) != len(drafts):
                     raise ValueError('Reconciliation cannot change admitted draft coverage')
                 events, links = group_event_drafts(validated, links, candidates, page['preferences'])

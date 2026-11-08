@@ -1905,7 +1905,7 @@
       {
         "path": "scripts/memoir_live_skill_cases.py",
         "symbol": "cases",
-        "line": 247
+        "line": 274
       },
       {
         "path": "scripts/memoir_live_skill_cases.py",
@@ -1943,7 +1943,7 @@
       {
         "path": "scripts/memoir_live_skill_cases.py",
         "symbol": "cases",
-        "line": 247
+        "line": 274
       },
       {
         "path": "scripts/memoir_live_skill_cases.py",
@@ -1981,7 +1981,7 @@
       {
         "path": "scripts/memoir_live_skill_cases.py",
         "symbol": "cases",
-        "line": 247
+        "line": 274
       },
       {
         "path": "scripts/memoir_live_skill_cases.py",
@@ -2019,7 +2019,7 @@
       {
         "path": "scripts/memoir_live_skill_cases.py",
         "symbol": "cases",
-        "line": 247
+        "line": 274
       },
       {
         "path": "scripts/memoir_live_skill_cases.py",
@@ -2057,7 +2057,7 @@
       {
         "path": "scripts/memoir_live_skill_cases.py",
         "symbol": "cases",
-        "line": 247
+        "line": 274
       },
       {
         "path": "scripts/memoir_live_skill_cases.py",
@@ -2474,7 +2474,7 @@
       {
         "path": "apps/api/memory_events.py",
         "symbol": "extraction_instructions",
-        "line": 431
+        "line": 433
       },
       {
         "path": "apps/api/two_lane_memory.py",
@@ -2633,10 +2633,10 @@
   {
     "name": "memoir/skills/author-timeline/reconcile",
     "source": "skills/memoir-author-timeline/prompts/reconcile.md",
-    "version": 1,
-    "sha256": "469fd86900933eb0ef50f5dad45de931d8419bb94775034528f827c35e82198f",
+    "version": 2,
+    "sha256": "46c462bf901f51afa205395f597116977a540bb2e24f496f0c284ae6585767ab",
     "use": "runtime",
-    "scenario": "Reconcile nonempty validated drafts with nearby active events under the same Timeline publication fence. Scope create, update, and unresolved decisions before saving message links.",
+    "scenario": "Reconcile validated drafts with active events under the same Timeline publication fence. Use authorized dialogue context to identify corrections of saved facts and preserve the narrator’s original evidence.",
     "consumers": [
       {
         "path": "apps/api/lifetime_memory_composer.py",
@@ -2661,6 +2661,7 @@
     "datasets": [],
     "regressions": [
       "tests/test_memoir_background_agent_workflow.py::test_timeline_reconciles_and_revises_a_city_period",
+      "tests/test_memoir_background_agent_workflow.py::test_chat_correction_revises_the_published_event",
       "tests/test_lifetime_memory_lane_engine.py",
       "tests/test_memoir_live_skills.py"
     ],
@@ -4897,7 +4898,7 @@
       {
         "path": "scripts/memoir_live_skill_cases.py",
         "symbol": "cases",
-        "line": 247
+        "line": 274
       }
     ],
     "targets": [

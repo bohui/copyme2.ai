@@ -19,7 +19,7 @@ function harness() {
   let mapReads = 0;
   const state = {project:{id:'p',mode:'self'}, projectPrincipalId:'owner', supabase:{accessToken:'synthetic',user:{id:'owner'}},
     stageReadiness:{}, chat:[]};
-  const context = vm.createContext({state, AbortController, Date:{now:() => now},
+  const context = vm.createContext({state, AbortController, currentUiLocale:()=>'en-AU', Date:{now:() => now},
     setTimeout:(callback, delay) => {const id = ++sequence; timers.set(id, {callback, at:now + delay}); return id;},
     clearTimeout:id => timers.delete(id), workspaceTurnFocus:() => null,
     MEMOIR_ROUTES:{interview:'/memoir/interview'}, currentPath:() => path,

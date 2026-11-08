@@ -58,13 +58,13 @@ def _provider_city(details):
     return None
 
 
-def resolve_place_groups(places, *, allow_provider=True, language=None):
+def resolve_place_groups(places, *, allow_provider=True, language=None, max_lookups=MAX_LOOKUPS):
     cities = [place for place in places if place['granularity'] == 'city']
     records, lookups, provider_available = [], 0, True
 
     def lookup(place):
         nonlocal lookups, provider_available
-        if not allow_provider or lookups >= MAX_LOOKUPS or not provider_available:
+        if not allow_provider or lookups >= max_lookups or not provider_available:
             return None
         lookups += 1
         query = ', '.join(reversed(_path(place)))

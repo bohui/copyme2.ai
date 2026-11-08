@@ -4,6 +4,7 @@ import asyncio
 from collections import defaultdict
 from contextlib import aclosing
 from hashlib import sha256
+import json
 import logging
 
 from fastapi import HTTPException
@@ -85,10 +86,10 @@ class AtlasUpdates:
 
 
 class AtlasWorkspaceStream(StreamingResponse):
-    def __init__(self, updates, read, cleanup):
+    def __init__(self, updates, read, read_more, cleanup):
         super().__init__((), media_type='text/event-stream',
                          headers={**STREAM_HEADERS, 'Cache-Control': 'no-store, no-transform'})
-        self.updates, self.read, self.cleanup = updates, read, cleanup
+        self.updates, self.read, self.read_more, self.cleanup = updates, read, read_more, cleanup
         self.reading = None
 
     async def stream_response(self, send):
@@ -96,6 +97,13 @@ class AtlasWorkspaceStream(StreamingResponse):
 
         async def frame(body):
             await send({'type': 'http.response.body', 'body': body, 'more_body': True})
+
+        async def publish(read, *args):
+            self.reading = asyncio.create_task(asyncio.to_thread(read, *args))
+            value = await asyncio.shield(self.reading)
+            async with value.publisher.guard(value.snapshot.fence.model_dump(mode='json')):
+                await frame(b'event: atlas-update\ndata: ' + value.snapshot.body + b'\n\n')
+            return value.snapshot
 
         previous = None
         async with aclosing(self.updates) as updates:
@@ -106,15 +114,23 @@ class AtlasWorkspaceStream(StreamingResponse):
                 # A writer can commit between capture and send. Retry one fresh read.
                 for attempt in range(2):
                     try:
-                        self.reading = asyncio.create_task(asyncio.to_thread(self.read, previous))
-                        value = await asyncio.shield(self.reading)
-                        fence = value.snapshot.fence
-                        async with value.publisher.guard(fence.model_dump(mode='json')):
-                            await frame(b'event: atlas-update\ndata: ' + value.snapshot.body + b'\n\n')
-                        previous = fence
+                        snapshot = await publish(self.read, previous)
+                        if json.loads(snapshot.body).get('map_refresh'):
+                            cursor = None
+                            cursors = set()
+                            while True:
+                                continuation = await publish(self.read_more, snapshot.fence, cursor)
+                                cursor = json.loads(continuation.body)['map_page'].get('next_cursor')
+                                if not cursor:
+                                    break
+                                if cursor in cursors:
+                                    raise HTTPException(503, 'Map pages did not advance')
+                                cursors.add(cursor)
+                        previous = snapshot.fence
                         break
                     except (ReadAdmissionFailure, PolicyUnavailable, HTTPException) as error:
                         status = getattr(error, 'status', getattr(error, 'status_code', 503))
+                        previous = None
                         if status == 409 and attempt == 0:
                             continue
                         if status in {401, 403, 404}:
