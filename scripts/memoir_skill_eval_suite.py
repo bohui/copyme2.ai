@@ -496,6 +496,7 @@ async def run(planned, directory, *, skill=None, history_provider=None, photo_pr
     skill_budget.on_change = judge_budget.on_change = persist
     persist()
     for item, row in zip(planned['items'], receipt['results'], strict=True):
+        case_started = clock()
         try:
             if len(json.dumps(item, ensure_ascii=False).encode()) > max_evidence_bytes:
                 raise LookupError('evidence_size_exhausted')
@@ -614,6 +615,7 @@ async def run(planned, directory, *, skill=None, history_provider=None, photo_pr
             persist()
             (directory / 'report.md').write_text(report(receipt))
             raise
+        row['elapsed_ms'] = round((clock() - case_started) * 1000, 2)
         persist()
     failed = any(r['contract']['status'] == 'fail' or r['quality']['status'] == 'fail' for r in receipt['results'])
     complete = bool(receipt['results']) and all(r['contract']['status'] == 'pass' and

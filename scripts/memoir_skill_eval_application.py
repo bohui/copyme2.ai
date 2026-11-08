@@ -69,8 +69,10 @@ def verify_witness(item, output, witnesses, directory, *, expected_context, disp
 
 
 class ControlledApplication:
-    def __init__(self, *, browser_url=None, browser_executable='/usr/bin/chromium'):
+    def __init__(self, *, browser_url=None, browser_executable='/usr/bin/chromium',
+                 apple_fixture=False):
         self.browser_url, self.browser_executable = browser_url, browser_executable
+        self.apple_fixture = apple_fixture
 
     def supports(self, item):
         return item['skill'] == 'memoir-story-game' or (item['skill'], item['case']) in {
@@ -93,12 +95,23 @@ class ControlledApplication:
         environment['PYTHONPATH'] = str(ROOT)
         environment['MEMORY_SPARK_TASK_DB'] = str(folder / 'tasks.sqlite3')
         environment['MEMORY_SPARK_DATABASE'] = str(folder / 'application.sqlite3')
+        environment.update(MEMORY_SPARK_LLM_MODEL='synthetic-byte-bpe',
+                           MEMORY_SPARK_LLM_REASONING_EFFORT='low',
+                           MEMORY_SPARK_EARLY_POLICY_ACK='0',
+                           MEMORY_SPARK_PARALLEL_POLICY_REVIEW='0',
+                           LANGFUSE_TRACING_ENABLED='false')
+        postgres_name = None
+        if self.apple_fixture:
+            postgres_name = 'memoir-issue6-pg-' + uuid4().hex[:12]
+            environment.update(MEMOIR_TEST_POSTGRES_BACKEND='apple-container',
+                               MEMOIR_TEST_POSTGRES_CONTAINER_NAME=postgres_name)
+            save(folder / 'postgres-allocation.json', {'name': postgres_name})
         payload = dict(item=item, folder=str(folder), allocation=str(allocation),
             context={**context, 'dataset': item['dataset'], 'dataset_snapshot': item['dataset_snapshot'],
                      'item_sha256': item['content_sha256']},
             max_calls=budget.maximum-len(budget.calls), deadline=budget.deadline,
             timeout=budget.timeout, max_bytes=budget.max_bytes, browser_url=self.browser_url,
-            browser_executable=self.browser_executable)
+            browser_executable=self.browser_executable, apple_fixture=self.apple_fixture)
         creation, process = None, None
         dispatch_start = len(budget.calls)
         try:
@@ -113,7 +126,15 @@ class ControlledApplication:
             result = json.loads(stdout)
         finally:
             # The parent owns allocations even if its child fails during startup.
-            cleanup = asyncio.create_task(cleanup_case(creation, allocation, environment))
+            async def cleanup_owned():
+                try:
+                    await cleanup_case(creation, allocation, environment)
+                finally:
+                    if postgres_name:
+                        from scripts.native_canary_launcher import reconcile_postgres
+                        if not await asyncio.to_thread(reconcile_postgres, postgres_name):
+                            raise RuntimeError('disposable_postgres_cleanup_unverified')
+            cleanup = asyncio.create_task(cleanup_owned())
             try:
                 await asyncio.shield(cleanup)
             except asyncio.CancelledError:
@@ -184,12 +205,12 @@ async def _execute(value):
                     response = await respond(request)
                 else:
                     from controlled_collector import extraction_proposal, worker_reply
-                    if item['skill'] == 'memoir-story-game':
-                        from test_interview_strategy import wire
-                        output = wire(acknowledgement='谢谢您分享这段回忆。' if item['locale'] == 'zh-CN'
-                                      else 'Thank you for sharing that memory.', used_strategy='shape',
-                                      question='您还记得什么细节？' if item['locale'] == 'zh-CN' else 'What else do you remember?',
-                                      selection_reason='latest_story')
+                    if body.get('interview_context', {}).get('reply_contract') == 'reply-v2':
+                        from test_conversation_reply import proposal
+                        zh = item['locale'] == 'zh-CN'
+                        output = dict(proposal(), strategy='shape' if item['skill'] == 'memoir-story-game' else 'explore',
+                            acknowledgement='谢谢您分享这段回忆。' if zh else 'Thank you for sharing that memory.',
+                            question='您还记得什么细节？' if zh else 'What else do you remember?')
                     else:
                         output = extraction_proposal(item['locale'])
                     response = worker_reply(request, dict(reply=json.dumps(output, ensure_ascii=False),
@@ -201,7 +222,8 @@ async def _execute(value):
         await budget.dispatch(fixture, dict(item_id=item['id'], kind='controlled_worker', input=body))
         return fixture.response
 
-    with controlled_database(directory_root=value['allocation']) as sql, pytest.MonkeyPatch.context() as patch:
+    with controlled_database(directory_root=value['allocation'],
+            allow_apple_fixture=value.get('apple_fixture') is True) as sql, pytest.MonkeyPatch.context() as patch:
         from controlled_policy import install_policy_review_transport
         install_policy_review_transport(patch)
         game_case = item['skill'] == 'memoir-story-game'
@@ -266,8 +288,9 @@ async def _execute(value):
                                 return dict(output=document, response_id='fixture-game-webpage',
                                             model='controlled-astra-boundary', usage=None)
                         reply = await budget.dispatch(Fixture(), dict(item_id=item['id'], kind='game_webpage', input=scenes))
-                        return reply['output'], dict(status='completed', response_id=reply['response_id'], model=reply['model'],
-                            requested_model='gpt-6-astra', skill='higgsfield-websites', skill_sha256='a'*64)
+                        return reply['output'], dict(status='completed', response_id=reply['response_id'],
+                            model='gpt-6-astra', requested_model='gpt-6-astra', reasoning_effort='medium',
+                            skill='higgsfield-websites', skill_sha256='a'*64)
                     async def composer(packet, scenes):
                         return dict(design_brief='A coherent memoir journey.', scene_indices=list(range(len(scenes['scenes'])))), receipt('brief')
                     try:
