@@ -3,7 +3,9 @@ import asyncio
 import hashlib
 import json
 import os
+from secrets import token_hex
 from urllib.parse import urlsplit
+from uuid import UUID
 
 import httpx
 
@@ -70,7 +72,7 @@ async def _events(response, *, max_response_bytes=None):
 
 async def stream_reply(*, view, prompt, schema, model, effort, budget, base_url, api_key,
                        publisher, fence, metadata, timeout, on_delta=None,
-                       issue14_admission=None, transport=None):
+                       issue14_admission=None, transport=None, tools=None):
     check_issue14_dispatch(issue14_admission, role='collector', correlation=metadata)
     correlation = normalise_correlation(metadata)
     # Responses metadata allows sixteen entries; retain the prompt pins first.
@@ -84,7 +86,8 @@ async def stream_reply(*, view, prompt, schema, model, effort, budget, base_url,
             or endpoint.username or endpoint.password or endpoint.query or endpoint.fragment):
         raise ValueError('Interview provider is not configured')
     body = dict(model=model, input=reply_messages(view, prompt), store=False, stream=True,
-        tools=[], tool_choice='none', parallel_tool_calls=False,
+        tools=responses_tools(tools.specs()) if tools else [], tool_choice='auto' if tools else 'none',
+        parallel_tool_calls=False,
         reasoning=dict(effort=effort or configured_effort(), context='all_turns'),
         max_output_tokens=budget.output_headroom,
         prompt_cache_key='memoir-reply-v2-' + hashlib.sha256(
@@ -95,14 +98,47 @@ async def stream_reply(*, view, prompt, schema, model, effort, budget, base_url,
     encoded = json.dumps(body, ensure_ascii=False, separators=(',', ':')).encode('utf-8')
     if len(encoded) > budget.input_budget:
         raise ValueError('Interview provider request exceeds the input budget')
-    request = ReplyRequestBody(encoded, publisher=publisher,
-        fence=fence.model_dump(mode='json'), issue14_admission=issue14_admission)
-    return await stream_document(request=request, content_length=len(encoded), base_url=base_url,
-        api_key=api_key, timeout=timeout, on_delta=on_delta, transport=transport)
+    snapshot = fence.model_dump(mode='json')
+
+    def guarded_body(content):
+        return ReplyRequestBody(content, publisher=publisher, fence=snapshot, issue14_admission=issue14_admission)
+
+    aas_turn_token = token_hex(32) if tools else None
+    return await stream_document(request=guarded_body(encoded), content_length=len(encoded), base_url=base_url,
+        api_key=api_key, timeout=timeout, on_delta=on_delta, transport=transport,
+        aas_turn_token=aas_turn_token,
+        on_tool=aas_tool_relay(base_url, api_key, tools.call, guarded_body, aas_turn_token) if tools else None)
+
+
+def responses_tools(specs):
+    return [dict(type='function', name=spec['name'], description=spec['description'],
+        parameters=spec['inputSchema'], strict=False) for spec in specs]
+
+
+def aas_tool_relay(base_url, api_key, tool_handler, guarded_body, aas_turn_token):
+    async def relay(client, event):
+        try:
+            identifier = str(UUID(event['id']))
+        except (KeyError, TypeError, ValueError, AttributeError):
+            raise RuntimeError('Invalid AAS tool callback') from None
+        result = await tool_handler({'tool': event.get('name'), 'arguments': event.get('arguments')})
+        encoded = json.dumps({'id': identifier, 'result': result}, ensure_ascii=False,
+            separators=(',', ':'), allow_nan=False).encode('utf-8')
+        request = guarded_body(encoded)
+        try:
+            async with client.stream('POST', base_url.rstrip('/') + '/tool-results', content=request,
+                    headers={'Authorization': 'Bearer ' + api_key, 'Content-Type': 'application/json',
+                        'X-Memoir-AAS-Turn': aas_turn_token,
+                        'Content-Length': str(len(encoded))}) as response:
+                response.raise_for_status()
+        finally:
+            await request.aclose()
+    return relay
 
 
 async def stream_document(*, request, content_length, base_url, api_key, timeout,
-                          on_delta=None, transport=None, max_response_bytes=None):
+                          on_delta=None, transport=None, max_response_bytes=None, on_tool=None,
+                          aas_turn_token=None):
     """Consume a bounded completed JSON document through its caller's guarded body."""
     deltas = []
     try:
@@ -112,6 +148,7 @@ async def stream_document(*, request, content_length, base_url, api_key, timeout
                 async with client.stream('POST', base_url.rstrip('/') + '/responses', content=request,
                     headers={'Authorization': 'Bearer ' + api_key, 'Content-Type': 'application/json',
                              'Content-Length': str(content_length), 'Accept': 'text/event-stream',
+                             **({'X-Memoir-AAS-Turn': aas_turn_token} if aas_turn_token else {}),
                              **gateway_trace_headers()}) as response:
                     response.raise_for_status()
                     async for event in _events(response, max_response_bytes=max_response_bytes):
@@ -142,6 +179,10 @@ async def stream_document(*, request, content_length, base_url, api_key, timeout
                             raise CodexTurnIncomplete('Interview provider document did not complete')
                         elif kind in {'response.failed', 'error'}:
                             raise RuntimeError('Interview provider generation failed')
+                        elif kind == 'memoir.tool_call':
+                            if on_tool is None:
+                                raise RuntimeError('Tool callbacks require an AAS turn')
+                            await on_tool(client, event)
         raise CodexTurnIncomplete('Interview provider stream ended without completion')
     finally:
         await request.aclose()

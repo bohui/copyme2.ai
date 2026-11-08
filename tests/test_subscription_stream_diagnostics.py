@@ -370,6 +370,47 @@ def test_structured_final_remains_parseable_after_an_early_acknowledgement(tmp_p
     asyncio.run(scenario())
 
 
+@pytest.mark.parametrize('completed', [False, True])
+def test_structured_reply_requires_a_completed_message_from_its_turn(tmp_path, completed):
+    from apps.api.codex_agent import CodexConnection, CodexTurnIncomplete
+
+    prior = '{"acknowledgement":"Prior turn canary."}'
+    current = '{"acknowledgement":"Current turn."}'
+    connection = CodexConnection(['never-executed'], tmp_path)
+    events = [
+        dict(method='item/agentMessage/delta', params=dict(threadId='thread', turnId='prior',
+             itemId='old', delta=prior)),
+        dict(method='item/completed', params=dict(threadId='thread', turnId='prior',
+             item=dict(type='agentMessage', id='old', phase='final_answer', text=prior))),
+        dict(method='item/agentMessage/delta', params=dict(threadId='thread', turnId='current',
+             itemId='new', delta=current)),
+    ]
+    if completed:
+        events.append(dict(method='item/completed', params=dict(threadId='thread', turnId='current',
+            item=dict(type='agentMessage', id='new', phase='final_answer', text=current))))
+    events.append(dict(method='turn/completed', params=dict(threadId='thread',
+        turn=dict(id='current', status='completed', items=[]))))
+    deltas = []
+
+    async def request(_method, _params):
+        return {'turn': {'id': 'current'}}
+
+    async def receive():
+        return events.pop(0)
+
+    async def emit(text):
+        deltas.append(text)
+
+    connection.request, connection.receive = request, receive
+    run = connection.turn('thread', 'Synthetic narration', on_delta=emit, output_schema={'type': 'object'})
+    if completed:
+        assert asyncio.run(run) == current
+    else:
+        with pytest.raises(CodexTurnIncomplete, match='without a structured reply'):
+            asyncio.run(run)
+    assert deltas == [current]
+
+
 @pytest.mark.parametrize('mutation',[{'threadId':'foreign'},{'turnId':'foreign'},
     {'item':{'id':'bad private id','type':'dynamicToolCall'}},
     {'item':{'id':'one','type':PRIVATE}}, {'item':{'id':'one','type':'dynamicToolCall','status':PRIVATE}},

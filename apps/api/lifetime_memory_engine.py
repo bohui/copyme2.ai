@@ -330,7 +330,7 @@ async def _run_governed_collector_once(*, command, home_root, base_url, api_key,
         timeout=120, on_delta=None, on_event=None, effort=None,
         responsesapi_client_metadata=None, connection_factory=None,
         issue14_admission=None, trajectory=None, progress=None, uid=None, apply_owner=False, publisher=None,
-        acknowledgement=None,repair_reason=None,enqueue_checkpoint=None):
+        acknowledgement=None,repair_reason=None,enqueue_checkpoint=None,mira_aas=None):
     """Generate once from canonical evidence, returning an uncommitted pointer.
 
     Native reply threads resume only after canonical commitment and compatible
@@ -402,9 +402,14 @@ async def _run_governed_collector_once(*, command, home_root, base_url, api_key,
         call_name = 'memoir-mira.reply-repair' if repair_reason else 'memoir-mira.reply'
         trace = stack.enter_context(trace_llm_call(call_name, model, gateway=True,
             trace_name='memoir-mira'))
-        direct_reply = interview_context.get('reply_contract') == 'reply-v2'
+        reply_v2 = interview_context.get('reply_contract') == 'reply-v2'
+        use_aas = (mira_aas is not None and reply_v2 and not revisable
+                   and interview_context['source'].get('kind') == 'narrator_chat'
+                   and not interview_context.get('photo_context'))
         session = None
-        if direct_reply:
+        if use_aas:
+            candidate = 'reply-' + uuid4().hex
+        elif reply_v2:
             from .conversation_reply import reply_schema
             from .conversation_reply_session import open_interview
             from .interview_context_tools import InterviewContextTools
@@ -455,14 +460,23 @@ async def _run_governed_collector_once(*, command, home_root, base_url, api_key,
             variant='collector-repair' if repair is not None else 'collector',
             extra_names=(['memoir/agents/mira/repair-codes'] if repair is not None else [])
                 + (['memoir/shared/historical-acknowledgements']
-                    if not direct_reply and interview_context.get('historical_news',{}).get('clues') else []))
+                    if not reply_v2 and interview_context.get('historical_news',{}).get('clues') else []))
         trace_metadata = {
                 'contract_version': interview_context.get('reply_contract', 'lifetime-v1'),
                 'prompt_manifest': manifest, 'input_view_sha256': sha256(model_packet.encode()).hexdigest()}
         metadata = {**manifest_metadata(manifest), **(responsesapi_client_metadata or {}),
                     **gateway_metadata(call_name)}
         update_llm_trace(trace, metadata=trace_metadata)
-        if direct_reply:
+        if use_aas:
+            from .conversation_reply_transport import stream_reply
+            from .interview_context_tools import InterviewContextTools
+            reply, receipt = await stream_reply(view=json.loads(model_packet), prompt=prompt,
+                schema=output_schema, model=model, effort=effort, budget=governed.budget,
+                base_url=mira_aas[0], api_key=mira_aas[1], publisher=publisher, fence=packet.fence,
+                metadata=metadata, timeout=timeout, on_delta=model_delta if on_delta else None,
+                issue14_admission=issue14_admission, tools=InterviewContextTools(publisher, packet.fence))
+            update_llm_trace(trace, metadata={**trace_metadata, 'transport': 'advanced_aas', **receipt})
+        elif reply_v2:
             reply = await connection.turn(candidate, packet.current.narrator.original,
                 output_schema=output_schema, effort=effort,
                 on_delta=model_delta if on_delta else None, on_event=on_event,
