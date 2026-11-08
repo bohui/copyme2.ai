@@ -34,7 +34,7 @@ from .preview_jobs import PreviewJobs
 from .stage_readiness import stage_readiness
 from .background_profile import PROFILE_FIELDS
 from .lifetime_memory_read_api import (read_mapped, draft_head, draft_page, retry_draft, collection_page,
-    canonical_only, mapped_identity, map_event_page, map_event_places)
+    canonical_only, mapped_identity, map_event_page)
 from .original_recordings import MAX_ENCODED_AUDIO
 from .story_payments import (
     StripeAPIError,
@@ -353,13 +353,17 @@ def build_router(
     @router.get('/atlas-events')
     async def atlas_events(project_id: str, request: Request, view: Literal['workspace', 'map'] = 'workspace',
                            cursor: UUID | None = None, limit: int = Query(default=8, ge=1, le=8),
+                           language: Literal['en-AU', 'zh-CN'] | None = None,
+                           include_map: bool = True,
                            authorization: str | None = Header(default=None)):
         storage = await asyncio.to_thread(storage_for, authorization)
         stream = None
+        streaming = 'text/event-stream' in request.headers.get('accept', '')
+        map_revisions = ('policy_epoch', 'source_revision', 'event_revision', 'preference_revision')
         try:
             if view == 'map':
                 return await asyncio.to_thread(read_mapped, storage, project_id,
-                    lambda fence: map_event_page(storage, project_id, cursor=cursor, limit=limit), canonical_only)
+                    lambda fence: map_event_page(storage, project_id, cursor=cursor, limit=limit, language=language), canonical_only)
 
             def legacy():
                 if callable(getattr(storage, 'lifetime_rpc', None)):
@@ -369,11 +373,14 @@ def build_router(
                         'heuristic': 'narrator_context_volume_v1', 'maximum_percent': 50}
             def canonical(fence, previous=None):
                 result=storage.lifetime_rpc('read_lifetime_stage_readiness',p_project_id=project_id)
-                revisions = {key: getattr(fence, key) for key in
-                             ('policy_epoch', 'source_revision', 'event_revision', 'preference_revision')}
+                revisions = {key: getattr(fence, key) for key in map_revisions}
                 result.update(revisions)
-                if previous is None or any(getattr(previous, key) != value for key, value in revisions.items()):
-                    result['map_events'] = map_event_page(storage, project_id, limit=limit)
+                if include_map and (previous is None or any(getattr(previous, key) != value for key, value in revisions.items())):
+                    if streaming:
+                        result['map_refresh'] = True
+                    else:
+                        result['map_events'] = map_event_page(storage, project_id, limit=limit, language=language)
+                result['map_photos'] = storage.lifetime_rpc('read_lifetime_map_photos', p_project_id=project_id).get('photos', [])
                 from .two_lane_memory import two_lanes_enabled
                 if two_lanes_enabled():
                     from .background_skills import execution_map
@@ -402,8 +409,17 @@ def build_router(
                             item['status'] in {'queued','running'} or item['status']=='completed' and item['execution']=='model'
                             for item in result['skill_progress']['items']))
                 return result
-            if 'text/event-stream' not in request.headers.get('accept', ''):
+            if not streaming:
                 return await asyncio.to_thread(read_mapped, storage, project_id, canonical, legacy)
+
+            def read_more(initial, after):
+                def page(fence):
+                    if any(getattr(fence, key) != getattr(initial, key) for key in map_revisions):
+                        raise HTTPException(409, 'This map changed. Restart the feed.')
+                    return {'project_id': project_id, 'map_page': {
+                        **map_event_page(storage, project_id, cursor=after, limit=limit, language=language),
+                        'after_cursor': after, 'preference_revision': fence.preference_revision, 'streaming_pages': True}}
+                return read_mapped(storage, project_id, page, canonical_only)
 
             identity = await asyncio.to_thread(mapped_identity, storage, project_id)
             if identity is None:
@@ -419,7 +435,7 @@ def build_router(
             stream = AtlasWorkspaceStream(
                 atlas_updates.events(dsn, identity.owner_id, identity.project_id, expires_in=min(3600, expires - now)),
                 lambda previous: read_mapped(storage, project_id, lambda fence: canonical(fence, previous), canonical_only),
-                lambda: _close(storage))
+                read_more, lambda: _close(storage))
             return stream
         except httpx.HTTPError:
             raise HTTPException(503, 'Atlas updates are unavailable') from None
@@ -619,41 +635,22 @@ def build_router(
         finally:
             await asyncio.to_thread(_close, storage)
 
-    @router.get('/map-photos')
-    async def memory_map_photos(project_id: str, authorization: str | None = Header(default=None)):
-        storage = await asyncio.to_thread(storage_for, authorization)
-        try:
-            return await asyncio.to_thread(read_mapped, storage, project_id,
-                lambda fence: storage.lifetime_rpc('read_lifetime_map_photos', p_project_id=project_id), canonical_only)
-        finally:
-            await asyncio.to_thread(_close, storage)
-
-    @router.get('/atlas-events/{project_id}/{event_id}/places')
-    async def memory_map_places(project_id: str, event_id: str, cursor: UUID | None = None,
-                                limit: int = Query(default=8, ge=1, le=8),
-                                authorization: str | None = Header(default=None)):
-        storage = await asyncio.to_thread(storage_for, authorization)
-        try:
-            return await asyncio.to_thread(read_mapped, storage, project_id,
-                lambda fence: map_event_places(storage, project_id, event_id, cursor=cursor, limit=limit), canonical_only)
-        finally:
-            await asyncio.to_thread(_close, storage)
-
     @router.get('/events')
     async def memory_events(project_id: str, request: Request, cursor: UUID | None = None,
                             limit: int = Query(default=8, ge=1, le=8),
+                            language: Literal['en-AU', 'zh-CN'] | None = None,
                             authorization: str | None = Header(default=None)):
         storage = await asyncio.to_thread(storage_for, authorization)
         try:
             from .local_debug import debug_early_generation
             if debug_early_generation(request):
                 return await asyncio.to_thread(read_mapped, storage, project_id,
-                    lambda fence: collection_page(storage, project_id, kind='events', cursor=cursor, limit=limit),
+                    lambda fence: collection_page(storage, project_id, kind='events', cursor=cursor, limit=limit, language=language),
                     canonical_only)
             if not family_features_enabled(await asyncio.to_thread(storage.story_entitlement)):
                 raise HTTPException(403, 'Timeline display requires Family legacy access')
             return await asyncio.to_thread(read_mapped, storage, project_id,
-                lambda fence: collection_page(storage, project_id, kind='events', cursor=cursor, limit=limit),
+                lambda fence: collection_page(storage, project_id, kind='events', cursor=cursor, limit=limit, language=language),
                 lambda: storage.memory_events(project_id))
         finally:
             await asyncio.to_thread(_close, storage)

@@ -9227,12 +9227,26 @@ CREATE FUNCTION public.read_lifetime_collection_page(p_project_id text, p_kind t
     LANGUAGE plpgsql SECURITY DEFINER
     SET search_path TO ''
     AS $$
-declare result jsonb;
+declare result jsonb; events jsonb;
 begin
- result:=public.read_lifetime_collection_page_before_attribution(p_project_id,p_kind,p_after,p_limit,p_event_id);
+ result:=public.read_lifetime_collection_page_before_attribution(p_project_id,
+   case when p_kind='map_events' then 'events' else p_kind end,p_after,p_limit,p_event_id);
  if p_kind='sources' and exists(select 1 from public.lifetime_two_lane_rollout where singleton and enabled) then
    result:=jsonb_set(result,'{sources}',coalesce((select jsonb_agg(s||jsonb_build_object('attribution',
      public.lifetime_source_attribution_summary(auth.uid(),p_project_id,(s->>'id')::uuid))) from jsonb_array_elements(result->'sources') s),'[]'));
+ elsif p_kind='map_events' then
+   -- Display needs one unambiguous place per role. Keep evidence on its own read.
+   select coalesce(jsonb_agg(event.value||locations.projection order by event.ordinality),'[]') into events
+   from jsonb_array_elements(result->'events') with ordinality event(value,ordinality)
+   cross join lateral (
+     select jsonb_build_object(
+       'places',coalesce(jsonb_agg(jsonb_build_object('role',role,'place',place) order by role)
+         filter (where place is not null),'[]'),
+       'place_conflicts',coalesce(jsonb_agg(role order by role) filter (where place is null),'[]')) projection
+     from (select role,case when min(place_key)=max(place_key) then min(place::text)::jsonb end place
+       from public.lifetime_event_place_rows(auth.uid(),p_project_id,event.value->>'id') group by role) roles
+   ) locations;
+   result:=jsonb_set(result,'{events}',events);
  end if;
  return result;
 end $$;
@@ -14116,6 +14130,10 @@ CREATE TRIGGER atlas_skill_progress AFTER INSERT OR UPDATE OF status ON public.u
 
 CREATE TRIGGER atlas_saved_reply AFTER INSERT ON public.user_memory
   FOR EACH ROW WHEN (new.kind='agent' AND new.project_id IS NOT NULL)
+  EXECUTE FUNCTION public.notify_memoir_atlas_update('workspace');
+
+CREATE TRIGGER atlas_ready_photo AFTER UPDATE OF status ON public.user_interview_photo
+  FOR EACH ROW WHEN (new.status='ready' AND old.status IS DISTINCT FROM new.status)
   EXECUTE FUNCTION public.notify_memoir_atlas_update('workspace');
 
 CREATE TRIGGER formal_original_invalidation AFTER DELETE OR UPDATE ON public.user_narrator_source FOR EACH ROW EXECUTE FUNCTION public.invalidate_formal_memoir_authority();

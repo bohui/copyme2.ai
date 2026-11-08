@@ -489,8 +489,6 @@
       "mapEventsUnmapped": "{count} events still need a location",
       "mapEventLocationsLoading": "Finding saved event locations…",
       "mapEventLocationsUnavailable": "Some event locations could not be loaded.",
-      "mapEventLocationRefreshFailed": "Location could not be refreshed.",
-      "mapEventRetry": "Try again",
       "mapEventsPartial": "Showing loaded events.",
       "picturesSubtitle": "Searched references",
       "delivery": "Delivery",

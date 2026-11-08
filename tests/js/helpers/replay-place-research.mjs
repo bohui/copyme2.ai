@@ -9,7 +9,7 @@ import {createPhotoWorkspace} from '../../../apps/web/client/memoir/photo-worksp
 import {responsePhotoCards} from '../../../apps/web/client/memoir/interview-photo-turns.mjs';
 import {createPlaceWorkspace} from '../../../apps/web/client/memoir/place-workspace.mjs';
 import {placeHistoryKey} from '../../../apps/web/client/memoir/places.mjs';
-import {translate,translateWith} from '../../../apps/web/client/i18n.js';
+import {currentUiLocale,translate,translateWith} from '../../../apps/web/client/i18n.js';
 import {escapeHtml,formatText} from '../../../apps/web/client/memoir/dom.mjs';
 
 const packet = JSON.parse(readFileSync(0, 'utf8'));
@@ -31,7 +31,7 @@ Object.assign(globalThis,{
   localStorage:{getItem:key=>values.get(key)??null,setItem:(key,value)=>values.set(key,value)},
   setTimeout:schedule,clearTimeout:id=>timers.delete(id),
 });
-const context = vm.createContext({state,AbortController,URLSearchParams,TextDecoder,document,translate,placeHistoryKey,
+const context = vm.createContext({state,AbortController,URLSearchParams,TextDecoder,document,translate,currentUiLocale,placeHistoryKey,
   Date:class extends Date {
     constructor(...args) { super(...(args.length ? args : [now])); }
     static now() { return now; }
@@ -92,7 +92,7 @@ const dependencies={state,api,supabaseApi,profile:context.profile,
 let places;
 const photos=createPhotoWorkspace({...dependencies,placeMapTarget:entry=>places.placeMapTarget(entry)});
 places=createPlaceWorkspace({...dependencies,photos});
-Object.assign(context,photos,{api,saveProfileUpdates:dependencies.saveProfileUpdates,resolvePlaceMap:places.resolvePlaceMap,
+Object.assign(context,photos,{photos,api,saveProfileUpdates:dependencies.saveProfileUpdates,resolvePlaceMap:places.resolvePlaceMap,
   rememberPlaceJourneyProject:places.rememberPlaceJourneyProject});
 
 await context.refreshStageReadiness();

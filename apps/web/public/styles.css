@@ -1297,10 +1297,3 @@ body:has(.story-shell #chat-scroll) { overflow: hidden; }
 
 .map-memory-description:has(> [data-memory-text]:empty),
 .map-memory-location:has(> [data-memory-text]:empty) { display: none; }
-
-.map-memory-location-status { display: flex; align-items: center; flex-wrap: wrap; gap: 6px; color: #6c4d32; font-size: 12px; }
-.map-memory-location-status .text-button { min-height: 36px; font-size: inherit; }
-.map-memory-refresh { width: 12px; height: 12px; border: 2px solid #668270; border-right-color: transparent; border-radius: 50%; animation: map-memory-refresh .8s linear infinite; }
-.map-memory-location-status[hidden], .map-memory-refresh[hidden], .map-memory-location-status button[hidden] { display: none; }
-@keyframes map-memory-refresh { to { transform: rotate(360deg); } }
-@media (prefers-reduced-motion: reduce) { .map-memory-refresh { animation: none; } }
