@@ -289,6 +289,9 @@ class CodexConnection:
                 params = event.get('params', {})
                 if params.get('threadId') != thread_id:
                     continue
+                if (output_schema is not None and params.get('turnId') != turn_id
+                        and event.get('method') in ('item/agentMessage/delta', 'item/completed')):
+                    continue
                 if event.get('method') == 'thread/tokenUsage/updated':
                     self.last_usage = params.get('tokenUsage', {}).get('last')
                 if self.progress:
@@ -363,6 +366,9 @@ class CodexConnection:
                                 and 'max_output_tokens' in error['message']):
                             raise CodexTurnIncomplete('Provider output was incomplete')
                         raise RuntimeError('Codex turn failed; no reply was substituted')
+                    reply = '\n'.join(messages)
+                    if output_schema is not None and not reply.strip():
+                        raise CodexTurnIncomplete('Codex completed without a structured reply')
                     log_diagnostic(
                         diagnostic_logger,
                         'appserver_turn_terminal',
@@ -378,7 +384,7 @@ class CodexConnection:
                         self.trajectory.record('codex.turn', 'turn.completed', output={'turn': params['turn'], 'message_count': len(messages)})
                     if self.progress:
                         self.progress.complete_turn()
-                    return '\n'.join(messages)
+                    return reply
 
 
 def provider_config(base_url, model, *, governed=False):
